@@ -27,6 +27,10 @@ what a vowel *is*.
 Each cylinder in the 3D view is coloured by the standing-wave energy actually present in
 that section, so you can watch the pressure pattern that produces a formant.
 
+The tube is drawn as soon as the page loads and the articulator sliders reshape it
+immediately — audio just adds the wind. Starting the voice sustains **one** vowel;
+**SAY GOOOAAALLL** is the only control that moves the tract through a whole word.
+
 ## Controls
 
 **Start audio** unlocks the browser's audio, then that same button stops and starts the

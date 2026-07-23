@@ -145,6 +145,9 @@ input[type=range]:focus-visible{outline:2px solid var(--amber);outline-offset:4p
       <div class="row"><span>Vowel hold</span><span class="v" id="vHold">0.55</span></div>
       <input type="range" id="sHold" min="0.2" max="0.8" step="0.01" value="0.55">
       <button class="say" id="sayBtn">SAY GOOOAAALLL</button>
+      <p class="hint">The sliders above hold <em>one</em> shape, so the voice sustains a single
+      vowel. This button is the only thing that moves the tract through /g/ → o → ɑ → l and
+      actually says the word.</p>
       <p class="hint">Nothing here schedules a formant. The controls move the walls of a tube;
       the resonances are whatever the geometry produces.</p>
     </div>
@@ -155,6 +158,7 @@ input[type=range]:focus-visible{outline:2px solid var(--amber);outline-offset:4p
 <div class="readout">
   <span>Peaks <b id="fmt">—</b></span>
   <span>Voiced <b id="vstate">off</b></span>
+  <span>Mode <b id="mode">idle</b></span>
   <span style="margin-left:auto">Reflection at each junction: <b>r = (A₁−A₂)/(A₁+A₂)</b></span>
 </div>
 
@@ -335,7 +339,7 @@ class TractProcessor extends AudioWorkletProcessor {
       }
       if((this.tick % 512)===0){
         this.port.postMessage({e:this.energy, d:Float32Array.from(this.diam),
-                               on:this.vAmp>0.02, v:this.voicing});
+                               on:this.vAmp>0.02, v:this.voicing, seq:!!this.seq});
       }
       this.tick++;
     }
@@ -348,6 +352,7 @@ registerProcessor('tract', TractProcessor);
 // ─────────────────────────────────────────────────────────────────────────────
 let ctx=null, node=null, analyser=null, gainNode=null, N=44, started=false;
 let energy=null, liveDiam=null, voicedNow=false, voicing=0;
+let curShape=null, sequencing=false;      // the tube exists before the wind does
 
 async function start(){
   if(started) return; started=true;
@@ -363,12 +368,13 @@ async function start(){
   node.connect(analyser); analyser.connect(gainNode); gainNode.connect(ctx.destination);
   node.port.onmessage = e => {
     energy=e.data.e; liveDiam=e.data.d; voicedNow=e.data.on;
+    sequencing=e.data.seq;
     if(e.data.v!==voicing){ voicing=e.data.v; paintBtn(); }   // the cry ends by itself
   };
 
   document.getElementById('secCount').textContent = N;
   document.getElementById('lenCm').textContent = (N*350/(ctx.sampleRate*2)*100).toFixed(1);
-  buildTubes();
+  if(N !== tubes.length) buildTubes();      // hardware sample rate may want a different count
   pushShape(true);
   node.port.postMessage({type:'f0', value:+sF0.value});
   node.port.postMessage({type:'breath', value:+sBr.value});
@@ -416,8 +422,9 @@ function pushShape(snap){
   document.getElementById('vWid').textContent=(+sWid.value).toFixed(2);
   document.getElementById('vLip').textContent=(+sLip.value).toFixed(2);
   document.getElementById('vBase').textContent=(+sBase.value).toFixed(2);
+  curShape = buildShape(params(), N);
   if(!node) return;
-  node.port.postMessage({type:'shape', diam:buildShape(params(),N), snap:!!snap});
+  node.port.postMessage({type:'shape', diam:curShape, snap:!!snap});
 }
 [sPos,sCon,sWid,sLip,sBase].forEach(s=>s.addEventListener('input',()=>{
   document.querySelectorAll('.key').forEach(k=>k.classList.remove('on'));
@@ -445,7 +452,10 @@ document.querySelectorAll('.key').forEach(b=>b.addEventListener('click',()=>{
   const p = SHAPES[ph==='g'?'oh':ph];
   sBase.value=p.base; sPos.value=p.cPos; sCon.value=p.cDiam; sWid.value=p.cWidth; sLip.value=p.lip;
   pushShape(false);
-  if(ph==='g' && node) node.port.postMessage({type:'shape', diam:withClosure(buildShape(p,N),N)});
+  if(ph==='g'){
+    curShape = withClosure(buildShape(p,N), N);
+    if(node) node.port.postMessage({type:'shape', diam:curShape});
+  }
 }));
 
 document.getElementById('sayBtn').addEventListener('click', async ()=>{
@@ -541,7 +551,7 @@ function frame(){
     if(energy) for(let i=0;i<energy.length;i++) peak=Math.max(peak,energy[i]);
     for(let i=0;i<tubes.length;i++){
       const t=tubes[i];
-      const d = liveDiam? liveDiam[i] : 1.5;
+      const d = liveDiam ? liveDiam[i] : (curShape ? curShape[i] : 1.5);
       const r = Math.max(0.05, d)*0.42;
       t.mesh.scale.set(r,0.30,r);
       const e = energy? Math.pow(energy[i]/peak,0.6) : 0.04;
@@ -552,8 +562,12 @@ function frame(){
   }
   drawSpectro();
   document.getElementById('vstate').textContent = voicedNow? 'on':'off';
+  document.getElementById('mode').textContent =
+    sequencing ? 'saying GOOOAAALLL' : (voicing ? 'holding one vowel' : (started?'silent':'idle'));
   renderer.render(scene,camera);
 }
+buildTubes();
+pushShape(false);
 resize(); frame();
 
 // ── live spectrogram: the classic phonetics artefact ────────────────────────
