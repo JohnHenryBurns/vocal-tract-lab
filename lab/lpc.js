@@ -60,8 +60,9 @@ function lpcFormants(x, start, order = 12, winMs = 40) {
   const pk = [];
   for (let i = 1; i < spec.length - 1; i++)
     if (spec[i][1] > spec[i - 1][1] && spec[i][1] > spec[i + 1][1]) pk.push(spec[i]);
-  pk.sort((p, q) => q[1] - p[1]);
-  return pk.slice(0, 4).map(p => p[0]).sort((p, q) => p - q);
+  // formants are the LOWEST resonances in order — not the loudest.
+  // (Sorting by magnitude drops a weak F2 and promotes F3 into its place.)
+  return pk.map(p => p[0]).filter(f => f > 180).sort((p, q) => p - q).slice(0, 4);
 }
 
 if (require.main === module) {

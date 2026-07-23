@@ -99,6 +99,16 @@ input[type=range]:focus-visible{outline:2px solid var(--amber);outline-offset:4p
 .say:active{transform:translateY(1px)}
 .say:disabled{opacity:.35;cursor:default}
 
+.chain{min-height:2.1rem;border:1px dashed var(--rule);border-radius:3px;padding:.4rem .5rem;
+  display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;margin-bottom:.5rem}
+.chain .empty{color:var(--dim);font-size:.66rem}
+.chip{background:var(--panel2);border:1px solid var(--rule);border-radius:2px;
+  padding:.15rem .45rem;font-size:.85rem;color:var(--amber)}
+.crow{display:flex;gap:.4rem}
+.mini{flex:1;font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;
+  padding:.5rem 0;background:transparent;color:var(--ink);border:1px solid var(--rule);
+  border-radius:2px;cursor:pointer}
+.mini:hover{border-color:var(--amber);color:var(--amber)}
 #specWrap{position:relative;border-top:1px solid var(--rule)}
 #spectro{width:100%;height:110px;display:block;background:#07100f}
 #specTag{position:absolute;left:.7rem;top:.4rem;font-size:.55rem;letter-spacing:.14em;
@@ -158,13 +168,19 @@ input[type=range]:focus-visible{outline:2px solid var(--amber);outline-offset:4p
     </div>
 
     <div class="group">
-      <div class="glabel">Shapes</div>
-      <div class="keys">
-        <button class="key" data-ph="neutral">ə</button>
-        <button class="key" data-ph="g">g</button>
-        <button class="key on" data-ph="oh">o</button>
-        <button class="key" data-ph="ah">ɑ</button>
-        <button class="key" data-ph="l">l</button>
+      <div class="glabel">Vowels</div>
+      <div class="keys" id="vkeys"></div>
+      <div class="glabel" style="margin-top:.85rem">Stops</div>
+      <div class="keys" id="ckeys"></div>
+      <p class="hint">Tap to shape the tract — and to add it to the word below.</p>
+    </div>
+
+    <div class="group">
+      <div class="glabel">Word</div>
+      <div id="chain" class="chain"><span class="empty">tap phonemes to build one</span></div>
+      <div class="crow">
+        <button class="mini" id="playChain">Play</button>
+        <button class="mini" id="clearChain">Clear</button>
       </div>
     </div>
 
@@ -199,12 +215,101 @@ input[type=range]:focus-visible{outline:2px solid var(--amber);outline-offset:4p
 // Positions are normalised (0 = glottis, 1 = lips) so they survive any sample rate.
 // ─────────────────────────────────────────────────────────────────────────────
 const SHAPES = {
-  neutral:{base:1.50, cPos:0.50, cDiam:1.50, cWidth:0.20, lip:1.50},
-  oh:     {base:1.76, cPos:0.25, cDiam:0.47, cWidth:0.225,lip:1.24},
-  ah:     {base:2.39, cPos:0.205,cDiam:0.64, cWidth:0.325,lip:1.96},
-  l:      {base:2.53, cPos:0.432,cDiam:1.11, cWidth:0.268,lip:0.90},
+ "i": {
+  "base": 2.275,
+  "cPos": 0.657,
+  "cDiam": 0.589,
+  "cWidth": 0.312,
+  "lip": 1.717
+ },
+ "ɪ": {
+  "base": 1.883,
+  "cPos": 0.637,
+  "cDiam": 0.632,
+  "cWidth": 0.142,
+  "lip": 2.018
+ },
+ "ɛ": {
+  "base": 2.077,
+  "cPos": 0.084,
+  "cDiam": 0.419,
+  "cWidth": 0.363,
+  "lip": 1.048
+ },
+ "æ": {
+  "base": 1.875,
+  "cPos": 0.107,
+  "cDiam": 0.629,
+  "cWidth": 0.273,
+  "lip": 1.866
+ },
+ "ʌ": {
+  "base": 2.161,
+  "cPos": 0.166,
+  "cDiam": 0.51,
+  "cWidth": 0.312,
+  "lip": 1.592
+ },
+ "ɑ": {
+  "base": 1.958,
+  "cPos": 0.197,
+  "cDiam": 0.437,
+  "cWidth": 0.345,
+  "lip": 1.881
+ },
+ "ɔ": {
+  "base": 2.253,
+  "cPos": 0.231,
+  "cDiam": 0.643,
+  "cWidth": 0.218,
+  "lip": 1.271
+ },
+ "ʊ": {
+  "base": 2.78,
+  "cPos": 0.348,
+  "cDiam": 1.559,
+  "cWidth": 0.321,
+  "lip": 1.179
+ },
+ "u": {
+  "base": 2.096,
+  "cPos": 0.459,
+  "cDiam": 0.995,
+  "cWidth": 0.198,
+  "lip": 0.655
+ },
+ "ɝ": {
+  "base": 2.068,
+  "cPos": 0.444,
+  "cDiam": 1.097,
+  "cWidth": 0.103,
+  "lip": 1.754
+ },
+ "ə": {
+  "base": 1.161,
+  "cPos": 0.155,
+  "cDiam": 1.18,
+  "cWidth": 0.166,
+  "lip": 1.822
+ },
+ "o": {
+  "base": 1.76,
+  "cPos": 0.25,
+  "cDiam": 0.47,
+  "cWidth": 0.225,
+  "lip": 1.24
+ },
+ "l": {
+  "base": 2.53,
+  "cPos": 0.432,
+  "cDiam": 1.11,
+  "cWidth": 0.268,
+  "lip": 0.9
+ }
 };
-const VELAR = 0.568;                       // where /g/ closes
+// stop consonants are the same move at three places along the tract
+const STOPS = { b:0.97, d:0.80, g:0.568 };   // lips · alveolar ridge · velum
+const VELAR = STOPS.g;
 
 function buildShape(p, n){
   const d = new Float64Array(n);
@@ -220,9 +325,9 @@ function buildShape(p, n){
   d[0] = Math.min(d[0], 0.8);
   return d;
 }
-function withClosure(base, n){            // /g/ = the /o/ shape, sealed at the velum
+function withClosure(base, n, where){     // seal the tube at a place of articulation
   const d = Float64Array.from(base);
-  const c = Math.round(VELAR*(n-1)), w = Math.max(2, Math.round(n*0.07));
+  const c = Math.round((where===undefined?VELAR:where)*(n-1)), w = Math.max(2, Math.round(n*0.07));
   for(let i=c-w;i<=c+w;i++){
     if(i<0||i>=n) continue;
     const k = 1 - Math.abs(i-c)/(w+1);
@@ -347,10 +452,12 @@ class TractProcessor extends AudioWorkletProcessor {
       y/=this.steps;
 
       // ---- stop release: turbulence when a seal springs open ----
-      const cl=this.diam[this.velar], dA=cl-this.prevClose;
+      let mi=1, cl=1e9;                       // the narrowest point IS the place of articulation
+      for(let i=1;i<n-1;i++) if(this.diam[i]<cl){ cl=this.diam[i]; mi=i; }
+      const dA=cl-this.prevClose;
       if(cl<0.6 && dA>0.0008){
         const b=(Math.random()*2-1)*dA*26;
-        this.R[this.velar]+=b; this.L[this.velar]+=b;
+        this.R[mi]+=b; this.L[mi]+=b;
       }
       this.prevClose=cl;
 
@@ -474,23 +581,65 @@ sBr.addEventListener('input',()=>{
 sDur.addEventListener('input',()=>document.getElementById('vDur').textContent=(+sDur.value).toFixed(1)+' s');
 sHold.addEventListener('input',()=>document.getElementById('vHold').textContent=(+sHold.value).toFixed(2));
 
-document.querySelectorAll('.key').forEach(b=>b.addEventListener('click',()=>{
-  const ph=b.dataset.ph;
-  document.querySelectorAll('.key').forEach(k=>k.classList.remove('on'));
-  b.classList.add('on');
-  const p = SHAPES[ph==='g'?'oh':ph];
+// ── phoneme palette, built from the solved inventory ──
+const VOWEL_KEYS = ['i', 'ɪ', 'ɛ', 'æ', 'ʌ', 'ɑ', 'ɔ', 'ʊ', 'u', 'ɝ', 'ə', 'o', 'l'];
+const STOP_KEYS  = ['b','d','g'];
+let chain = [];
+
+function makeKey(sym, host){
+  const b=document.createElement('button');
+  b.className='key'; b.textContent=sym; b.dataset.ph=sym;
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.key').forEach(k=>k.classList.remove('on'));
+    b.classList.add('on');
+    applyPhoneme(sym);
+    chain.push(sym); drawChain();
+  });
+  host.appendChild(b);
+}
+function baseFor(sym){ return SHAPES[sym] || SHAPES['ə']; }
+function shapeFor(sym){
+  if(STOP_KEYS.includes(sym)) return withClosure(buildShape(SHAPES['ə'],N), N, STOPS[sym]);
+  return buildShape(baseFor(sym), N);
+}
+function applyPhoneme(sym){
+  const p = STOP_KEYS.includes(sym) ? SHAPES['ə'] : baseFor(sym);
   sBase.value=p.base; sPos.value=p.cPos; sCon.value=p.cDiam; sWid.value=p.cWidth; sLip.value=p.lip;
   pushShape(false);
-  if(ph==='g'){
-    curShape = withClosure(buildShape(p,N), N);
-    if(node) node.port.postMessage({type:'shape', diam:curShape});
-  }
-}));
+  curShape = shapeFor(sym);
+  if(node) node.port.postMessage({type:'shape', diam:curShape});
+}
+function drawChain(){
+  const el=document.getElementById('chain');
+  el.innerHTML = chain.length
+    ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
+    : '<span class="empty">tap phonemes to build one</span>';
+}
+VOWEL_KEYS.forEach(k=>makeKey(k, document.getElementById('vkeys')));
+STOP_KEYS.forEach(k=>makeKey(k, document.getElementById('ckeys')));
+drawChain();
+
+document.getElementById('clearChain').addEventListener('click',()=>{ chain=[]; drawChain(); });
+document.getElementById('playChain').addEventListener('click', async ()=>{
+  if(!chain.length) return;
+  if(!started) await start();
+  const hold=0.17, glide=0.09, lead=0.05;
+  const keys=[]; let t=0;
+  chain.forEach((sym,i)=>{
+    const d=Array.from(shapeFor(sym));
+    const isStop=STOP_KEYS.includes(sym);
+    if(i===0){ keys.push({t:0,d}); t=isStop?0.06:hold; keys.push({t,d}); }
+    else { t+=isStop?lead:glide; keys.push({t,d}); t+=isStop?0.05:hold; keys.push({t,d}); }
+  });
+  const end=t+0.25;
+  const f0=[[0,215],[0.15,238],[end*0.7,236],[end,196]];
+  node.port.postMessage({type:'goal', seq:{keys, f0, end}});
+});
 
 document.getElementById('sayBtn').addEventListener('click', async ()=>{
   if(!started) await start();
   const D=+sDur.value, hold=+sHold.value;
-  const oh=buildShape(SHAPES.oh,N), ah=buildShape(SHAPES.ah,N), ll=buildShape(SHAPES.l,N);
+  const oh=buildShape(SHAPES['o'],N), ah=buildShape(SHAPES['ɑ'],N), ll=buildShape(SHAPES['l'],N);
   const g=withClosure(oh,N);
   const vEnd = 0.10 + (D-0.10)*hold;              // where "oh" gives way to "aah"
   const lStart = D*0.80;
