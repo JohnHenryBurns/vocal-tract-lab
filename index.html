@@ -606,6 +606,7 @@ class TractProcessor extends AudioWorkletProcessor {
     this.bR=new Float64Array(this.bN); this.bL=new Float64Array(this.bN);
     this.bRin=new Float64Array(this.bN); this.bLin=new Float64Array(this.bN);
     this.dcX=0; this.dcY=0; this.tick=0;
+    this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1;
     this.seq=null; this.seqT=0; this.prevClose=1;
     this.velar=Math.round(${VELAR}*(n-1));
     this.port.onmessage=(e)=>{
@@ -628,6 +629,7 @@ class TractProcessor extends AudioWorkletProcessor {
         if(v.damp!==undefined) this.damp=v.damp;
         if(v.lipR!==undefined) this.lipR=v.lipR;
         if(v.brth!==undefined) this.breath=v.brth;
+        if(v.burst!==undefined) this.burstK=v.burst;
       }
     };
     this.calcRefl();
@@ -739,10 +741,22 @@ class TractProcessor extends AudioWorkletProcessor {
       // ---- stop release: turbulence when a seal springs open ----
       let mi=1, cl=1e9;                       // the narrowest point IS the place of articulation
       for(let i=1;i<n-1;i++) if(this.diam[i]<cl){ cl=this.diam[i]; mi=i; }
-      const dA=cl-this.prevClose;
-      if(cl<0.6 && dA>0.0008){
-        const b=(Math.random()*2-1)*dA*26;
-        this.R[mi]+=b; this.L[mi]+=b;
+      // A stop is silence, then a bang. Charge while the tube is sealed — a stand-in for the
+      // pressure a real speaker builds — then spend it the moment the seal breaks.
+      if(cl<0.14){
+        this.charge=Math.min(1,(this.charge||0)+1/(sr*0.05));
+        this.sealAt=mi;
+      } else if((this.charge||0)>0.12 && cl>0.22){
+        this.burstN=Math.floor(sr*0.014);
+        this.burstA=this.charge*(this.burstK||1.9);
+        this.burstAt=this.sealAt||mi;
+        this.charge=0;
+      }
+      if(this.burstN>0){
+        const k=this.burstN/(sr*0.014);
+        const b=(Math.random()*2-1)*this.burstA*k*k;
+        this.R[this.burstAt]+=b; this.L[this.burstAt]+=b;
+        this.burstN--;
       }
       this.prevClose=cl;
 
@@ -948,6 +962,7 @@ const VOICE_SPEC=[
   {k:'drawl',lo:0,      hi:1,       d:0.55},    // how much the first vowel is stretched
   {k:'glide',lo:0.03,   hi:0.22,    d:0.085},  // transition time between sounds
   {k:'stopT',lo:0.035,  hi:0.15,    d:0.075},  // how long a stop stays sealed
+  {k:'burst',lo:0.5,    hi:3.4,     d:1.9},    // how hard a stop releases
 ];
 const defaultVoice=()=>Object.fromEntries(VOICE_SPEC.map(p=>[p.k,p.d]));
 let champion=defaultVoice(), challenger=null, round=1, step=1.0;
@@ -973,7 +988,9 @@ function encodeVoice(v){
   }).join('');
 }
 function decodeVoice(str){
-  if(!/^[0-9a-z]{20}$/i.test(str)) return null;
+  // length follows the vector, so adding a parameter cannot silently break loading
+  const want=VOICE_SPEC.length*2;
+  if(typeof str!=='string' || str.length!==want || !/^[0-9a-z]+$/i.test(str)) return null;
   const v={};
   VOICE_SPEC.forEach((p,i)=>{
     const t=parseInt(str.substr(i*2,2),36);
@@ -1066,7 +1083,7 @@ document.getElementById('copySeed').addEventListener('click',()=>{
   b.textContent='Copied'; setTimeout(()=>b.textContent='Copy',1200);
 });
 document.getElementById('loadSeed').addEventListener('click',()=>{
-  const s=prompt('Paste a voice seed (20 characters)');
+  const s=prompt('Paste a voice seed ('+(VOICE_SPEC.length*2)+' characters)');
   if(!s) return;
   const v=decodeVoice(s.trim());
   if(!v){ alert('That does not look like a seed.'); return; }
@@ -1114,22 +1131,29 @@ document.getElementById('goalPreset').addEventListener('click',()=>{
 // ── one player for any word ─────────────────────────────────────────────
 // Stops get a short seal + release. Whatever time is left is shared among the
 // sustainable sounds, weighted by Drawl so the first one can be stretched.
+const APPROX=['l'];                      // sustainable, but consonants: short and quick
 function buildWord(chain, D, drawl, glide, stopHold){
   glide = glide||0.085; stopHold = stopHold||0.075;
-  const stops=chain.filter(c=>STOP_KEYS.includes(c)).length;
-  const subs =chain.length-stops;
-  const glides=Math.max(0,chain.length-1)*glide;
-  let pool=Math.max(0.12*Math.max(subs,1), D-stops*stopHold-glides);
-  const w=[]; let wi=0;
-  chain.forEach(c=>{ if(!STOP_KEYS.includes(c)){ w.push(wi++===0 ? 1+drawl*2.6 : 1); } });
-  const wsum=w.reduce((a,b)=>a+b,0)||1;
+  const isStop=c=>STOP_KEYS.includes(c), isAp=c=>APPROX.includes(c);
+  const stops=chain.filter(isStop).length;
+  // transitions into a consonant are fast; a slow approach to /l/ just sounds like /w/
+  const glideFor=(i)=> (i>0 && (isStop(chain[i])||isAp(chain[i]))) ? glide*0.45 : glide;
+  let glides=0; for(let i=1;i<chain.length;i++) glides+=glideFor(i);
+  const vw=[];                            // weights over everything that is held
+  let first=true;
+  chain.forEach(c=>{ if(isStop(c)) return;
+    if(isAp(c)) vw.push(0.34);            // a lateral is a beat, not a vowel
+    else { vw.push(first ? 1+drawl*2.6 : 1); first=false; }
+  });
+  const wsum=vw.reduce((a,b)=>a+b,0)||1;
+  const held=chain.filter(c=>!isStop(c)).length;
+  let pool=Math.max(0.12*Math.max(held,1), D-stops*stopHold-glides);
   const keys=[]; let t=0, k=0;
   chain.forEach((sym,i)=>{
     const d=Array.from(shapeFor(sym));
     const b=branchFor(sym);
-    const isStop=STOP_KEYS.includes(sym);
-    const dur=isStop ? stopHold : pool*w[k++]/wsum;
-    if(i>0) t+=glide;
+    const dur=isStop(sym) ? stopHold : pool*vw[k++]/wsum;
+    if(i>0) t+=glideFor(i);
     keys.push({t,d,b});
     t+=dur;
     keys.push({t,d,b});
