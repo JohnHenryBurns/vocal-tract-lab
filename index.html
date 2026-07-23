@@ -29,6 +29,7 @@ h1{font-family:var(--sans);font-weight:600;font-size:1rem;letter-spacing:-.01em;
   padding:.45rem .8rem;background:transparent;color:var(--ink);border:1px solid var(--line)}
 .btn:hover{border-color:var(--ink)}
 .btn.dim{color:var(--dim);border-color:var(--rule)}
+.btn.primary{border-color:var(--ink)}
 .btn.solid{background:var(--ink);color:#0d1013;border-color:var(--ink);font-weight:600}
 .btn.solid:hover{filter:brightness(.94)}
 
@@ -205,7 +206,7 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 <div id="specWrap"><canvas id="spectro"></canvas><span id="specTag">spectrogram · 0–4.2 kHz</span></div>
 <div id="dock">
   <button class="btn" id="holdBtn" title="Voice the shape the tract is in right now">Hold</button>
-  <button class="btn solid say" id="playBtn">Play word</button>
+  <button class="btn primary say" id="playBtn">Play word</button>
   <button class="btn" id="panelToggle">Controls</button>
 </div>
 <div id="scrim"></div>
@@ -375,6 +376,7 @@ class TractProcessor extends AudioWorkletProcessor {
       if(d.type==='breath') this.breath=d.value;
       if(d.type==='voicing') this.voicing=d.value;
       if(d.type==='goal'){ this.seq=d.seq; this.seqT=0; this.voicing=1; }
+      if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; }
     };
     this.calcRefl();
   }
@@ -514,8 +516,9 @@ async function start(){
   node.connect(analyser); analyser.connect(gainNode); gainNode.connect(ctx.destination);
   node.port.onmessage = e => {
     energy=e.data.e; liveDiam=e.data.d; voicedNow=e.data.on;
-    sequencing=e.data.seq;
-    if(e.data.v!==voicing){ voicing=e.data.v; paintBtn(); }   // the cry ends by itself
+    const changed = (e.data.seq!==sequencing) || (e.data.v!==voicing);
+    sequencing=e.data.seq; voicing=e.data.v;
+    if(changed) paintBtn();                                   // a word ends by itself
   };
 
   document.getElementById('secCount').textContent = N;
@@ -527,9 +530,20 @@ async function start(){
 }
 
 const holdBtn=document.getElementById('holdBtn');
+const playBtn=document.getElementById('playBtn');
 function paintBtn(){
-  holdBtn.textContent = voicing ? 'Holding' : 'Hold';
-  holdBtn.classList.toggle('solid', !!voicing);
+  // one rule everywhere: outlined = waiting, solid = active
+  holdBtn.textContent = voicing && !sequencing ? 'Holding' : 'Hold';
+  holdBtn.classList.toggle('solid', !!voicing && !sequencing);
+  playBtn.textContent = sequencing ? 'Stop' : 'Play word';
+  playBtn.classList.toggle('solid', !!sequencing);
+  const pt=document.getElementById('panelToggle');
+  const panel=document.querySelector('aside');          // looked up, not closed over
+  if(pt){
+    const open=panel && panel.classList.contains('open');
+    pt.textContent = open ? 'Close' : 'Controls';
+    pt.classList.toggle('solid', !!open);
+  }
   const hs=document.getElementById('hstat');
   if(hs) hs.textContent = !started ? 'audio off' : (sequencing ? 'speaking' : (voicing?'sustaining':'ready'));
 }
@@ -636,7 +650,7 @@ const aside=document.querySelector('aside'), scrim=document.getElementById('scri
 function sheet(open){
   aside.classList.toggle('open', open);
   scrim.classList.toggle('on', open);
-  document.getElementById('panelToggle').textContent = open ? 'Close' : 'Controls';
+  paintBtn();
 }
 document.getElementById('panelToggle').addEventListener('click',()=>
   sheet(!aside.classList.contains('open')));
@@ -685,8 +699,16 @@ async function playWord(){
   const {keys,end}=buildWord(chain, D, drawl);
   const f0=[[0,208],[Math.min(0.12,end*0.1),242],[end*0.55,248],[end*0.82,236],[end,196],[end+0.2,180]];
   node.port.postMessage({type:'goal', seq:{keys, f0, end}});
+  sequencing=true; paintBtn();          // respond immediately, the engine confirms in a few ms
 }
-document.getElementById('playBtn').addEventListener('click', playWord);
+playBtn.addEventListener('click', ()=>{
+  if(sequencing){                       // cut it short
+    node.port.postMessage({type:'stopSeq'});
+    sequencing=false; voicing=0; paintBtn();
+    return;
+  }
+  playWord();
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3D: the tube stack, laid along a mid-sagittal path from glottis to lips.
@@ -804,6 +826,7 @@ function frame(){
 }
 buildTubes();
 pushShape(false);
+paintBtn();                 // set the resting state of every control
 resize(); frame();
 
 // ── live spectrogram: the classic phonetics artefact ────────────────────────
