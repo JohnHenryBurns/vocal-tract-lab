@@ -587,11 +587,11 @@ const SHAPES = {
   "lip": 1.24
  },
  "l": {
-  "base": 2.2,
-  "cPos": 0.74,
-  "cDiam": 0.8,
-  "cWidth": 0.16,
-  "lip": 1.3
+  "base": 1.8,
+  "cPos": 0.84,
+  "cDiam": 0.7,
+  "cWidth": 0.1,
+  "lip": 1.9
  }
 };
 // stop consonants are the same move at three places along the tract
@@ -651,9 +651,9 @@ class TractProcessor extends AudioWorkletProcessor {
     this.OQ=0.60; this.SQ=2.8; this.jitAmt=1;      // glottal shape + irregularity
     // ---- side branch: the closed pocket that gives /l/ its anti-resonance ----
     const secM = 350/(sampleRate*2);
-    this.bN    = Math.max(4, Math.round(12*0.00397/secM));  // solved pocket
-    this.bPos  = Math.round(n*0.74);            // taps at the tongue-tip constriction
-    this.bArea = 3; this.bEnd = 0.97;      // closed pocket
+    this.bN    = Math.max(3, Math.round(6*0.00397/secM));  // solved pocket
+    this.bPos  = Math.round(n*0.84);    // taps at the tongue-tip constriction
+    this.bArea = 1.5; this.bEnd = 0.97;      // closed pocket
     this.bOpen = 0; this.bTarget = 0;
     this.bR=new Float64Array(this.bN); this.bL=new Float64Array(this.bN);
     this.bRin=new Float64Array(this.bN); this.bLin=new Float64Array(this.bN);
@@ -793,6 +793,7 @@ class TractProcessor extends AudioWorkletProcessor {
         // what makes the silence, and the release is abrupt because the tube opens, not because
         // an envelope ramps. Fading voicing here was adding a 60 ms rise — which is a /w/.
         amp=1;
+        if(this.seqT<0.025) amp*=this.seqT/0.025;   // no instantaneous phonation at t=0
         const tail=this.seq.end-this.seqT;
         if(tail<0.30) amp*=Math.max(0,tail/0.30);
       }
