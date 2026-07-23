@@ -427,16 +427,21 @@ class TractProcessor extends AudioWorkletProcessor {
           }
         }
         if(done){
-          if(this.seqT>this.seq.end){ this.seq=null; this.voicing=0; }
+          if(this.seqT>this.seq.end){
+            this.seq=null; this.voicing=0;   // the word is over
+            this.target.set(this.diam);      // hand the tract back where it stands
+          }
           else for(let i=0;i<n;i++) this.diam[i]=K[K.length-1].d[i];
         }
-        const F=this.seq.f0;
-        let f=F[F.length-1][1];
-        for(let k=1;k<F.length;k++) if(this.seqT<=F[k][0]){
-          const [t0,v0]=F[k-1],[t1,v1]=F[k];
-          f=v0+(v1-v0)*(this.seqT-t0)/(t1-t0); break;
+        if(this.seq){                        // only read the contour while one exists
+          const F=this.seq.f0;
+          let f=F[F.length-1][1];
+          for(let k=1;k<F.length;k++) if(this.seqT<=F[k][0]){
+            const [t0,v0]=F[k-1],[t1,v1]=F[k];
+            f=v0+(v1-v0)*(this.seqT-t0)/(t1-t0); break;
+          }
+          this.f0=f;
         }
-        this.f0=f;
       } else {
         for(let i=0;i<n;i++) this.diam[i]+=(this.target[i]-this.diam[i])*0.0006;
       }
