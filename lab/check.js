@@ -101,6 +101,28 @@ check("sibilants are shaped, not broadband", () => {
   return { ok, note: notes.join("  ") };
 });
 
+check("frication breathes rather than sitting flat", () => {
+  // Stationary white noise IS electronic static, by definition. Real turbulence is
+  // intermittent — eddies form and collapse — and that fluctuation is what the ear reads
+  // as breath. The flat version measured 12%.
+  const notes = [];
+  let ok = true;
+  for (const sym of ["s", "ʃ"]) {
+    const x = H.sustain(sym, { seconds: 1.4 });
+    const hop = Math.floor(H.SR*0.004), env = [];
+    for (let i = Math.floor(x.length*0.4); i < x.length - hop; i += hop) {
+      let s2 = 0; for (let k = 0; k < hop; k++) s2 += x[i+k]*x[i+k];
+      env.push(Math.sqrt(s2/hop));
+    }
+    const m = env.reduce((a,b)=>a+b,0)/env.length;
+    let dev = 0; for (const e of env) dev += Math.abs(e-m);
+    const flutter = dev/env.length/m*100;
+    if (flutter < 18) ok = false;
+    notes.push(`${sym} ${flutter.toFixed(0)}%`);
+  }
+  return { ok, note: notes.join("  ") + " envelope flutter" };
+});
+
 // ── words behave ───────────────────────────────────────────────────────────
 const WORDS = [["g","o","ɑ","l"], ["b","ʊ","l","d","ɔ","g"], ["m","æ","k","s","ɪ","m","ə","s"],
                ["d","æ","d"], ["s","o","l","ɑ","n","ə"]];

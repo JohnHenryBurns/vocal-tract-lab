@@ -888,7 +888,7 @@ class TractProcessor extends AudioWorkletProcessor {
     this.dcX=0; this.dcY=0; this.tick=0;
     this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1; this.bnz=0; this.bn1=0; this.bn2=0;
     this.voiceless=0; this.nasalOut=0; this.fric=0; this.fz=0; this.hiss=1; this.fy1=0; this.fy2=0; this.fcLast=0;
-    this.flow=0; this.flowT=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;
+    this.flow=0; this.flowT=0; this.turb=1; this.turbT=1; this.turbCd=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;
     this.seqFrom=null; this.seqFromB=0; this.blend=0.03;
     this.seq=null; this.seqT=0; this.prevClose=1;
     this.velar=Math.round(${VELAR}*(n-1));
@@ -914,7 +914,7 @@ class TractProcessor extends AudioWorkletProcessor {
         // closure — which lets the glottis leak before the stop has formed.
         this.blend = this.vAmp>0.02 ? 0.030 : 0.002;
       }
-      if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; this.fric=0; this.flow=0; this.flowT=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0; }
+      if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; this.fric=0; this.flow=0; this.flowT=0; this.turb=1; this.turbT=1; this.turbCd=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0; }
       if(d.type==='voice'){                        // the tournament varies these
         const v=d.v;
         if(v.rd   !==undefined) this.rd=v.rd;
@@ -1048,7 +1048,7 @@ class TractProcessor extends AudioWorkletProcessor {
         if(done){
           if(this.seqT>this.seq.end){
             this.seq=null; this.voicing=0;   // the word is over
-            this.fric=0; this.flow=0; this.flowT=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;   // the air stops: no hiss outliving the word
+            this.fric=0; this.flow=0; this.flowT=0; this.turb=1; this.turbT=1; this.turbCd=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;   // the air stops: no hiss outliving the word
             this.target.set(this.diam);      // hand the tract back where it stands
           }
           else { const last=K[K.length-1];
@@ -1180,7 +1180,16 @@ class TractProcessor extends AudioWorkletProcessor {
             this.fb1=2*r*Math.cos(w0); this.fb2=-r*r; this.fg=(1-r)*1.6;
             this.fcLast=fc;
           }
-          const raw=Math.random()*2-1;
+          // Turbulence is INTERMITTENT. A jet sheds eddies that form and collapse, so the
+          // hiss breathes. Stationary white noise is, by definition, structureless — which is
+          // exactly what electronic static is. This is the difference between a hiss you make
+          // and a hiss a circuit makes.
+          if(--this.turbCd<=0){
+            this.turbT=0.38+Math.random()*1.20;
+            this.turbCd=Math.floor(sampleRate*(0.005+Math.random()*0.022));
+          }
+          this.turb += ((this.turbT===undefined?1:this.turbT)-this.turb)*0.0055;
+          const raw=(Math.random()*2-1)*this.turb;
           const y=raw*this.fg + this.fb1*(this.fy1||0) + this.fb2*(this.fy2||0);
           this.fy2=this.fy1||0; this.fy1=y;
           let sig = y*0.92 + raw*0.035;
