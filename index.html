@@ -1407,6 +1407,16 @@ function makeKey(sym, host){
 }
 function baseFor(sym){ return ART[sym] || ART['ə']; }
 function shapeFor(sym){ return articulate(ART[sym]||ART['ə'], N); }
+// Hold a shout and your jaw drops — the vowel opens as it goes. That is what makes a long
+// /o/ become "goooaaa" without a second vowel target, and it is why "g o ɑ l" was heard as
+// three separate segments: it WAS three separate segments.
+function openedShape(sym, amt){
+  const A={...(ART[sym]||ART['ə'])};
+  A.jaw   = Math.min(1, A.jaw + amt*(1-A.jaw));
+  A.bodyHi= Math.max(0, A.bodyHi*(1-amt*0.55));
+  A.lip   = Math.min(1, A.lip + amt*0.35*(1-A.lip));
+  return articulate(A, N);
+}
 const BRANCHED={ l:1 };                 // /l/ opens the closed pocket at the tongue tip
 const NASAL={ m:1, n:1, 'ŋ':1 };        // the velum opens the nasal tract
 const VOICELESS={ p:1, t:1, k:1, s:1, 'ʃ':1, f:1, h:1 };   // folds apart
@@ -1551,7 +1561,7 @@ function g2p(word){
 // Names are exactly where letter-to-sound rules fail, so the ones that matter ship with the
 // app. These work on every device; anything you correct yourself is stored on top of them.
 const BUILTIN_DICT = {
-  goal:['g','o','ɑ','l'],           bulldog:['b','ʊ','l','d','ɔ','g'],
+  goal:['g','o','l'],               bulldog:['b','ʊ','l','d','ɔ','g'],
   maximus:['m','æ','k','s','ɪ','m','ə','s'],  max:['m','æ','k','s'],
   jupiter:['d','ʃ','u','p','ɪ','t','ɝ'],
   solana:['s','o','l','ɑ','n','ə'],
@@ -1645,7 +1655,7 @@ async function speakWith(v){
   if(!node) return;                     // audio never came up — fail quietly, not fatally
   applyVoice(v);
   const D=+sDur.value;
-  const W=buildWord(chain, D, v.drawl, v.glide, v.stopT);
+  const W=buildWord(chain, D, v.drawl, v.glide, v.stopT, (VOICES[voiceName]||{}).open||0);
   const {keys,end}=W;
   const f0=[[0,v.f0a],[Math.min(0.12,end*0.1),v.f0b],[end*0.55,v.f0b],
             [end*0.82,(v.f0b+v.f0c)/2],[end,v.f0c],[end+0.2,v.f0c*0.92]];
@@ -1830,22 +1840,22 @@ document.getElementById('rememberBtn').addEventListener('click', ()=>{
 // A voice is source + expression + the length of the tube it resonates in.
 // sections 44 = 17.5 cm (adult male). Fewer sections = shorter tract = every formant rises.
 const VOICES = {
-  announcer: { label:'Goal announcer', sections:44, per:0.62, minD:1.6, maxD:4.6,
+  announcer: { open:0.62, label:'Goal announcer', sections:44, per:0.62, minD:1.6, maxD:4.6,
     drawl:0.62, rd:0.48, press:0.85, brth:0.02, jit:1.4, f0:[205,272,188],
     note:'Pressed, high and drawn out. The stadium cry.' },
-  man: { label:'Man', sections:44, per:0.17, minD:0.5, maxD:2.2,
+  man: { open:0.05, label:'Man', sections:44, per:0.17, minD:0.5, maxD:2.2,
     drawl:0.08, rd:1.05, press:0.15, brth:0.02, jit:1.0, f0:[118,138,102],
     note:'A 17.5 cm tract, modal voice, ordinary timing.' },
-  woman: { label:'Woman', sections:37, per:0.17, minD:0.5, maxD:2.2,
+  woman: { open:0.05, label:'Woman', sections:37, per:0.17, minD:0.5, maxD:2.2,
     drawl:0.08, rd:1.25, press:0.15, brth:0.035, jit:1.0, f0:[200,232,178],
     note:'A shorter tract lifts every formant — that, not pitch alone, is the difference.' },
-  child: { label:'Child', sections:31, per:0.16, minD:0.45, maxD:2.0,
+  child: { open:0.05, label:'Child', sections:31, per:0.16, minD:0.45, maxD:2.0,
     drawl:0.08, rd:1.35, press:0.12, brth:0.045, jit:1.3, f0:[268,310,244],
     note:'Shorter still, and breathier.' },
-  helium: { label:'Helium', sections:19, per:0.17, minD:0.5, maxD:2.2,
+  helium: { open:0.05, label:'Helium', sections:19, per:0.17, minD:0.5, maxD:2.2,
     drawl:0.08, rd:1.05, press:0.15, brth:0.02, jit:1.0, f0:[118,138,102],
     note:'Same voice, same pitch — sound just travels faster, so the tube rings much higher. Source-filter separation, audible.' },
-  whisper: { label:'Whisper', sections:44, per:0.20, minD:0.6, maxD:2.4,
+  whisper: { open:0.03, label:'Whisper', sections:44, per:0.20, minD:0.6, maxD:2.4,
     drawl:0.10, rd:2.35, press:0.0, brth:0.11, jit:1.8, f0:[130,148,120],
     note:'Barely phonating: the folds hardly close at all.' },
 };
@@ -1878,7 +1888,7 @@ function setTiming(dur,drawl){
   document.getElementById('vDur').textContent=(+sDur.value).toFixed(1)+' s';
   document.getElementById('vHold').textContent=(+sHold.value).toFixed(2);
 }
-const GOAL_WORD=['g','o','ɑ','l'];
+const GOAL_WORD=['g','o','l'];   // one gliding vowel, not two — the opening does the rest
 
 (() => {
   const host=document.getElementById('vlist');
@@ -1896,8 +1906,8 @@ const GOAL_WORD=['g','o','ɑ','l'];
 // Stops get a short seal + release. Whatever time is left is shared among the
 // sustainable sounds, weighted by Drawl so the first one can be stretched.
 const APPROX=['l','m','n','ŋ','w','j','r'];   // sustainable consonants: short and quick
-function buildWord(chain, D, drawl, glide, stopHold){
-  glide = glide||0.085; stopHold = stopHold||0.075;
+function buildWord(chain, D, drawl, glide, stopHold, open){
+  glide = glide||0.085; stopHold = stopHold||0.075; open = open||0;
   const isStop=c=>STOP_KEYS.includes(c), isAp=c=>APPROX.includes(c);
   const stops=chain.filter(isStop).length;
   // transitions into a consonant are fast; a slow approach to /l/ just sounds like /w/
@@ -1921,7 +1931,17 @@ function buildWord(chain, D, drawl, glide, stopHold){
     if(i>0) t+=glideFor(i);
     keys.push({t,d,b,nz,vl,fr}); art.push({t,A});
     t+=dur;
-    keys.push({t,d,b,nz,vl,fr}); art.push({t,A});
+    // a long held vowel drifts open; a short one has no time to
+    const canOpen = !isStop(sym) && !isAp(sym) && open>0.01 && dur>0.28;
+    if(canOpen){
+      const amt=open*Math.min(1,(dur-0.28)/0.9);
+      const A2={...A, jaw:Math.min(1,A.jaw+amt*(1-A.jaw)),
+                      bodyHi:Math.max(0,A.bodyHi*(1-amt*0.55)),
+                      lip:Math.min(1,A.lip+amt*0.35*(1-A.lip))};
+      keys.push({t,d:Array.from(openedShape(sym,amt)),b,nz,vl,fr}); art.push({t,A:A2});
+    } else {
+      keys.push({t,d,b,nz,vl,fr}); art.push({t,A});
+    }
   });
   return {keys, art, end:t+0.22};
 }
@@ -1930,7 +1950,8 @@ async function playWord(){
   if(!started) await start();
   if(!node) return;
   const D=+sDur.value, drawl=+sHold.value;
-  const W=buildWord(chain, D, drawl, champion.glide, champion.stopT);
+  const W=buildWord(chain, D, drawl, champion.glide, champion.stopT,
+                    (VOICES[voiceName]||{}).open||0);
   const {keys,end}=W;
   const f0=[[0,208],[Math.min(0.12,end*0.1),242],[end*0.55,248],[end*0.82,236],[end,196],[end+0.2,180]];
   node.port.postMessage({type:'goal', seq:{keys, f0, end}});
