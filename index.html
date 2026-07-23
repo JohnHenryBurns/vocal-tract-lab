@@ -818,11 +818,13 @@ class TractProcessor extends AudioWorkletProcessor {
       for(let j=0;j<this.bN-1;j++){ this.bRin[j+1]=this.bR[j]; this.bLin[j]=this.bL[j+1]; }
       this.bRin[0]=into;
       this.bLin[this.bN-1]=this.bR[this.bN-1]*this.bEnd;
-      for(let j=0;j<this.bN;j++){ this.bR[j]=this.bRin[j]*this.damp; this.bL[j]=this.bLin[j]*this.damp; }
+      const dmb=this.dampNow===undefined?this.damp:this.dampNow;
+      for(let j=0;j<this.bN;j++){ this.bR[j]=this.bRin[j]*dmb; this.bL[j]=this.bLin[j]*dmb; }
     }
     this.Lin[n-1]=this.R[n-1]*this.lipR;
     const out=(1+this.lipR)*this.R[n-1];
-    for(let i=0;i<n;i++){ this.R[i]=this.Rin[i]*this.damp; this.L[i]=this.Lin[i]*this.damp; }
+    const dm=this.dampNow===undefined?this.damp:this.dampNow;
+    for(let i=0;i<n;i++){ this.R[i]=this.Rin[i]*dm; this.L[i]=this.Lin[i]*dm; }
     return out;
   }
   process(inputs,outputs){
@@ -881,11 +883,17 @@ class TractProcessor extends AudioWorkletProcessor {
       if(this.phase>=1) this.phase-=1;
 
       let amp=this.voicing;
+      // Behind a closure, oral pressure rises toward subglottal pressure, the pressure drop
+      // across the folds collapses, and voicing fades. That is why a voiced stop cannot be
+      // held. Driving the glottis at full power into a sealed tube stored energy that had to
+      // come out somewhere — which it did, as a 165% overshoot at the release.
+      const sealedFor = (this.prevClose<0.14) ? (this.charge||0) : 0;
+      const voiceBar = 1 - 0.88*sealedFor;
       if(this.seq){
         // The glottis does not pause for a stop. It buzzes the whole way through; the SEAL is
         // what makes the silence, and the release is abrupt because the tube opens, not because
         // an envelope ramps. Fading voicing here was adding a 60 ms rise — which is a /w/.
-        amp=1;
+        amp=voiceBar;
         // the glottis spins up, and never before the tract has reached its first shape
         const spin=Math.max(0.025,this.blend+0.010);
         if(this.seqT<spin) amp*=this.seqT/spin;
@@ -911,6 +919,9 @@ class TractProcessor extends AudioWorkletProcessor {
       // ---- stop release: turbulence when a seal springs open ----
       let mi=1, cl=1e9;                       // the narrowest point IS the place of articulation
       for(let i=1;i<n-1;i++) if(this.diam[i]<cl){ cl=this.diam[i]; mi=i; }
+      // A sealed tract is not a lossless cavity. The walls are soft tissue and absorb, so a
+      // closure cannot store energy indefinitely and hand it all back at the release.
+      this.dampNow = cl<0.14 ? this.damp*0.9975 : this.damp;
       // A stop is silence, then a bang. Charge while the tube is sealed — a stand-in for the
       // pressure a real speaker builds — then spend it the moment the seal breaks.
       if(cl<0.14){
@@ -918,7 +929,7 @@ class TractProcessor extends AudioWorkletProcessor {
         this.sealAt=mi;
       } else if((this.charge||0)>0.12 && cl>0.22){
         this.burstN=Math.floor(sr*0.014);
-        this.burstA=this.charge*(this.burstK===undefined?0.45:this.burstK);
+        this.burstA=this.charge*(this.burstK===undefined?0.16:this.burstK);
         this.burstAt=this.sealAt||mi;
         this.charge=0;
       }
@@ -1143,7 +1154,7 @@ const VOICE_SPEC=[
   {k:'drawl',lo:0,      hi:1,       d:0.55},    // how much the first vowel is stretched
   {k:'glide',lo:0.03,   hi:0.22,    d:0.085},  // transition time between sounds
   {k:'stopT',lo:0.035,  hi:0.15,    d:0.075},  // how long a stop stays sealed
-  {k:'burst',lo:0.05,   hi:1.8,     d:0.45},   // release strength; a voiced stop is gentle
+  {k:'burst',lo:0.02,   hi:1.2,     d:0.16},   // release strength; the seal does most of the work
 ];
 const defaultVoice=()=>Object.fromEntries(VOICE_SPEC.map(p=>[p.k,p.d]));
 let champion=defaultVoice(), challenger=null, round=1, step=1.0;
