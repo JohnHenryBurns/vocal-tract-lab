@@ -251,7 +251,7 @@ A **hiss** parameter joined the tournament.
 
 ---
 
-## Phase 6 — words from spelling
+## Phase 6 — words from spelling  ✅ built
 
 Typing *Maximus* and having it work, instead of tapping out `m æ k s ɪ m ə s`.
 
@@ -277,7 +277,13 @@ outperform any general converter within a week of use.
 **Usable before Phase 5:** the same machinery answers *"can this word be said yet?"* — which
 turns the missing-phoneme list into something concrete rather than abstract.
 
-**Done when:** a name can be typed, corrected once if needed, and spoken thereafter.
+**Built.** Rules first (digraphs, magic-e, soft c and g, common endings), then a personal
+dictionary in local storage that overrides them. Five approximants — /w j r h v/ — were added
+to make English spelling reachable; they are vowel postures with no closure, so they cost
+nothing. Every test word came out sayable, with the expected failures on names: *solana* rules
+to `s ɑ l æ n æ` rather than `s o l ɑ n ə`. Correcting it takes one tap and holds.
+
+**Done — a name can be typed, corrected once if needed, and spoken thereafter.**
 
 ---
 

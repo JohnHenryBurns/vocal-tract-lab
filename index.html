@@ -98,6 +98,11 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 @keyframes bump{0%{background:var(--ink)}100%{background:var(--panel2)}}
 .prompt{font-size:.86rem;color:var(--dim);margin:.55rem 0 .5rem;text-align:center}
 .crow .btn{flex:1;text-align:center}
+.crow input[type=text]{flex:1.4;min-width:0;font-family:var(--sans);font-size:.95rem;
+  background:var(--panel2);color:var(--ink);border:1px solid var(--rule);border-radius:6px;
+  padding:.5rem .6rem}
+.crow input[type=text]:focus{outline:none;border-color:var(--ink)}
+.crow input[type=text]::placeholder{color:var(--dim)}
 .hint{font-size:.86rem;color:var(--dim);line-height:1.7;margin:.65rem 0 0}
 
 #specWrap{position:relative;border-top:1px solid var(--rule)}
@@ -228,6 +233,18 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 
     <section data-panel="word">
       <div class="group">
+        <div class="glabel">Type a word</div>
+        <div class="crow">
+          <input id="wordIn" type="text" placeholder="maximus" autocomplete="off"
+                 autocapitalize="off" spellcheck="false">
+          <button class="btn primary" id="spellBtn">Sound it out</button>
+        </div>
+        <p class="hint" id="spellNote">Rules handle most words. Names are where they fail, so if
+        it comes out wrong, fix the sounds below and press Remember — it will be right every time
+        after that.</p>
+      </div>
+
+      <div class="group">
         <div class="glabel">Vowels</div>
         <div class="keys" id="vkeys"></div>
         <div class="glabel" style="margin-top:.9rem">Consonants</div>
@@ -246,6 +263,9 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
           <button class="btn dim" id="goalPreset">GOOOAAALLL</button>
           <button class="btn dim" id="undoChain">Undo</button>
           <button class="btn dim" id="clearChain">Clear</button>
+        </div>
+        <div class="crow" style="margin-top:.4rem">
+          <button class="btn dim" id="rememberBtn" disabled>Remember this spelling</button>
         </div>
       </div>
 
@@ -724,6 +744,46 @@ const ART = {
   "lip": 0.55
  },
  "f": {
+  "jaw": 0.3,
+  "bodyPos": 0.35,
+  "bodyHi": 0.15,
+  "tipPos": 0.84,
+  "tipHi": 0.0,
+  "lip": 0.09
+ },
+ "w": {
+  "jaw": 0.651,
+  "bodyPos": 0.493,
+  "bodyHi": 0.451,
+  "tipPos": 0.84,
+  "tipHi": 0.037,
+  "lip": 0.1
+ },
+ "j": {
+  "jaw": 0.133,
+  "bodyPos": 0.61,
+  "bodyHi": 0.67,
+  "tipPos": 0.88,
+  "tipHi": 0.25,
+  "lip": 0.628
+ },
+ "r": {
+  "jaw": 0.958,
+  "bodyPos": 0.829,
+  "bodyHi": 0.33,
+  "tipPos": 0.79,
+  "tipHi": 0.215,
+  "lip": 0.367
+ },
+ "h": {
+  "jaw": 0.065,
+  "bodyPos": 0.638,
+  "bodyHi": 0.106,
+  "tipPos": 0.936,
+  "tipHi": 0.198,
+  "lip": 0.696
+ },
+ "v": {
   "jaw": 0.3,
   "bodyPos": 0.35,
   "bodyHi": 0.15,
@@ -1218,7 +1278,7 @@ sHold.addEventListener('input',()=>document.getElementById('vHold').textContent=
 // ── phoneme palette, built from the solved inventory ──
 const VOWEL_KEYS = ['i', 'ɪ', 'ɛ', 'æ', 'ʌ', 'ɑ', 'ɔ', 'ʊ', 'u', 'ɝ', 'ə', 'o', 'l'];
 const STOP_KEYS  = ['b','d','g','p','t','k'];
-const CONS_KEYS  = ['l','m','n','ŋ','b','d','g','p','t','k','s','z','ʃ','f'];
+const CONS_KEYS  = ['l','r','w','j','m','n','ŋ','b','d','g','p','t','k','s','z','ʃ','f','v','h'];
 let chain = ['g','o','ɑ','l'];        // the word starts as the goal cry
 
 function makeKey(sym, host){
@@ -1236,8 +1296,8 @@ function baseFor(sym){ return ART[sym] || ART['ə']; }
 function shapeFor(sym){ return articulate(ART[sym]||ART['ə'], N); }
 const BRANCHED={ l:1 };                 // /l/ opens the closed pocket at the tongue tip
 const NASAL={ m:1, n:1, 'ŋ':1 };        // the velum opens the nasal tract
-const VOICELESS={ p:1, t:1, k:1, s:1, 'ʃ':1, f:1 };   // folds apart
-const FRICATIVE={ s:1, z:1, 'ʃ':1, f:0.7 };            // turbulence at the constriction
+const VOICELESS={ p:1, t:1, k:1, s:1, 'ʃ':1, f:1, h:1 };   // folds apart
+const FRICATIVE={ s:1, z:1, 'ʃ':1, f:0.7, v:0.55, h:0.35 };  // turbulence at the constriction
 const branchFor=sym=>BRANCHED[sym]||0;
 const nasalFor =sym=>NASAL[sym]||0;
 const voicelessFor=sym=>VOICELESS[sym]||0;
@@ -1274,6 +1334,100 @@ function openSheet(name){
   const isOpen = aside.classList.contains('open') && aside.dataset.show===name;
   sheet(isOpen ? null : name);
 }
+// ── spelling to sound ────────────────────────────────────────────────────
+// Rules first, then a personal dictionary that overrides them. English orthography is
+// irregular enough that no rule set gets names right; correcting one costs a tap and is
+// remembered, which for a family's worth of names beats any general converter.
+const G2P_RULES = [
+  // longest patterns first
+  [/^tion/,      ['ʃ','ə','n']],
+  [/^sion/,      ['ʃ','ə','n']],
+  [/^ought/,     ['ɔ','t']],
+  [/^augh/,      ['æ','f']],
+  [/^igh/,       ['ɑ','i']],
+  [/^tch/,       ['t','ʃ']],
+  [/^dge/,       ['d','ʃ']],
+  [/^ch/,        ['t','ʃ']],
+  [/^sh/,        ['ʃ']],
+  [/^ph/,        ['f']],
+  [/^th/,        ['t']],          // no dental fricative in the inventory yet
+  [/^wh/,        ['w']],
+  [/^ck/,        ['k']],
+  [/^ng/,        ['ŋ']],
+  [/^qu/,        ['k','w']],
+  [/^x/,         ['k','s']],
+  [/^ee/,        ['i']],
+  [/^ea/,        ['i']],
+  [/^ie/,        ['i']],
+  [/^oo/,        ['u']],
+  [/^ou/,        ['ɑ','ʊ']],
+  [/^ow/,        ['ɑ','ʊ']],
+  [/^oa/,        ['o']],
+  [/^oe/,        ['o']],
+  [/^ai/,        ['ɛ','i']],
+  [/^ay/,        ['ɛ','i']],
+  [/^ei/,        ['ɛ','i']],
+  [/^ey/,        ['ɛ','i']],
+  [/^oi/,        ['ɔ','i']],
+  [/^oy/,        ['ɔ','i']],
+  [/^au/,        ['ɔ']],
+  [/^aw/,        ['ɔ']],
+  [/^ar/,        ['ɑ','r']],
+  [/^or/,        ['ɔ','r']],
+  [/^er/,        ['ɝ']],
+  [/^ir/,        ['ɝ']],
+  [/^ur/,        ['ɝ']],
+  [/^le$/,       ['ə','l']],
+  // magic e: a single consonant then a final e lengthens the vowel
+  [/^a(?=[^aeiou]e$)/, ['ɛ','i']],
+  [/^i(?=[^aeiou]e$)/, ['ɑ','i']],
+  [/^o(?=[^aeiou]e$)/, ['o']],
+  [/^u(?=[^aeiou]e$)/, ['u']],
+  [/^e(?=[^aeiou]e$)/, ['i']],
+  // soft c and g
+  [/^c(?=[eiy])/, ['s']],
+  [/^g(?=[eiy])/, ['d','ʃ']],
+  [/^c/,         ['k']],
+  // y
+  [/^y(?=[aeiou])/, ['j']],
+  [/^y$/,        ['i']],
+  [/^y/,         ['ɪ']],
+  // a final silent e
+  [/^e$/,        []],
+  // plain letters
+  [/^a/, ['æ']], [/^e/, ['ɛ']], [/^i/, ['ɪ']], [/^o/, ['ɑ']], [/^u/, ['ʌ']],
+  [/^b/, ['b']], [/^d/, ['d']], [/^f/, ['f']], [/^g/, ['g']], [/^h/, ['h']],
+  [/^j/, ['d','ʃ']], [/^k/, ['k']], [/^l/, ['l']], [/^m/, ['m']], [/^n/, ['n']],
+  [/^p/, ['p']], [/^r/, ['r']], [/^s/, ['s']], [/^t/, ['t']], [/^v/, ['v']],
+  [/^w/, ['w']], [/^z/, ['z']],
+];
+function g2p(word){
+  let w=String(word||'').toLowerCase().replace(/[^a-z]/g,'');
+  const dict=loadDict();
+  if(dict[w]) return {ph:dict[w].slice(), from:'remembered'};
+  const out=[];
+  let guard=0;
+  while(w.length && guard++<200){
+    let hit=null;
+    for(const [re,ph] of G2P_RULES){
+      const m=w.match(re);
+      if(m){ hit=[m[0].length||1, ph]; break; }
+    }
+    if(!hit){ w=w.slice(1); continue; }           // unknown letter: skip it
+    out.push(...hit[1]);
+    w=w.slice(hit[0]);
+  }
+  // collapse doubled consonants, which English spells but does not say
+  const clean=[];
+  for(const ph of out) if(!(clean.length && clean[clean.length-1]===ph && !'iɪɛæʌɑɔʊuɝəo'.includes(ph))) clean.push(ph);
+  return {ph:clean, from:'rules'};
+}
+function loadDict(){ try{ return JSON.parse(localStorage.getItem('vtl.dict')||'{}'); }catch(e){ return {}; } }
+function saveWord(word,ph){
+  try{ const d=loadDict(); d[String(word).toLowerCase().replace(/[^a-z]/g,'')]=ph.slice();
+       localStorage.setItem('vtl.dict',JSON.stringify(d)); }catch(e){}
+}
+
 // ── the voice: everything a tournament is allowed to vary ─────────────────
 // Word-independent by design. A voice tuned on "goal" speaks "bulldog" the same way.
 const VOICE_SPEC=[
@@ -1454,6 +1608,36 @@ document.getElementById('labBtn').addEventListener('click',()=>openSheet('lab'))
 scrim.addEventListener('click',()=>sheet(null));
 addEventListener('keydown',e=>{ if(e.key==='Escape') sheet(null); });
 
+// ── typing a word ──
+let lastTyped='';
+function soundOut(){
+  const raw=document.getElementById('wordIn').value.trim();
+  if(!raw) return;
+  lastTyped=raw;
+  const r=g2p(raw);
+  const known=new Set(Object.keys(ART));
+  const missing=[...new Set(r.ph.filter(x=>!known.has(x)))];
+  chain=r.ph.filter(x=>known.has(x));
+  drawChain();
+  document.getElementById('rememberBtn').disabled=false;
+  const note=document.getElementById('spellNote');
+  note.textContent = missing.length
+    ? `Sounded out from ${r.from}. It cannot say ${missing.map(m=>'/'+m+'/').join(' ')} yet, so those were dropped — fix the rest below and press Remember.`
+    : (r.from==='remembered'
+        ? 'From memory — you corrected this one before.'
+        : 'Sounded out from the rules. If that is wrong, fix it below and press Remember.');
+}
+document.getElementById('spellBtn').addEventListener('click', soundOut);
+document.getElementById('wordIn').addEventListener('keydown', e=>{ if(e.key==='Enter') soundOut(); });
+document.getElementById('rememberBtn').addEventListener('click', ()=>{
+  if(!lastTyped || !chain.length) return;
+  saveWord(lastTyped, chain);
+  const b=document.getElementById('rememberBtn');
+  b.textContent='Remembered'; setTimeout(()=>b.textContent='Remember this spelling',1400);
+  document.getElementById('spellNote').textContent =
+    `"${lastTyped}" will sound like this from now on.`;
+});
+
 const GOAL_WORD=['g','o','ɑ','l'];
 document.getElementById('clearChain').addEventListener('click',()=>{ chain=[]; drawChain(); });
 document.getElementById('undoChain').addEventListener('click',()=>{ chain.pop(); drawChain(); });
@@ -1468,7 +1652,7 @@ document.getElementById('goalPreset').addEventListener('click',()=>{
 // ── one player for any word ─────────────────────────────────────────────
 // Stops get a short seal + release. Whatever time is left is shared among the
 // sustainable sounds, weighted by Drawl so the first one can be stretched.
-const APPROX=['l','m','n','ŋ'];          // sustainable consonants: short and quick
+const APPROX=['l','m','n','ŋ','w','j','r'];   // sustainable consonants: short and quick
 function buildWord(chain, D, drawl, glide, stopHold){
   glide = glide||0.085; stopHold = stopHold||0.075;
   const isStop=c=>STOP_KEYS.includes(c), isAp=c=>APPROX.includes(c);
