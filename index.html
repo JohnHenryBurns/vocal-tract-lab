@@ -57,7 +57,8 @@ main>*{min-width:0}
 .vt:hover{color:var(--ink)}
 .vt.on{background:var(--ink);color:#0f1316;font-weight:500}
 .badge{position:absolute;left:.9rem;top:.85rem;font-family:var(--mono);font-size:.75rem;
-  letter-spacing:.02em;color:var(--dim);pointer-events:none;line-height:1.8}
+  letter-spacing:.02em;color:var(--dim);pointer-events:none;line-height:1.8;
+  max-width:calc(100% - 11.5rem)}   /* never runs under the view tabs */
 .badge b{color:var(--ink);font-weight:500}
 
 aside{border-left:1px solid var(--rule);background:var(--panel);overflow-y:auto;
@@ -163,10 +164,9 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 .readout b{color:var(--ink);font-weight:500;display:inline-block;text-align:left;
   font-variant-numeric:tabular-nums}
 /* widths held in ch so the longest value never pushes its neighbours */
-#fmt{min-width:16ch}
-#vstate{min-width:3ch}
-#mode{min-width:9ch}
-#hstat{display:inline-block;min-width:10ch;text-align:right}
+#fmt{min-width:15ch}
+#mode{min-width:9ch;color:var(--dim)}
+#mode.live{color:var(--ink)}
 
 #dock{display:flex;gap:.4rem;padding:.55rem .7rem;border-top:1px solid var(--rule);
   border-bottom:1px solid var(--rule);background:var(--panel);align-items:center}
@@ -284,7 +284,6 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
   <h1>Vocal Tract Lab</h1>
   <span class="sub">Kelly–Lochbaum waveguide · 1962</span>
   <span class="spacer"></span>
-  <span class="sub" id="hstat">audio off</span>
   <button class="btn" id="aboutBtn">About</button>
 </header>
 
@@ -301,8 +300,8 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
     </div>
     <div class="badge">
       <b id="secCount">—</b> cylinders · <b id="lenCm">—</b> cm<br>
-      colour = standing-wave energy<br>
-      drag to orbit · pinch to zoom
+      colour = wave energy<br>
+      drag · pinch to zoom
     </div>
   </div>
 
@@ -646,9 +645,8 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 </div>
 
 <div class="readout">
-  <span>Peaks <b id="fmt">—</b></span>
-  <span>Voiced <b id="vstate">off</b></span>
-  <span>Mode <b id="mode">idle</b></span>
+  <span><b id="fmt">—</b></span>
+  <span id="modeWrap"><b id="mode">idle</b></span>
   <span class="eq" style="margin-left:auto">Reflection at each junction: <b>r = (A₁−A₂)/(A₁+A₂)</b></span>
 </div>
 
@@ -1425,8 +1423,7 @@ function paintBtn(){
   const qp=document.getElementById('quickPlay');
   if(qp){ qp.innerHTML = sequencing ? '&#9632;' : '&#9654;'; qp.classList.toggle('solid', !!sequencing); }
   if(ab) ab.classList.toggle('solid', !!open && shown==='adv');
-  const hs=document.getElementById('hstat');
-  if(hs) hs.textContent = !started ? 'audio off' : (sequencing ? 'speaking' : (voicing?'sustaining':'ready'));
+
 }
 function setVoice(v){
   voicing=v;
@@ -2394,8 +2391,9 @@ document.querySelector('.viewtabs').addEventListener('click',e=>{
 function frame(){
   requestAnimationFrame(frame);
   if(view==='mouth'){ drawMouth(); bounceWord(); drawSpectro();
-    document.getElementById('vstate').textContent = voicedNow? 'on':'off';
-    document.getElementById('mode').textContent =
+    const md2=document.getElementById('mode');
+    md2.classList.toggle('live', !!(sequencing||voicing));
+    md2.textContent =
       sequencing ? 'speaking'
       : voicing  ? (heldSym ? 'hold /'+heldSym+'/' : 'holding')
       : (started ? 'silent' : 'idle');
@@ -2421,8 +2419,9 @@ function frame(){
   }
   bounceWord();
   drawSpectro();
-  document.getElementById('vstate').textContent = voicedNow? 'on':'off';
-  document.getElementById('mode').textContent =
+  const md=document.getElementById('mode');
+  md.classList.toggle('live', !!(sequencing||voicing));
+  md.textContent =
     sequencing ? 'speaking'
     : voicing  ? (heldSym ? 'hold /'+heldSym+'/' : 'holding')
     : (started ? 'silent' : 'idle');
