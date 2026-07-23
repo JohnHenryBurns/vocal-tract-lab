@@ -289,6 +289,16 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
         </div>
       </div>
 
+      <div class="group">
+        <div class="glabel">Going deeper</div>
+        <div class="crow">
+          <button class="btn dim" id="tractBtn">Tract</button>
+          <button class="btn dim" id="labBtn">Lab</button>
+        </div>
+        <p class="hint"><b>Tract</b> moves the jaw and tongue by hand. <b>Lab</b> tunes the
+        voice by ear, two versions at a time.</p>
+      </div>
+
       <div class="group" data-custom hidden>
         <div class="glabel">Timing</div>
         <div class="row"><span>Length</span><span class="v" id="vDur">2.9 s</span></div>
@@ -377,8 +387,6 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
   <button class="btn" id="holdBtn" title="Voice the shape the tract is in right now">Hold</button>
   <button class="btn primary say" id="playBtn">Play word</button>
   <button class="btn" id="wordBtn">Word</button>
-  <button class="btn" id="tractBtn">Tract</button>
-  <button class="btn" id="labBtn">Lab</button>
 </div>
 <div id="scrim"></div>
 
@@ -902,9 +910,12 @@ class TractProcessor extends AudioWorkletProcessor {
     this.makeLF(this.rd); this.lastRd=this.rd;
     // ---- side branch: the closed pocket that gives /l/ its anti-resonance ----
     const secM = 350/(sampleRate*2);
-    this.bN    = Math.max(3, Math.round(6*0.00397/secM));  // solved pocket
+    this.bN    = Math.max(3, Math.round(4*0.00397/secM));  // solved pocket
     this.bPos  = Math.round(n*0.84);    // the pocket sits in front of the tongue tip
-    this.bArea = 1.5; this.bEnd = 0.97;      // closed pocket
+    // A wide pocket drags a pole down to ~2 kHz and puts its zero on F3 — which removes the
+    // /l/ cue and installs the /r/ one, because that pole-zero pair IS an /r/. Keep it small
+    // and short so F3 stays high and the zero sits well above it.
+    this.bArea = 0.85; this.bEnd = 0.97;
     this.bOpen = 0; this.bTarget = 0;
     this.bR=new Float64Array(this.bN); this.bL=new Float64Array(this.bN);
     this.bRin=new Float64Array(this.bN); this.bLin=new Float64Array(this.bN);
@@ -1890,6 +1901,9 @@ const VOICES = {
   whisper:{ label:'Whisper', note:'Barely phonating: the folds hardly close at all.',
     v:{ rd:2.35, press:0.0, jit:1.8, brth:0.11, drawl:0.10, open:0.03, per:0.20,
         sect:44, f0a:130, f0b:148, f0c:120 } },
+  barry:{ label:'Barry White', note:'A long tract and a low larynx: deep, resonant, unhurried.',
+    v:{ rd:0.86, press:0.25, jit:0.8, brth:0.03, drawl:0.20, open:0.12, per:0.27,
+        damp:0.99975, sect:50, f0a:74, f0b:90, f0c:64 } },
   custom:{ label:'Custom', note:'Yours. Tune it in the Lab, then copy the seed — a seed is the whole voice, tract length and timing included.', v:null },
 };
 

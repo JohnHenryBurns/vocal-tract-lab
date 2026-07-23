@@ -144,7 +144,11 @@ const bandShare = (sp, lo, hi) => {
 function formants(sym, { n = 44, order = 12 } = {}) {
   const { Tract } = require("./tract.js");
   const t = new Tract();
-  t.diam.set(P.articulate(P.ART[sym], n)); t.calcReflections();
+  t.diam.set(P.articulate(P.ART[sym], n));
+  // Measure a branched phoneme the way it is HEARD — with its pocket open. Measuring /l/
+  // with the branch shut hid the fact that the branch was turning it into an /r/.
+  t.bOpen = P.BRANCHED[sym] || 0;
+  t.calcReflections();
   const L = 8192, ir = new Float64Array(L);
   ir[0] = t.sample(1); for (let i = 1; i < L; i++) ir[i] = t.sample(0);
   const pk = []; let a = 0, b = 0;

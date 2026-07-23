@@ -69,7 +69,10 @@ check("stops seal at their place of articulation", () => {
 check("the lateral is not a /w/", () => {
   const f = H.formants("l");
   // /w/ sits near 300/750. A lateral needs F2 well clear of that, and a high F3.
-  return { ok: f[1] > 1000 && f[2] > 2300, note: f.join(" / ") + " Hz (a /w/ is ~300/750/2300)" };
+  // /l/ vs /r/ is F3: a lateral is high (2600-3000), a rhotic is low (1600-2000). The side
+  // pocket once dragged a pole to 2050 and put its zero on F3, which is literally an /r/.
+  return { ok: f[1] > 1000 && f[2] > 2450,
+           note: f.join(" / ") + " Hz (a /w/ is ~300/750/2300; an /r/ has F3 near 1800)" };
 });
 
 check("nasals produce a murmur", () => {

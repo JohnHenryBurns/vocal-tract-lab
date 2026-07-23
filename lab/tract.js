@@ -27,9 +27,11 @@ class Tract {
     this.damp = 0.9995;
     this.out  = 0;
     // ---- side branch: a closed pocket for /l/, an open one for nasals ----
-    this.bN    = 9;                      // sections
-    this.bPos  = Math.round(n*0.80);     // where it taps the main tract
-    this.bArea = 0.9;                    // mouth area when fully coupled
+    // These MUST mirror the worklet in index.html — the harness measures through this file,
+    // so a drift here means the gate is testing geometry the app does not have.
+    this.bN    = 4;                      // pocket sections
+    this.bPos  = Math.round(n*0.84);     // taps in front of the tongue tip
+    this.bArea = 0.85;                   // small: a wide pocket makes an /r/
     this.bOpen = 0;                      // 0..1 coupling
     this.bEnd  = 0.97;                   // +closed pocket, -0.85 open (nostrils)
     this.bR=new Float64Array(this.bN); this.bL=new Float64Array(this.bN);
