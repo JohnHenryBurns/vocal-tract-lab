@@ -39,6 +39,14 @@ main>*{min-width:0}
 #stage{position:relative;min-height:0;touch-action:none;
   background:radial-gradient(120% 90% at 42% 22%,#171d21 0%,#0d1013 64%)}
 #stage canvas{display:block;width:100%;height:100%}
+#mouth{position:absolute;inset:0;z-index:1}
+#mouth[hidden]{display:none}
+.viewtabs{position:absolute;right:.8rem;top:.8rem;z-index:3;display:flex;gap:.3rem;
+  background:rgba(15,19,22,.75);border:1px solid var(--rule);border-radius:7px;padding:.2rem}
+.vt{font-family:var(--sans);font-size:.8rem;color:var(--dim);background:transparent;border:0;
+  border-radius:5px;padding:.35rem .7rem;cursor:pointer}
+.vt:hover{color:var(--ink)}
+.vt.on{background:var(--ink);color:#0f1316;font-weight:500}
 .badge{position:absolute;left:.9rem;top:.85rem;font-family:var(--mono);font-size:.75rem;
   letter-spacing:.02em;color:var(--dim);pointer-events:none;line-height:1.8}
 .badge b{color:var(--ink);font-weight:500}
@@ -203,6 +211,11 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 
 <main>
   <div id="stage">
+    <canvas id="mouth" hidden></canvas>
+    <div class="viewtabs">
+      <button class="vt on" data-view="tube">Tube</button>
+      <button class="vt" data-view="mouth">Mouth</button>
+    </div>
     <div class="badge">
       <b id="secCount">—</b> cylinders · <b id="lenCm">—</b> cm<br>
       colour = standing-wave energy<br>
@@ -908,6 +921,9 @@ registerProcessor('tract', TractProcessor);
 let ctx=null, node=null, analyser=null, gainNode=null, N=44, started=false;
 let energy=null, liveDiam=null, voicedNow=false, voicing=0;
 let curShape=null, sequencing=false;      // the tube exists before the wind does
+let curArt={jaw:0.19,bodyPos:0.35,bodyHi:0.37,tipPos:0.84,tipHi:0,lip:0.16};
+let artTrack=null;                        // {t0,keys,end} while a word is being spoken
+let view='tube';
 
 async function start(){
   if(started) return; started=true;
@@ -991,7 +1007,8 @@ function pushShape(snap){
   document.getElementById('vHi').textContent=(+sHi.value).toFixed(2);
   document.getElementById('vTip').textContent=(+sTip.value).toFixed(2);
   document.getElementById('vLip').textContent=(+sLip.value).toFixed(2);
-  curShape = articulate(params(), N);
+  curArt = params();
+  curShape = articulate(curArt, N);
   if(!node) return;
   node.port.postMessage({type:'shape', diam:curShape, br:0, snap:!!snap});
 }
@@ -1037,6 +1054,7 @@ const BRANCHED={ l:1 };                 // /l/ opens the closed pocket; nasals w
 const branchFor=sym=>BRANCHED[sym]||0;
 function applyPhoneme(sym){
   const A = baseFor(sym);
+  curArt = {...A};
   sJaw.value=A.jaw; sBody.value=A.bodyPos; sHi.value=A.bodyHi;
   sTip.value=A.tipHi; sLip.value=A.lip;
   pushShape(false);
@@ -1131,10 +1149,12 @@ async function speakWith(v){
   if(!node) return;                     // audio never came up — fail quietly, not fatally
   applyVoice(v);
   const D=+sDur.value;
-  const {keys,end}=buildWord(chain, D, v.drawl, v.glide, v.stopT);
+  const W=buildWord(chain, D, v.drawl, v.glide, v.stopT);
+  const {keys,end}=W;
   const f0=[[0,v.f0a],[Math.min(0.12,end*0.1),v.f0b],[end*0.55,v.f0b],
             [end*0.82,(v.f0b+v.f0c)/2],[end,v.f0c],[end+0.2,v.f0c*0.92]];
   node.port.postMessage({type:'goal', seq:{keys, f0, end}});
+  artTrack={t0:performance.now(), keys:W.art, end};   // the picture follows the same plan
   sequencing=true; paintBtn();
 }
 let heardA=false, heardB=false, lastPick=null;
@@ -1273,26 +1293,29 @@ function buildWord(chain, D, drawl, glide, stopHold){
   const wsum=vw.reduce((a,b)=>a+b,0)||1;
   const held=chain.filter(c=>!isStop(c)).length;
   let pool=Math.max(0.12*Math.max(held,1), D-stops*stopHold-glides);
-  const keys=[]; let t=0, k=0;
+  const keys=[], art=[]; let t=0, k=0;
   chain.forEach((sym,i)=>{
     const d=Array.from(shapeFor(sym));
+    const A=baseFor(sym);
     const b=branchFor(sym);
     const dur=isStop(sym) ? stopHold : pool*vw[k++]/wsum;
     if(i>0) t+=glideFor(i);
-    keys.push({t,d,b});
+    keys.push({t,d,b}); art.push({t,A});
     t+=dur;
-    keys.push({t,d,b});
+    keys.push({t,d,b}); art.push({t,A});
   });
-  return {keys, end:t+0.22};
+  return {keys, art, end:t+0.22};
 }
 async function playWord(){
   if(!chain.length) return;
   if(!started) await start();
   if(!node) return;
   const D=+sDur.value, drawl=+sHold.value;
-  const {keys,end}=buildWord(chain, D, drawl, champion.glide, champion.stopT);
+  const W=buildWord(chain, D, drawl, champion.glide, champion.stopT);
+  const {keys,end}=W;
   const f0=[[0,208],[Math.min(0.12,end*0.1),242],[end*0.55,248],[end*0.82,236],[end,196],[end+0.2,180]];
   node.port.postMessage({type:'goal', seq:{keys, f0, end}});
+  artTrack={t0:performance.now(), keys:W.art, end};   // the picture follows the same plan
   sequencing=true; paintBtn();          // respond immediately, the engine confirms in a few ms
 }
 playBtn.addEventListener('click', ()=>{
@@ -1391,8 +1414,128 @@ stage.addEventListener('pointermove',e=>{
 stage.addEventListener('wheel',e=>{e.preventDefault();
   zoom=Math.max(0.55,Math.min(2.2,zoom+e.deltaY*0.0012))},{passive:false});
 
+// ─────────────────────────────────────────────────────────────────────────────
+// The mouth: a mid-sagittal view drawn from the same six articulators that shape
+// the tube. Palate above, jaw and tongue below, lips at the front.
+// ─────────────────────────────────────────────────────────────────────────────
+const mouthCv=document.getElementById('mouth'), mctx=mouthCv.getContext('2d');
+let mw=0,mh=0;
+function sizeMouth(){
+  const dpr=Math.min(devicePixelRatio,2);
+  mw=stage.clientWidth*dpr; mh=stage.clientHeight*dpr;
+  mouthCv.width=mw; mouthCv.height=mh;
+}
+new ResizeObserver(sizeMouth).observe(stage);
+
+// interpolate the articulators for display while a word plays
+function artNow(){
+  if(!artTrack) return curArt;
+  const t=(performance.now()-artTrack.t0)/1000;
+  const K=artTrack.keys;
+  if(t>=artTrack.end){ artTrack=null; return curArt; }
+  for(let i=1;i<K.length;i++){
+    if(t<=K[i].t){
+      const a=K[i-1], b=K[i];
+      let u=(t-a.t)/Math.max(1e-6,(b.t-a.t)); u=u*u*(3-2*u);
+      const o={};
+      for(const k of ['jaw','bodyPos','bodyHi','tipPos','tipHi','lip'])
+        o[k]=a.A[k]+(b.A[k]-a.A[k])*u;
+      return o;
+    }
+  }
+  return K[K.length-1].A;
+}
+
+function drawMouth(){
+  if(!mw) return;
+  const A=artNow();
+  const g=mctx, W=mw, H=mh, S=Math.min(W/9, H/7);
+  const cx=W*0.5-S*0.6, cy=H*0.52;
+  const X=u=>cx+(u-0.5)*S*6.4, Y=v=>cy+v*S*2.1;   // u: glottis(0)->lips(1), v: down
+
+  g.clearRect(0,0,W,H);
+  g.lineWidth=Math.max(1.5,S*0.045);
+
+  // ---- the fixed roof: pharynx wall curving into the hard palate ----
+  g.beginPath();
+  for(let u=0;u<=1.0001;u+=0.02){
+    const roof = u<0.30 ? 0.95-u*0.6
+               : u<0.62 ? 0.77-(u-0.30)*1.35
+               : 0.34;
+    const x=X(u), y=Y(-roof);
+    u===0? g.moveTo(x,y) : g.lineTo(x,y);
+  }
+  g.strokeStyle='#6d787e'; g.stroke();
+
+  // ---- the jaw line: opens downward ----
+  const jawDrop=0.30+A.jaw*0.95;
+  g.beginPath();
+  for(let u=0.42;u<=1.0001;u+=0.02){
+    const w=(u-0.42)/0.58;
+    const y=Y(0.42+jawDrop*Math.sin(w*Math.PI*0.85));
+    const x=X(u);
+    u===0.42? g.moveTo(x,y) : g.lineTo(x,y);
+  }
+  g.strokeStyle='#6d787e'; g.stroke();
+
+  // ---- the tongue: a body that humps, and a tip that can rise ----
+  g.beginPath();
+  const pts=[];
+  for(let u=0.06;u<=0.97;u+=0.015){
+    let v=0.46+0.20*A.jaw;                                   // resting height, follows the jaw
+    const xb=(u-A.bodyPos)/0.30;
+    if(Math.abs(xb)<1) v-=A.bodyHi*0.78*0.5*(1+Math.cos(Math.PI*xb));
+    const xt=(u-A.tipPos)/0.085;
+    if(Math.abs(xt)<1) v-=A.tipHi*0.86*0.5*(1+Math.cos(Math.PI*xt));
+    pts.push([X(u),Y(v)]);
+  }
+  pts.forEach((pt,i)=>i? g.lineTo(pt[0],pt[1]) : g.moveTo(pt[0],pt[1]));
+  const last=pts[pts.length-1];
+  g.lineTo(last[0],Y(1.5)); g.lineTo(pts[0][0],Y(1.5)); g.closePath();
+  const grad=g.createLinearGradient(0,Y(-0.3),0,Y(1.2));
+  grad.addColorStop(0,'#4a565d'); grad.addColorStop(1,'#2a3238');
+  g.fillStyle=grad; g.fill();
+  g.strokeStyle='#93a1a8'; g.stroke();
+
+  // ---- lips ----
+  const lipGap=0.05+A.lip*0.52, lx=X(1.0);
+  g.lineWidth=Math.max(2.5,S*0.10); g.lineCap='round';
+  g.strokeStyle='#b9c6cc';
+  g.beginPath(); g.moveTo(lx-S*0.18,Y(-0.34)); g.lineTo(lx+S*0.10,Y(-lipGap*0.5-0.02)); g.stroke();
+  g.beginPath(); g.moveTo(lx-S*0.18,Y(0.42+jawDrop*0.16)); g.lineTo(lx+S*0.10,Y(lipGap*0.5+0.02)); g.stroke();
+
+  // ---- where the tract is narrowest, which is what makes the sound ----
+  const d=articulate(A,N);
+  let mn=9,mi=0; for(let i=1;i<N-1;i++) if(d[i]<mn){mn=d[i];mi=i;}
+  const u=mi/(N-1);
+  g.lineWidth=Math.max(1.2,S*0.03);
+  g.strokeStyle = mn<0.25 ? '#ff8c42' : 'rgba(185,198,204,.45)';
+  g.setLineDash(mn<0.25?[]:[S*0.10,S*0.10]);
+  const roofAt = u<0.30 ? 0.95-u*0.6 : u<0.62 ? 0.77-(u-0.30)*1.35 : 0.34;
+  g.beginPath(); g.moveTo(X(u),Y(-roofAt)); g.lineTo(X(u),Y(0.30)); g.stroke();
+  g.setLineDash([]);
+
+  g.font=`500 ${Math.max(11,S*0.20)}px "IBM Plex Mono", monospace`;
+  g.fillStyle = mn<0.25 ? '#ff8c42' : '#7e888f';
+  g.textAlign='center';
+  g.fillText(mn<0.25?'sealed':'narrowest', X(u), Y(-roofAt)-S*0.16);
+}
+
+document.querySelector('.viewtabs').addEventListener('click',e=>{
+  const b=e.target.closest('.vt'); if(!b) return;
+  view=b.dataset.view;
+  document.querySelectorAll('.vt').forEach(t=>t.classList.toggle('on',t===b));
+  mouthCv.hidden = view!=='mouth';
+  renderer.domElement.style.visibility = view==='mouth' ? 'hidden' : 'visible';
+});
+
 function frame(){
   requestAnimationFrame(frame);
+  if(view==='mouth'){ drawMouth(); drawSpectro();
+    document.getElementById('vstate').textContent = voicedNow? 'on':'off';
+    document.getElementById('mode').textContent =
+      sequencing ? 'speaking' : (voicing ? 'holding' : (started?'silent':'idle'));
+    return; }
   const dist=baseDist*zoom;
   camera.position.set(2.6+Math.sin(az)*Math.cos(el)*dist, -1.0+Math.sin(el)*dist*0.9,
                       Math.cos(az)*Math.cos(el)*dist);
@@ -1419,6 +1562,7 @@ function frame(){
   renderer.render(scene,camera);
 }
 buildTubes();
+sizeMouth();
 pushShape(false);
 paintBtn();                 // set the resting state of every control
 resize(); frame();
