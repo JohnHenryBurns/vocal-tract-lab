@@ -25,6 +25,30 @@ That principle orders everything below.
 
 ---
 
+## Why it sounds the way it does
+
+A note from testing, which turned out to be the most useful framing anyone has offered:
+
+> *"It sounds like the way deaf people who have learned to speak sound. Which is very close to
+> the truth of how this is built."*
+
+That is not a simile, it is a diagnosis. Speech learned without hearing tends to get
+articulatory **targets** right — where the tongue goes is teachable — while timing, prosody,
+nasal control and laryngeal quality drift, because those can only be tuned by hearing yourself
+and correcting.
+
+This synthesiser has precisely that profile. Formant targets are solved against measured data,
+so place of articulation is correct. Timing is scripted uniformly. The pitch arc is invented.
+There is no velopharyngeal control at all. The glottal source is a generic pulse with no model
+of vocal effort.
+
+The common cause is the same in both cases: **speech produced without auditory feedback.**
+
+This changes what Phase 1 *is*. The A/B rig is not a convenience for tuning faster. It is the
+missing feedback loop, with a human ear closing it — the one thing the model has never had.
+
+---
+
 ## Phase 1 — the iteration rig
 
 *Nothing else should start before this exists.*

@@ -92,8 +92,8 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 
 #dock{display:flex;gap:.4rem;padding:.6rem 1rem;border-top:1px solid var(--rule);
   background:var(--panel)}
-#dock .btn{padding:.7rem .5rem;font-size:.88rem;white-space:nowrap}
-#dock .say{flex:1.3;font-size:.92rem;letter-spacing:.01em}
+#dock .btn{padding:.7rem .35rem;font-size:.82rem;white-space:nowrap;flex:1}
+#dock .say{flex:1.4;font-size:.88rem;letter-spacing:.01em}
 aside section{display:block}
 #scrim{display:none;position:fixed;inset:0;background:rgba(6,9,11,.55);z-index:30}
 
@@ -137,8 +137,9 @@ aside section{display:block}
   .readout{font-size:.76rem;padding:.42rem .8rem;gap:.9rem}
   .readout .eq{display:none}
   .badge{font-size:.78rem;left:.7rem;top:.65rem}
-  aside[data-show="word"]  section[data-panel="tract"]{display:none}
-  aside[data-show="tract"] section[data-panel="word"]{display:none}
+  aside[data-show="word"]  section:not([data-panel="word"]){display:none}
+  aside[data-show="tract"] section:not([data-panel="tract"]){display:none}
+  aside[data-show="lab"]   section:not([data-panel="lab"]){display:none}
 
   /* controls become a sheet that slides over, instead of a strip you scroll past */
   aside{position:fixed;left:0;right:0;bottom:0;z-index:40;max-height:76vh;
@@ -206,6 +207,37 @@ aside section{display:block}
       </div>
     </section>
 
+    <section data-panel="lab">
+      <div class="group">
+        <div class="glabel">A/B tournament</div>
+        <p class="hint" style="margin-top:0">Hear both, keep the better one. Each round mutates
+        around your winner, so the voice converges on what your ear prefers — the feedback the
+        model has never had.</p>
+        <div class="crow" style="margin-top:.8rem">
+          <button class="btn primary" id="playA">Hear A</button>
+          <button class="btn primary" id="playB">Hear B</button>
+        </div>
+        <div class="crow" style="margin-top:.45rem">
+          <button class="btn" id="pickA">A is better</button>
+          <button class="btn" id="pickB">B is better</button>
+        </div>
+        <div class="row" style="margin-top:.9rem"><span>Round</span><span class="v" id="vRound">1</span></div>
+        <div class="row"><span>Search width</span><span class="v" id="vStep">100%</span></div>
+      </div>
+
+      <div class="group">
+        <div class="glabel">Voice seed</div>
+        <div id="seedBox" class="chain" style="font-family:var(--mono);font-size:.9rem;
+          word-break:break-all;display:block"></div>
+        <div class="crow">
+          <button class="btn dim" id="copySeed">Copy</button>
+          <button class="btn dim" id="loadSeed">Load…</button>
+          <button class="btn dim" id="resetVoice">Reset</button>
+        </div>
+        <p class="hint">A seed is the whole voice. Save a good one; it will speak any word.</p>
+      </div>
+    </section>
+
     <section data-panel="tract">
       <div class="group">
         <div class="glabel">Articulators</div>
@@ -241,6 +273,7 @@ aside section{display:block}
   <button class="btn primary say" id="playBtn">Play word</button>
   <button class="btn" id="wordBtn">Word</button>
   <button class="btn" id="tractBtn">Tract</button>
+  <button class="btn" id="labBtn">Lab</button>
 </div>
 <div id="scrim"></div>
 
@@ -276,7 +309,8 @@ aside section{display:block}
       <p><b>Hold</b> voices whatever shape the tract is currently in — one sustained vowel.
       <b>Play word</b> speaks the word you have built; it starts as <i>g o ɑ l</i>.
       <b>Word</b> opens the phoneme palette and the word you are assembling.
-      <b>Tract</b> opens the articulators and the voice.</p>
+      <b>Tract</b> opens the articulators and the voice.
+      <b>Lab</b> runs an A/B tournament that tunes the voice against your ear.</p>
 
       <p>The vowel shapes were not guessed. They were <b>solved</b>: a search over tube geometry,
       scored against Peterson &amp; Barney's 1952 formant measurements, until the simulation
@@ -453,6 +487,7 @@ class TractProcessor extends AudioWorkletProcessor {
     this.f0=240; this.breath=0.02; this.voicing=0; this.vAmp=0;
     this.phase=0; this.jit=0; this.jitT=0; this.jitCd=0;
     this.glotR=0.75; this.lipR=-0.85; this.damp=0.9995;
+    this.OQ=0.60; this.SQ=2.8; this.jitAmt=1;      // glottal shape + irregularity
     this.dcX=0; this.dcY=0; this.tick=0;
     this.seq=null; this.seqT=0; this.prevClose=1;
     this.velar=Math.round(${VELAR}*(n-1));
@@ -464,6 +499,15 @@ class TractProcessor extends AudioWorkletProcessor {
       if(d.type==='voicing') this.voicing=d.value;
       if(d.type==='goal'){ this.seq=d.seq; this.seqT=0; this.voicing=1; }
       if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; }
+      if(d.type==='voice'){                        // the tournament varies these
+        const v=d.v;
+        if(v.oq  !==undefined) this.OQ=v.oq;
+        if(v.sq  !==undefined) this.SQ=v.sq;
+        if(v.jit !==undefined) this.jitAmt=v.jit;
+        if(v.damp!==undefined) this.damp=v.damp;
+        if(v.lipR!==undefined) this.lipR=v.lipR;
+        if(v.brth!==undefined) this.breath=v.brth;
+      }
     };
     this.calcRefl();
   }
@@ -476,7 +520,7 @@ class TractProcessor extends AudioWorkletProcessor {
     }
   }
   glottal(ph){                      // Rosenberg flow pulse
-    const OQ=0.6, SQ=2.8;
+    const OQ=this.OQ, SQ=this.SQ;
     const T1=OQ*SQ/(1+SQ), T2=OQ/(1+SQ);
     if(ph<T1) return 0.5*(1-Math.cos(Math.PI*ph/T1));
     if(ph<T1+T2) return Math.cos(Math.PI*(ph-T1)/(2*T2));
@@ -536,7 +580,7 @@ class TractProcessor extends AudioWorkletProcessor {
       // ---- source ----
       if(--this.jitCd<=0){ this.jitT=Math.random()*2-1; this.jitCd=(sr*0.025)|0; }
       this.jit += (this.jitT-this.jit)*0.004;
-      this.phase += (this.f0*(1+this.jit*0.004))/sr;
+      this.phase += (this.f0*(1+this.jit*0.004*this.jitAmt))/sr;
       if(this.phase>=1) this.phase-=1;
 
       let amp=this.voicing;
@@ -632,9 +676,11 @@ function paintBtn(){
   const panel=document.querySelector('aside');          // looked up, not closed over
   const open = panel && panel.classList.contains('open');
   const shown = panel ? panel.dataset.show : '';
-  const wb=document.getElementById('wordBtn'), tb=document.getElementById('tractBtn');
+  const wb=document.getElementById('wordBtn'), tb=document.getElementById('tractBtn'),
+        lb=document.getElementById('labBtn');
   if(wb) wb.classList.toggle('solid', !!open && shown==='word');
   if(tb) tb.classList.toggle('solid', !!open && shown==='tract');
+  if(lb) lb.classList.toggle('solid', !!open && shown==='lab');
   const hs=document.getElementById('hstat');
   if(hs) hs.textContent = !started ? 'audio off' : (sequencing ? 'speaking' : (voicing?'sustaining':'ready'));
 }
@@ -748,6 +794,104 @@ function openSheet(name){
   const isOpen = aside.classList.contains('open') && aside.dataset.show===name;
   sheet(isOpen ? null : name);
 }
+// ── the voice: everything a tournament is allowed to vary ─────────────────
+// Word-independent by design. A voice tuned on "goal" speaks "bulldog" the same way.
+const VOICE_SPEC=[
+  {k:'oq',   lo:0.40,   hi:0.85,    d:0.60},    // open quotient — glottal duty
+  {k:'sq',   lo:1.5,    hi:5.0,     d:2.8},     // speed quotient — closure abruptness
+  {k:'jit',  lo:0,      hi:3,       d:1},       // vocal-fold irregularity
+  {k:'damp', lo:0.9985, hi:0.99985, d:0.9995},  // tract losses -> formant bandwidth
+  {k:'lipR', lo:-0.95,  hi:-0.62,   d:-0.85},   // radiation at the lips
+  {k:'brth', lo:0,      hi:0.12,    d:0.02},    // aspiration
+  {k:'f0a',  lo:150,    hi:265,     d:208},     // pitch: onset
+  {k:'f0b',  lo:190,    hi:330,     d:250},     //        peak
+  {k:'f0c',  lo:120,    hi:235,     d:190},     //        fall
+  {k:'drawl',lo:0,      hi:1,       d:0.55},    // how much the first vowel is stretched
+];
+const defaultVoice=()=>Object.fromEntries(VOICE_SPEC.map(p=>[p.k,p.d]));
+let champion=defaultVoice(), challenger=null, round=1, step=1.0;
+
+function clampV(v){
+  const o={};
+  for(const p of VOICE_SPEC) o[p.k]=Math.max(p.lo,Math.min(p.hi, v[p.k]));
+  return o;
+}
+function mutate(v,amount){
+  const o={...v};
+  for(const p of VOICE_SPEC){
+    const span=(p.hi-p.lo)*0.28*amount;
+    o[p.k]=v[p.k]+(Math.random()*2-1)*span;
+  }
+  return clampV(o);
+}
+// seed = each parameter as two base-36 digits of its position in range
+function encodeVoice(v){
+  return VOICE_SPEC.map(p=>{
+    const t=Math.round((v[p.k]-p.lo)/(p.hi-p.lo)*1295);
+    return t.toString(36).padStart(2,'0');
+  }).join('');
+}
+function decodeVoice(str){
+  if(!/^[0-9a-z]{20}$/i.test(str)) return null;
+  const v={};
+  VOICE_SPEC.forEach((p,i)=>{
+    const t=parseInt(str.substr(i*2,2),36);
+    v[p.k]=p.lo+(t/1295)*(p.hi-p.lo);
+  });
+  return clampV(v);
+}
+
+function applyVoice(v){
+  if(!node) return;
+  node.port.postMessage({type:'voice', v});
+}
+async function speakWith(v){
+  if(!started) await start();
+  applyVoice(v);
+  const D=+sDur.value;
+  const {keys,end}=buildWord(chain, D, v.drawl);
+  const f0=[[0,v.f0a],[Math.min(0.12,end*0.1),v.f0b],[end*0.55,v.f0b],
+            [end*0.82,(v.f0b+v.f0c)/2],[end,v.f0c],[end+0.2,v.f0c*0.92]];
+  node.port.postMessage({type:'goal', seq:{keys, f0, end}});
+  sequencing=true; paintBtn();
+}
+function paintLab(){
+  const r=document.getElementById('vRound'), st=document.getElementById('vStep'),
+        sb=document.getElementById('seedBox');
+  if(r)  r.textContent=round;
+  if(st) st.textContent=Math.round(step*100)+'%';
+  if(sb) sb.textContent=encodeVoice(champion);
+}
+function nextRound(){ challenger=mutate(champion, step); paintLab(); }
+nextRound();
+
+document.getElementById('playA').addEventListener('click',()=>speakWith(champion));
+document.getElementById('playB').addEventListener('click',()=>speakWith(challenger));
+document.getElementById('pickA').addEventListener('click',()=>{
+  step=Math.max(0.12, step*0.82);      // champion held: search closer in
+  round++; nextRound();
+});
+document.getElementById('pickB').addEventListener('click',()=>{
+  champion=challenger;                 // new champion: keep exploring at this width
+  round++; nextRound();
+});
+document.getElementById('resetVoice').addEventListener('click',()=>{
+  champion=defaultVoice(); step=1.0; round=1; nextRound(); applyVoice(champion);
+});
+document.getElementById('copySeed').addEventListener('click',()=>{
+  const s=encodeVoice(champion);
+  try{ navigator.clipboard.writeText(s); }catch(e){}
+  const b=document.getElementById('copySeed');
+  b.textContent='Copied'; setTimeout(()=>b.textContent='Copy',1200);
+});
+document.getElementById('loadSeed').addEventListener('click',()=>{
+  const s=prompt('Paste a voice seed (20 characters)');
+  if(!s) return;
+  const v=decodeVoice(s.trim());
+  if(!v){ alert('That does not look like a seed.'); return; }
+  champion=v; step=0.5; round=1; nextRound(); applyVoice(champion);
+});
+
 // ── about dialog: shown once, reopenable from the header ──
 const about=document.getElementById('about');
 function showAbout(v){
@@ -764,6 +908,7 @@ if(firstVisit) showAbout(true);
 
 document.getElementById('wordBtn').addEventListener('click',()=>openSheet('word'));
 document.getElementById('tractBtn').addEventListener('click',()=>openSheet('tract'));
+document.getElementById('labBtn').addEventListener('click',()=>openSheet('lab'));
 scrim.addEventListener('click',()=>sheet(null));
 addEventListener('keydown',e=>{ if(e.key==='Escape') sheet(null); });
 
