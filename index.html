@@ -284,17 +284,18 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
     <section data-panel="tract">
       <div class="group">
         <div class="glabel">Articulators</div>
-        <div class="row"><span>Tongue position</span><span class="v" id="vPos">0.25</span></div>
-        <input type="range" id="sPos" min="0.08" max="0.75" step="0.005" value="0.25">
-        <div class="row"><span>Constriction</span><span class="v" id="vCon">0.47</span></div>
-        <input type="range" id="sCon" min="0.05" max="2.4" step="0.01" value="0.47">
-        <div class="row"><span>Constriction width</span><span class="v" id="vWid">0.22</span></div>
-        <input type="range" id="sWid" min="0.08" max="0.45" step="0.005" value="0.22">
-        <div class="row"><span>Lip aperture</span><span class="v" id="vLip">1.24</span></div>
-        <input type="range" id="sLip" min="0.15" max="2.6" step="0.01" value="1.24">
-        <div class="row"><span>Tract width</span><span class="v" id="vBase">1.76</span></div>
-        <input type="range" id="sBase" min="1.0" max="2.8" step="0.01" value="1.76">
-        <p class="hint">These move the walls of the tube. Hold sustains whatever shape they make.</p>
+        <div class="row"><span>Jaw</span><span class="v" id="vJaw">0.19</span></div>
+        <input type="range" id="sJaw" min="0" max="1" step="0.01" value="0.19">
+        <div class="row"><span>Tongue front &harr; back</span><span class="v" id="vBody">0.35</span></div>
+        <input type="range" id="sBody" min="0.15" max="0.85" step="0.005" value="0.35">
+        <div class="row"><span>Tongue height</span><span class="v" id="vHi">0.37</span></div>
+        <input type="range" id="sHi" min="0" max="1" step="0.01" value="0.37">
+        <div class="row"><span>Tongue tip</span><span class="v" id="vTip">0.00</span></div>
+        <input type="range" id="sTip" min="0" max="1" step="0.01" value="0">
+        <div class="row"><span>Lips</span><span class="v" id="vLip">0.16</span></div>
+        <input type="range" id="sLip" min="0" max="1" step="0.01" value="0.16">
+        <p class="hint">Six things a person has, not an abstract tube. A tongue cannot be in two
+        places, which is why no setting here can produce a sound a mouth could not make.</p>
       </div>
 
       <div class="group">
@@ -400,6 +401,11 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
         turns that buzz into a vowel. Move your tongue and you change the shape of the tube.
         That is most of what a vowel is.</p>
 
+        <p>So the controls here are not abstract. They are a <b>jaw</b>, a <b>tongue body</b>, a
+        <b>tongue tip</b> and <b>lips</b> — six numbers shared by every sound. That constraint
+        matters: a tongue cannot be in two places, and lips are not part of it, so no setting can
+        produce a shape a real mouth could not make.</p>
+
         <p>This page is that tube, simulated. It is cut into 44 short segments, and sound
         bounces around inside it the way it does in your own head. Nothing here is a recording,
         and nothing here knows what a vowel is. It only knows the shape of the pipe.</p>
@@ -501,133 +507,171 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 // measured resonances matched Peterson & Barney's vowel formants.
 // Positions are normalised (0 = glottis, 1 = lips) so they survive any sample rate.
 // ─────────────────────────────────────────────────────────────────────────────
-const SHAPES = {
+const ART = {
  "i": {
-  "base": 2.275,
-  "cPos": 0.657,
-  "cDiam": 0.589,
-  "cWidth": 0.312,
-  "lip": 1.717
+  "jaw": 0.133,
+  "bodyPos": 0.61,
+  "bodyHi": 0.67,
+  "tipPos": 0.88,
+  "tipHi": 0.25,
+  "lip": 0.628
  },
  "ɪ": {
-  "base": 1.883,
-  "cPos": 0.637,
-  "cDiam": 0.632,
-  "cWidth": 0.142,
-  "lip": 2.018
+  "jaw": 0.722,
+  "bodyPos": 0.652,
+  "bodyHi": 0.924,
+  "tipPos": 0.807,
+  "tipHi": 0.131,
+  "lip": 0.775
  },
  "ɛ": {
-  "base": 2.077,
-  "cPos": 0.084,
-  "cDiam": 0.419,
-  "cWidth": 0.363,
-  "lip": 1.048
+  "jaw": 0.756,
+  "bodyPos": 0.638,
+  "bodyHi": 0.692,
+  "tipPos": 0.904,
+  "tipHi": 0.086,
+  "lip": 0.964
  },
  "æ": {
-  "base": 1.875,
-  "cPos": 0.107,
-  "cDiam": 0.629,
-  "cWidth": 0.273,
-  "lip": 1.866
+  "jaw": 0.99,
+  "bodyPos": 0.643,
+  "bodyHi": 0.472,
+  "tipPos": 0.742,
+  "tipHi": 0.07,
+  "lip": 0.871
  },
  "ʌ": {
-  "base": 2.161,
-  "cPos": 0.166,
-  "cDiam": 0.51,
-  "cWidth": 0.312,
-  "lip": 1.592
+  "jaw": 0.719,
+  "bodyPos": 0.388,
+  "bodyHi": 0.308,
+  "tipPos": 0.731,
+  "tipHi": 0.294,
+  "lip": 0.623
  },
  "ɑ": {
-  "base": 1.958,
-  "cPos": 0.197,
-  "cDiam": 0.437,
-  "cWidth": 0.345,
-  "lip": 1.881
+  "jaw": 0.847,
+  "bodyPos": 0.301,
+  "bodyHi": 0.409,
+  "tipPos": 0.817,
+  "tipHi": 0.059,
+  "lip": 0.882
  },
  "ɔ": {
-  "base": 2.253,
-  "cPos": 0.231,
-  "cDiam": 0.643,
-  "cWidth": 0.218,
-  "lip": 1.271
+  "jaw": 0.795,
+  "bodyPos": 0.286,
+  "bodyHi": 0.482,
+  "tipPos": 0.84,
+  "tipHi": 0.019,
+  "lip": 0.402
  },
  "ʊ": {
-  "base": 2.78,
-  "cPos": 0.348,
-  "cDiam": 1.559,
-  "cWidth": 0.321,
-  "lip": 1.179
+  "jaw": 0.94,
+  "bodyPos": 0.487,
+  "bodyHi": 0.339,
+  "tipPos": 0.84,
+  "tipHi": 0.081,
+  "lip": 0.259
  },
  "u": {
-  "base": 2.096,
-  "cPos": 0.459,
-  "cDiam": 0.995,
-  "cWidth": 0.198,
-  "lip": 0.655
+  "jaw": 0.651,
+  "bodyPos": 0.493,
+  "bodyHi": 0.451,
+  "tipPos": 0.84,
+  "tipHi": 0.037,
+  "lip": 0.125
  },
  "ɝ": {
-  "base": 2.068,
-  "cPos": 0.444,
-  "cDiam": 1.097,
-  "cWidth": 0.103,
-  "lip": 1.754
+  "jaw": 0.958,
+  "bodyPos": 0.829,
+  "bodyHi": 0.33,
+  "tipPos": 0.79,
+  "tipHi": 0.215,
+  "lip": 0.367
  },
  "ə": {
-  "base": 1.161,
-  "cPos": 0.155,
-  "cDiam": 1.18,
-  "cWidth": 0.166,
-  "lip": 1.822
+  "jaw": 0.065,
+  "bodyPos": 0.638,
+  "bodyHi": 0.106,
+  "tipPos": 0.936,
+  "tipHi": 0.198,
+  "lip": 0.696
  },
  "o": {
-  "base": 1.76,
-  "cPos": 0.25,
-  "cDiam": 0.47,
-  "cWidth": 0.225,
-  "lip": 1.24
+  "jaw": 0.715,
+  "bodyPos": 0.475,
+  "bodyHi": 0.584,
+  "tipPos": 0.84,
+  "tipHi": 0.057,
+  "lip": 0.334
+ },
+ "b": {
+  "jaw": 0.25,
+  "bodyPos": 0.3,
+  "bodyHi": 0.1,
+  "tipPos": 0.85,
+  "tipHi": 0.0,
+  "lip": 0.0
+ },
+ "d": {
+  "jaw": 0.3,
+  "bodyPos": 0.55,
+  "bodyHi": 0.25,
+  "tipPos": 0.83,
+  "tipHi": 1.0,
+  "lip": 0.75
+ },
+ "g": {
+  "jaw": 0.28,
+  "bodyPos": 0.56,
+  "bodyHi": 1.0,
+  "tipPos": 0.85,
+  "tipHi": 0.0,
+  "lip": 0.72
  },
  "l": {
-  "base": 1.8,
-  "cPos": 0.84,
-  "cDiam": 0.7,
-  "cWidth": 0.1,
-  "lip": 1.9
+  "jaw": 0.45,
+  "bodyPos": 0.3,
+  "bodyHi": 0.18,
+  "tipPos": 0.84,
+  "tipHi": 0.72,
+  "lip": 0.8
  }
 };
+
+// ---- the tract, shaped by things a person has ----
+function restingDiam(n){
+  const d=new Float64Array(n);
+  for(let i=0;i<n;i++){
+    const u=i/(n-1);
+    d[i] = u<0.30 ? 1.45 : u<0.62 ? 1.45+(u-0.30)/0.32*0.75 : 2.20;
+  }
+  return d;
+}
+function hump(u,centre,width,height){
+  const x=(u-centre)/width;
+  if(Math.abs(x)>=1) return 0;
+  return height*0.5*(1+Math.cos(Math.PI*x));
+}
+// jaw opens the mouth, the tongue body is wide and smooth, the tip is small and sharp,
+// and the lips close the tube. No phoneme can ask for two constrictions at once.
+function articulate(A,n){
+  const d=restingDiam(n);
+  for(let i=0;i<n;i++){
+    const u=i/(n-1);
+    if(u>0.45) d[i]*=0.72+0.55*A.jaw;
+    d[i]-=hump(u,A.bodyPos,0.30,A.bodyHi*2.05);
+    d[i]-=hump(u,A.tipPos,0.085,A.tipHi*2.3);
+    d[i]=Math.max(0.02,d[i]);
+  }
+  const lipD=0.18+2.5*A.lip;
+  for(let i=Math.floor(n*0.94);i<n;i++) d[i]=Math.min(d[i],lipD);
+  d[0]=Math.min(d[0],0.8);
+  return d;
+}
 // stop consonants are the same move at three places along the tract
 const STOPS = { b:0.97, d:0.80, g:0.568 };   // lips · alveolar ridge · velum
-// the posture behind the seal is what gives a stop its identity on release
-const STOP_POSTURE = {
-  b:{base:1.75, cPos:0.30, cDiam:1.60, cWidth:0.25, lip:1.60},  // tongue neutral, lips shut
-  d:{base:1.80, cPos:0.62, cDiam:1.10, cWidth:0.22, lip:1.55},  // blade up, body forward
-  g:{base:1.90, cPos:0.575,cDiam:0.05, cWidth:0.20, lip:1.55},  // body high and back at the velum
-};
 const VELAR = STOPS.g;
 
-function buildShape(p, n){
-  const d = new Float64Array(n);
-  for(let i=0;i<n;i++){
-    const u = i/(n-1);
-    let v = p.base;
-    const x = (u - p.cPos)/p.cWidth;
-    if(Math.abs(x) < 1) v = p.base - (p.base - p.cDiam)*0.5*(1+Math.cos(Math.PI*x));
-    d[i] = v;
-  }
-  const lipFrom = Math.floor(n*0.93);
-  for(let i=lipFrom;i<n;i++) d[i] = Math.min(d[i], p.lip);
-  d[0] = Math.min(d[0], 0.8);
-  return d;
-}
-function withClosure(base, n, where){     // seal the tube at a place of articulation
-  const d = Float64Array.from(base);
-  const c = Math.round((where===undefined?VELAR:where)*(n-1)), w = Math.max(2, Math.round(n*0.07));
-  for(let i=c-w;i<=c+w;i++){
-    if(i<0||i>=n) continue;
-    const k = 1 - Math.abs(i-c)/(w+1);
-    d[i] = Math.max(0.02, d[i]*(1-k) + 0.02*k);
-  }
-  return d;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Audio: the waveguide itself, running sample-by-sample in an AudioWorklet.
@@ -652,7 +696,7 @@ class TractProcessor extends AudioWorkletProcessor {
     // ---- side branch: the closed pocket that gives /l/ its anti-resonance ----
     const secM = 350/(sampleRate*2);
     this.bN    = Math.max(3, Math.round(6*0.00397/secM));  // solved pocket
-    this.bPos  = Math.round(n*0.84);    // taps at the tongue-tip constriction
+    this.bPos  = Math.round(n*0.84);    // the pocket sits in front of the tongue tip
     this.bArea = 1.5; this.bEnd = 0.97;      // closed pocket
     this.bOpen = 0; this.bTarget = 0;
     this.bR=new Float64Array(this.bN); this.bL=new Float64Array(this.bN);
@@ -930,28 +974,28 @@ addEventListener('keydown', e=>{
 });
 
 // ── controls ────────────────────────────────────────────────────────────────
-const sPos=document.getElementById('sPos'), sCon=document.getElementById('sCon'),
-      sWid=document.getElementById('sWid'), sLip=document.getElementById('sLip'),
-      sBase=document.getElementById('sBase'), sF0=document.getElementById('sF0'),
+const sJaw=document.getElementById('sJaw'), sBody=document.getElementById('sBody'),
+      sHi=document.getElementById('sHi'), sTip=document.getElementById('sTip'),
+      sLip=document.getElementById('sLip'), sF0=document.getElementById('sF0'),
       sBr=document.getElementById('sBr'), sVol=document.getElementById('sVol'),
       sDur=document.getElementById('sDur'),
       sHold=document.getElementById('sHold');
 
 function params(){
-  return {base:+sBase.value, cPos:+sPos.value, cDiam:+sCon.value,
-          cWidth:+sWid.value, lip:+sLip.value};
+  return {jaw:+sJaw.value, bodyPos:+sBody.value, bodyHi:+sHi.value,
+          tipPos:0.84, tipHi:+sTip.value, lip:+sLip.value};
 }
 function pushShape(snap){
-  document.getElementById('vPos').textContent=(+sPos.value).toFixed(2);
-  document.getElementById('vCon').textContent=(+sCon.value).toFixed(2);
-  document.getElementById('vWid').textContent=(+sWid.value).toFixed(2);
+  document.getElementById('vJaw').textContent=(+sJaw.value).toFixed(2);
+  document.getElementById('vBody').textContent=(+sBody.value).toFixed(2);
+  document.getElementById('vHi').textContent=(+sHi.value).toFixed(2);
+  document.getElementById('vTip').textContent=(+sTip.value).toFixed(2);
   document.getElementById('vLip').textContent=(+sLip.value).toFixed(2);
-  document.getElementById('vBase').textContent=(+sBase.value).toFixed(2);
-  curShape = buildShape(params(), N);
+  curShape = articulate(params(), N);
   if(!node) return;
   node.port.postMessage({type:'shape', diam:curShape, br:0, snap:!!snap});
 }
-[sPos,sCon,sWid,sLip,sBase].forEach(s=>s.addEventListener('input',()=>{
+[sJaw,sBody,sHi,sTip,sLip].forEach(s=>s.addEventListener('input',()=>{
   document.querySelectorAll('.key').forEach(k=>k.classList.remove('on'));
   pushShape(false);
 }));
@@ -987,17 +1031,14 @@ function makeKey(sym, host){
   });
   host.appendChild(b);
 }
-function baseFor(sym){ return SHAPES[sym] || SHAPES['ə']; }
-function shapeFor(sym){
-  if(STOP_KEYS.includes(sym))
-    return withClosure(buildShape(STOP_POSTURE[sym]||SHAPES['ə'], N), N, STOPS[sym]);
-  return buildShape(baseFor(sym), N);
-}
+function baseFor(sym){ return ART[sym] || ART['ə']; }
+function shapeFor(sym){ return articulate(ART[sym]||ART['ə'], N); }
 const BRANCHED={ l:1 };                 // /l/ opens the closed pocket; nasals will join it
 const branchFor=sym=>BRANCHED[sym]||0;
 function applyPhoneme(sym){
-  const p = STOP_KEYS.includes(sym) ? (STOP_POSTURE[sym]||SHAPES['ə']) : baseFor(sym);
-  sBase.value=p.base; sPos.value=p.cPos; sCon.value=p.cDiam; sWid.value=p.cWidth; sLip.value=p.lip;
+  const A = baseFor(sym);
+  sJaw.value=A.jaw; sBody.value=A.bodyPos; sHi.value=A.bodyHi;
+  sTip.value=A.tipHi; sLip.value=A.lip;
   pushShape(false);
   curShape = shapeFor(sym);
   if(node) node.port.postMessage({type:'shape', diam:curShape, br:branchFor(sym)});
