@@ -33,8 +33,10 @@ immediately — audio just adds the wind. Starting the voice sustains **one** vo
 
 ## Controls
 
-**Start audio** unlocks the browser's audio, then that same button stops and starts the
-voice — as does the space bar. **Volume** is in the Voice group.
+Four controls sit in the dock. **Hold** voices whatever shape the tract is currently in —
+a sustained vowel. **Play word** speaks the word you have built, and becomes **Stop** while
+it is speaking. **Word** and **Tract** open the two panels: what to say, and how the
+instrument behaves. Any of them will unlock the browser's audio on first tap.
 
 **Tongue position** slides the constriction from the pharynx toward the lips.
 **Constriction** sets how tight it is. **Lip aperture** rounds or spreads the mouth.

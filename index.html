@@ -90,10 +90,11 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
   color:var(--dim);border-top:1px solid var(--rule);flex-wrap:wrap;align-items:center}
 .readout b{color:var(--ink);font-weight:400}
 
-#dock{display:flex;gap:.5rem;padding:.6rem 1rem;border-top:1px solid var(--rule);
+#dock{display:flex;gap:.4rem;padding:.6rem 1rem;border-top:1px solid var(--rule);
   background:var(--panel)}
-#dock .say{flex:1;font-size:.86rem;padding:.7rem 0;letter-spacing:.01em}
-#panelToggle{display:none}
+#dock .btn{padding:.65rem .55rem;font-size:.78rem;white-space:nowrap}
+#dock .say{flex:1;font-size:.84rem;letter-spacing:.01em}
+aside section{display:block}
 #scrim{display:none;position:fixed;inset:0;background:rgba(6,9,11,.55);z-index:30}
 
 @media(max-width:820px){
@@ -105,7 +106,8 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
   .readout{font-size:.6rem;padding:.34rem .8rem;gap:.7rem}
   .readout .eq{display:none}
   .badge{font-size:.55rem;left:.65rem;top:.6rem}
-  #panelToggle{display:block}
+  aside[data-show="word"]  section[data-panel="tract"]{display:none}
+  aside[data-show="tract"] section[data-panel="word"]{display:none}
 
   /* controls become a sheet that slides over, instead of a strip you scroll past */
   aside{position:fixed;left:0;right:0;bottom:0;z-index:40;max-height:76vh;
@@ -139,67 +141,65 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
     </div>
   </div>
 
-  <aside>
+  <aside data-show="word">
     <div class="grab"><i></i></div>
 
-    <div class="group">
-      <div class="glabel">Articulators</div>
-      <div class="row"><span>Tongue position</span><span class="v" id="vPos">0.25</span></div>
-      <input type="range" id="sPos" min="0.08" max="0.75" step="0.005" value="0.25">
-      <div class="row"><span>Constriction</span><span class="v" id="vCon">0.47</span></div>
-      <input type="range" id="sCon" min="0.05" max="2.4" step="0.01" value="0.47">
-      <div class="row"><span>Constriction width</span><span class="v" id="vWid">0.22</span></div>
-      <input type="range" id="sWid" min="0.08" max="0.45" step="0.005" value="0.22">
-      <div class="row"><span>Lip aperture</span><span class="v" id="vLip">1.24</span></div>
-      <input type="range" id="sLip" min="0.15" max="2.6" step="0.01" value="1.24">
-      <div class="row"><span>Tract width</span><span class="v" id="vBase">1.76</span></div>
-      <input type="range" id="sBase" min="1.0" max="2.8" step="0.01" value="1.76">
-    </div>
-
-    <div class="group">
-      <div class="glabel">Voice</div>
-      <div class="row"><span>Pitch</span><span class="v" id="vF0">240 Hz</span></div>
-      <input type="range" id="sF0" min="80" max="340" step="1" value="240">
-      <div class="row"><span>Breathiness</span><span class="v" id="vBr">0.02</span></div>
-      <input type="range" id="sBr" min="0" max="0.25" step="0.005" value="0.02">
-      <div class="row"><span>Volume</span><span class="v" id="vVol">0.85</span></div>
-      <input type="range" id="sVol" min="0" max="1" step="0.01" value="0.85">
-    </div>
-
-    <div class="group">
-      <div class="glabel">Vowels</div>
-      <div class="keys" id="vkeys"></div>
-      <div class="glabel" style="margin-top:.9rem">Consonants</div>
-      <div class="keys" id="ckeys"></div>
-      <p class="hint">Tapping shapes the tract <em>and</em> adds that sound to the word.
-      <b>b d g</b> seal the tube at the lips, the ridge and the velum — holding one is silent,
-      because that is what a stop is.</p>
-    </div>
-
-    <div class="group">
-      <div class="glabel">Word</div>
-      <div id="chain" class="chain"></div>
-      <div class="crow">
-        <button class="btn dim" id="goalPreset">GOOOAAALLL</button>
-        <button class="btn dim" id="undoChain">Undo</button>
-        <button class="btn dim" id="clearChain">Clear</button>
+    <section data-panel="word">
+      <div class="group">
+        <div class="glabel">Vowels</div>
+        <div class="keys" id="vkeys"></div>
+        <div class="glabel" style="margin-top:.9rem">Consonants</div>
+        <div class="keys" id="ckeys"></div>
+        <p class="hint">Tapping shapes the tract <em>and</em> adds that sound to the word.
+        <b>b d g</b> seal the tube at the lips, the ridge and the velum — holding one is silent,
+        because that is what a stop is.</p>
       </div>
-      <p class="hint">Play word speaks whatever is here. It starts as the goal cry;
-      tap any phoneme to extend it, or Clear and build your own.</p>
-    </div>
 
-    <div class="group">
-      <div class="glabel">Timing</div>
-      <div class="row"><span>Length</span><span class="v" id="vDur">2.9 s</span></div>
-      <input type="range" id="sDur" min="0.6" max="5" step="0.1" value="2.9">
-      <div class="row"><span>Drawl</span><span class="v" id="vHold">0.55</span></div>
-      <input type="range" id="sHold" min="0" max="1" step="0.01" value="0.55">
-      <p class="hint">These two set the timing of the cry. The articulator sliders hold
-      <em>one</em> shape, so the voice sustains a single vowel — <b>SAY GOOOAAALLL</b> at the
-      top is the only control that moves the tract through /g/ → o → ɑ → l and says the word.</p>
-      <p class="hint">Nothing here schedules a formant. The controls move the walls of a tube;
-      the resonances are whatever the geometry produces.</p>
-    </div>
+      <div class="group">
+        <div class="glabel">Word</div>
+        <div id="chain" class="chain"></div>
+        <div class="crow">
+          <button class="btn dim" id="goalPreset">GOOOAAALLL</button>
+          <button class="btn dim" id="undoChain">Undo</button>
+          <button class="btn dim" id="clearChain">Clear</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="glabel">Timing</div>
+        <div class="row"><span>Length</span><span class="v" id="vDur">2.9 s</span></div>
+        <input type="range" id="sDur" min="0.6" max="5" step="0.1" value="2.9">
+        <div class="row"><span>Drawl</span><span class="v" id="vHold">0.55</span></div>
+        <input type="range" id="sHold" min="0" max="1" step="0.01" value="0.55">
+      </div>
+    </section>
+
+    <section data-panel="tract">
+      <div class="group">
+        <div class="glabel">Articulators</div>
+        <div class="row"><span>Tongue position</span><span class="v" id="vPos">0.25</span></div>
+        <input type="range" id="sPos" min="0.08" max="0.75" step="0.005" value="0.25">
+        <div class="row"><span>Constriction</span><span class="v" id="vCon">0.47</span></div>
+        <input type="range" id="sCon" min="0.05" max="2.4" step="0.01" value="0.47">
+        <div class="row"><span>Constriction width</span><span class="v" id="vWid">0.22</span></div>
+        <input type="range" id="sWid" min="0.08" max="0.45" step="0.005" value="0.22">
+        <div class="row"><span>Lip aperture</span><span class="v" id="vLip">1.24</span></div>
+        <input type="range" id="sLip" min="0.15" max="2.6" step="0.01" value="1.24">
+        <div class="row"><span>Tract width</span><span class="v" id="vBase">1.76</span></div>
+        <input type="range" id="sBase" min="1.0" max="2.8" step="0.01" value="1.76">
+        <p class="hint">These move the walls of the tube. Hold sustains whatever shape they make.</p>
+      </div>
+
+      <div class="group">
+        <div class="glabel">Voice</div>
+        <div class="row"><span>Pitch</span><span class="v" id="vF0">240 Hz</span></div>
+        <input type="range" id="sF0" min="80" max="340" step="1" value="240">
+        <div class="row"><span>Breathiness</span><span class="v" id="vBr">0.02</span></div>
+        <input type="range" id="sBr" min="0" max="0.25" step="0.005" value="0.02">
+        <div class="row"><span>Volume</span><span class="v" id="vVol">0.85</span></div>
+        <input type="range" id="sVol" min="0" max="1" step="0.01" value="0.85">
+      </div>
+    </section>
   </aside>
 </main>
 
@@ -207,7 +207,8 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 <div id="dock">
   <button class="btn" id="holdBtn" title="Voice the shape the tract is in right now">Hold</button>
   <button class="btn primary say" id="playBtn">Play word</button>
-  <button class="btn" id="panelToggle">Controls</button>
+  <button class="btn" id="wordBtn">Word</button>
+  <button class="btn" id="tractBtn">Tract</button>
 </div>
 <div id="scrim"></div>
 
@@ -537,13 +538,12 @@ function paintBtn(){
   holdBtn.classList.toggle('solid', !!voicing && !sequencing);
   playBtn.textContent = sequencing ? 'Stop' : 'Play word';
   playBtn.classList.toggle('solid', !!sequencing);
-  const pt=document.getElementById('panelToggle');
   const panel=document.querySelector('aside');          // looked up, not closed over
-  if(pt){
-    const open=panel && panel.classList.contains('open');
-    pt.textContent = open ? 'Close' : 'Controls';
-    pt.classList.toggle('solid', !!open);
-  }
+  const open = panel && panel.classList.contains('open');
+  const shown = panel ? panel.dataset.show : '';
+  const wb=document.getElementById('wordBtn'), tb=document.getElementById('tractBtn');
+  if(wb) wb.classList.toggle('solid', !!open && shown==='word');
+  if(tb) tb.classList.toggle('solid', !!open && shown==='tract');
   const hs=document.getElementById('hstat');
   if(hs) hs.textContent = !started ? 'audio off' : (sequencing ? 'speaking' : (voicing?'sustaining':'ready'));
 }
@@ -645,17 +645,22 @@ VOWEL_KEYS.filter(k=>k!=='l').forEach(k=>makeKey(k, document.getElementById('vke
 CONS_KEYS.forEach(k=>makeKey(k, document.getElementById('ckeys')));
 drawChain();
 
-// ── the control sheet (mobile) ──
+// ── two sheets: what to say, and how the instrument behaves ──
 const aside=document.querySelector('aside'), scrim=document.getElementById('scrim');
-function sheet(open){
-  aside.classList.toggle('open', open);
-  scrim.classList.toggle('on', open);
+function sheet(name){                     // name = 'word' | 'tract' | null
+  if(name) aside.dataset.show=name;
+  aside.classList.toggle('open', !!name);
+  scrim.classList.toggle('on', !!name);
   paintBtn();
 }
-document.getElementById('panelToggle').addEventListener('click',()=>
-  sheet(!aside.classList.contains('open')));
-scrim.addEventListener('click',()=>sheet(false));
-addEventListener('keydown',e=>{ if(e.key==='Escape') sheet(false); });
+function openSheet(name){
+  const isOpen = aside.classList.contains('open') && aside.dataset.show===name;
+  sheet(isOpen ? null : name);
+}
+document.getElementById('wordBtn').addEventListener('click',()=>openSheet('word'));
+document.getElementById('tractBtn').addEventListener('click',()=>openSheet('tract'));
+scrim.addEventListener('click',()=>sheet(null));
+addEventListener('keydown',e=>{ if(e.key==='Escape') sheet(null); });
 
 const GOAL_WORD=['g','o','ɑ','l'];
 document.getElementById('clearChain').addEventListener('click',()=>{ chain=[]; drawChain(); });
