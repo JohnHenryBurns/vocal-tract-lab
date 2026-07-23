@@ -105,7 +105,9 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
   display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;margin-bottom:.55rem}
 .chain .empty{color:var(--dim);font-size:.88rem}
 .chip{background:var(--panel2);border:1px solid var(--rule);border-radius:4px;
-  padding:.2rem .5rem;font-size:1.05rem}
+  padding:.2rem .5rem;font-size:1.05rem;transition:transform .08s ease,background .08s ease}
+.chip.now{background:var(--ink);color:#0f1316;border-color:var(--ink);
+  transform:translateY(-5px) scale(1.14)}
 .crow{display:flex;gap:.45rem}
 .btn:disabled{opacity:.32;cursor:default;border-color:var(--rule)}
 .btn:disabled:hover{background:transparent;border-color:var(--rule)}
@@ -291,6 +293,8 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
         <div class="glabel">Sounds <span id="chainFrom"></span></div>
         <div id="chainWord"></div>
         <div id="chain" class="chain" role="button" tabindex="0"></div>
+        <p class="hint" style="margin-top:.4rem">The sounds lift as they are spoken — you can
+        watch the word go by.</p>
         <div class="crow">
           <button class="btn" id="editSounds">Edit sounds</button>
           <button class="btn dim" id="newWord">New word</button>
@@ -1192,7 +1196,7 @@ class TractProcessor extends AudioWorkletProcessor {
       // a voiceless /h/ is silent. Which is exactly what it was.
       if(this.asp>0.001){
         this.ah=(this.ah||0)*0.62+(Math.random()*2-1)*0.38;
-        src += this.ah*this.asp*this.flow*0.75;
+        src += this.ah*this.asp*this.flow*0.42;
       }
 
       // ---- the tube ----
@@ -1279,7 +1283,7 @@ class TractProcessor extends AudioWorkletProcessor {
           this.fh1 = ha*((this.fh1||0) + sig - (this.fhx||0));       this.fhx = sig;
           this.fh2 = ha*((this.fh2||0) + this.fh1 - (this.fhy||0));  this.fhy = this.fh1;
           const at=Math.min(n-2, mi+1);
-          this.R[at] += this.fh2 * jet * this.fric * breath * 2.6;
+          this.R[at] += this.fh2 * jet * this.fric * breath * 0.95;
         }
       }
       this.prevClose=cl;
@@ -1313,6 +1317,7 @@ let ctx=null, node=null, analyser=null, gainNode=null, N=44, started=false;
 let energy=null, liveDiam=null, voicedNow=false, voicing=0;
 let curShape=null, sequencing=false;      // the tube exists before the wind does
 let curArt={jaw:0.19,bodyPos:0.35,bodyHi:0.37,tipPos:0.84,tipHi:0,lip:0.16};
+let playSeg=null;                  // which sound is being spoken right now
 let lastTyped='', chainSource='';   // declared early: drawChain reads them
 let voiceName='announcer';
 let heldSym='';                    // which sound the tract is currently shaped for
@@ -1480,7 +1485,8 @@ function openedShape(sym, amt){
 const BRANCHED={ l:1 };                 // /l/ opens the closed pocket at the tongue tip
 const NASAL={ m:1, n:1, 'ŋ':1 };        // the velum opens the nasal tract
 const VOICELESS={ p:1, t:1, k:1, s:1, 'ʃ':1, f:1, h:1 };   // folds apart
-const FRICATIVE={ s:1, z:1, 'ʃ':1, f:0.85, v:0.65 };   // turbulence at a constriction
+// relative strengths: sibilants loudest, labiodentals weak — as in real speech
+const FRICATIVE={ s:1.05, z:0.8, 'ʃ':1.0, f:2.1, v:1.5 };
 const ASPIRATE ={ h:1 };                               // turbulence at the glottis instead
 const branchFor=sym=>BRANCHED[sym]||0;
 const nasalFor =sym=>NASAL[sym]||0;
@@ -1728,7 +1734,8 @@ async function speakWith(v){
   const f0=[[0,v.f0a],[Math.min(0.12,end*0.1),v.f0b],[end*0.55,v.f0b],
             [end*0.82,(v.f0b+v.f0c)/2],[end,v.f0c],[end+0.2,v.f0c*0.92]];
   node.port.postMessage({type:'goal', seq:{keys, f0, end}});
-  artTrack={t0:performance.now(), keys:W.art, end};   // the picture follows the same plan
+  artTrack={t0:performance.now(), keys:W.art, end};
+  playSeg={t0:performance.now(), seg:W.seg};         // the word follows the same clock   // the picture follows the same plan
   sequencing=true; paintBtn();
 }
 let heardA=false, heardB=false, lastPick=null;
@@ -1932,8 +1939,8 @@ const VOICES = {
     v:{ rd:2.35, press:0.0, jit:1.8, brth:0.11, drawl:0.10, open:0.03, per:0.20,
         sect:44, f0a:130, f0b:148, f0c:120 } },
   barry:{ label:'Barry White', note:'A long tract and a low larynx: deep, resonant, unhurried.',
-    v:{ rd:0.78, press:0.22, jit:0.7, brth:0.035, drawl:0.22, open:0.12, per:0.30,
-        damp:0.99972, sect:48, f0a:62, f0b:74, f0c:54 } },
+    v:{ rd:0.78, press:0.22, jit:1.1, brth:0.035, drawl:0.14, open:0.10, per:0.20,
+        damp:0.99972, sect:48, f0a:58, f0b:88, f0c:48 } },
   custom:{ label:'Custom', note:'Yours. Tune it in the Lab, then copy the seed — a seed is the whole voice, tract length and timing included.', v:null },
 };
 
@@ -2017,7 +2024,7 @@ function buildWord(chain, D, drawl, glide, stopHold, open){
   const wsum=vw.reduce((a,b)=>a+b,0)||1;
   const held=chain.filter(c=>!isStop(c)).length;
   let pool=Math.max(0.12*Math.max(held,1), D-stops*stopHold-glides);
-  const keys=[], art=[]; let t=0, k=0;
+  const keys=[], art=[], seg=[]; let t=0, k=0;
   chain.forEach((sym,i)=>{
     const d=Array.from(shapeFor(sym));
     const A=baseFor(sym);
@@ -2025,6 +2032,7 @@ function buildWord(chain, D, drawl, glide, stopHold, open){
           fr=fricFor(sym), as=aspFor(sym);
     const dur=isStop(sym) ? stopHold : pool*vw[k++]/wsum;
     if(i>0) t+=glideFor(i);
+    seg.push({sym, a:t, b:t+dur});
     keys.push({t,d,b,nz,vl,fr,as}); art.push({t,A});
     t+=dur;
     // a long held vowel drifts open; a short one has no time to
@@ -2039,7 +2047,7 @@ function buildWord(chain, D, drawl, glide, stopHold, open){
       keys.push({t,d,b,nz,vl,fr,as}); art.push({t,A});
     }
   });
-  return {keys, art, end:t+0.22};
+  return {keys, art, seg, end:t+0.22};
 }
 async function playWord(){
   if(!chain.length) return;
@@ -2054,7 +2062,8 @@ async function playWord(){
   const f0=[[0,v.f0a],[Math.min(0.12,end*0.1),v.f0b],[end*0.55,v.f0b],
             [end*0.82,(v.f0b+v.f0c)/2],[end,v.f0c],[end+0.2,v.f0c*0.92]];
   node.port.postMessage({type:'goal', seq:{keys, f0, end}});
-  artTrack={t0:performance.now(), keys:W.art, end};   // the picture follows the same plan
+  artTrack={t0:performance.now(), keys:W.art, end};
+  playSeg={t0:performance.now(), seg:W.seg};         // the word follows the same clock   // the picture follows the same plan
   sequencing=true; paintBtn();          // respond immediately, the engine confirms in a few ms
 }
 playBtn.addEventListener('click', ()=>{
@@ -2185,6 +2194,25 @@ function artNow(){
   return K[K.length-1].A;
 }
 
+// Karaoke: lift the sound being spoken right now. It turns a blur into visible phonemes.
+let lastBounce=-2;
+function bounceWord(){
+  let idx=-1;
+  if(playSeg && sequencing){
+    const t=(performance.now()-playSeg.t0)/1000;
+    for(let i=0;i<playSeg.seg.length;i++){
+      const g=playSeg.seg[i];
+      if(t>=g.a-0.02 && t<=g.b+0.02){ idx=i; break; }
+    }
+  } else if(!sequencing) playSeg=null;
+  if(idx===lastBounce) return;
+  lastBounce=idx;
+  for(const host of ['chain','kbdChain']){
+    const el=document.getElementById(host);
+    if(!el) continue;
+    el.querySelectorAll('.chip').forEach((c,i)=>c.classList.toggle('now', i===idx));
+  }
+}
 function drawMouth(){
   if(!mw) return;
   const A=artNow();
@@ -2270,7 +2298,7 @@ document.querySelector('.viewtabs').addEventListener('click',e=>{
 
 function frame(){
   requestAnimationFrame(frame);
-  if(view==='mouth'){ drawMouth(); drawSpectro();
+  if(view==='mouth'){ drawMouth(); bounceWord(); drawSpectro();
     document.getElementById('vstate').textContent = voicedNow? 'on':'off';
     document.getElementById('mode').textContent =
       sequencing ? 'speaking'
@@ -2296,6 +2324,7 @@ function frame(){
       t.mesh.material.emissive.setRGB(c[0]*e*0.95, c[1]*e*0.95, c[2]*e*0.95);
     }
   }
+  bounceWord();
   drawSpectro();
   document.getElementById('vstate').textContent = voicedNow? 'on':'off';
   document.getElementById('mode').textContent =
