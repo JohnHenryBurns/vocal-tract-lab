@@ -742,7 +742,7 @@ const ART = {
   "jaw": 0.44999999999999996,
   "bodyPos": 0.55,
   "bodyHi": 0.28,
-  "tipPos": 0.88,
+  "tipPos": 0.85,
   "tipHi": 0.8500000000000002,
   "lip": 0.9
  },
@@ -750,7 +750,7 @@ const ART = {
   "jaw": 0.44999999999999996,
   "bodyPos": 0.55,
   "bodyHi": 0.28,
-  "tipPos": 0.88,
+  "tipPos": 0.85,
   "tipHi": 0.8500000000000002,
   "lip": 0.9
  },
@@ -1166,7 +1166,10 @@ class TractProcessor extends AudioWorkletProcessor {
           const frontM=Math.max(0.004,(n-1-mi)*(350/(sampleRate*2)));
           const fc=Math.max(1800,Math.min(7600, 350/(4*frontM)));
           if(Math.abs(fc-(this.fcLast||0))>40){
-            const w0=2*Math.PI*fc/sampleRate, r=0.955;
+            // End correction: radiation loading makes the cavity acoustically longer than it
+            // is geometrically, which lowers the resonance. And a real sibilant is a broad
+            // plateau, not a spike — so the resonance is deliberately low-Q.
+            const w0=2*Math.PI*(fc*0.82)/sampleRate, r=0.86;
             this.fb1=2*r*Math.cos(w0); this.fb2=-r*r; this.fg=(1-r)*1.6;
             this.fcLast=fc;
           }
