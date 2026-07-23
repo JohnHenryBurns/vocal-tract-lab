@@ -119,8 +119,12 @@ aside section{display:block}
 .cardhead h2{margin:0;font-size:1.25rem;font-weight:600;letter-spacing:-.01em}
 .cardhead .btn{margin-left:auto}
 .cardbody{padding:1.1rem 1.2rem 1.4rem;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.cardbody p{font-size:.98rem;line-height:1.62;margin:0 0 .95rem;color:var(--ink)}
-.cardbody .lead{font-size:1.1rem;color:var(--dim);margin-bottom:1.1rem}
+.cardbody p{font-size:1rem;line-height:1.66;margin:0 0 1rem;color:var(--ink)}
+.cardbody .lead{font-size:1.35rem;line-height:1.3;color:var(--ink);font-weight:600;
+  margin-bottom:1rem;letter-spacing:-.01em}
+.cardbody .tryit{background:var(--panel2);border:1px solid var(--rule);border-radius:8px;
+  padding:.75rem .9rem;font-size:.96rem}
+.cardbody sub{font-size:.72em}
 .cardbody h3{font-size:.82rem;letter-spacing:.09em;text-transform:uppercase;
   color:var(--dim);margin:1.5rem 0 .6rem;font-family:var(--mono);font-weight:500}
 .cardbody b{font-weight:600}
@@ -302,48 +306,80 @@ aside section{display:block}
       <button class="btn" id="aboutClose">Close</button>
     </div>
     <div class="cardbody">
-      <p class="lead">A tube you can hear.</p>
+      <p class="lead">A throat you can play with.</p>
 
-      <p>This is a <b>Kelly–Lochbaum digital waveguide</b>: a vocal tract modelled as 44 short
-      cylinders laid end to end. Sound travels through it as two counter-propagating waves, and
-      wherever neighbouring cylinders differ in cross-sectional area, part of the wave reflects.</p>
+      <p>Blow across the top of a bottle and you get a note. Change the bottle and the note
+      changes. The shape of the space inside is what decides the sound.</p>
+
+      <p>Your mouth works the same way. Your vocal cords make a buzz, and the tube above them —
+      throat, mouth, lips — turns that buzz into a vowel. Move your tongue and you change the
+      shape of the tube. That is all a vowel really is.</p>
+
+      <p>This page is that tube, simulated. The 3D shape is a model of a human vocal tract cut
+      into 44 short segments, and sound bounces around inside it the way it does in your own
+      head. Nothing here is a recording. Nothing here even knows what a vowel is. It only knows
+      the shape of the pipe, and the vowels come out on their own.</p>
+
+      <p class="tryit"><b>Try it:</b> press <b>Play word</b>. Then open <b>Word</b> and tap
+      different sounds to build your own.</p>
+
+      <h3>Why a football game needed a throat</h3>
+      <p>It started as a goal cry. A <a href="https://johnhenryburns.github.io/three-sided-football/"
+      target="_blank" rel="noopener">three-sided football simulator</a> needed a stadium
+      <i>GOOOOAAALLL</i>, and rather than ship a sound file we tried to build one from scratch.
+      Nine attempts later it had sounded — in this order — like a ghost, a sasquatch, a cow, a
+      Spanish speaker and a sheep. Each of those turned out to point at a real, specific fault.
+      We gave up on that approach and modelled the tube instead.</p>
+
+      <h3>The controls</h3>
+      <p><b>Hold</b> gives voice to whatever shape the tract is in right now, so you hear one
+      sustained vowel. <b>Play word</b> speaks the word you have built; it starts as
+      <i>g o ɑ l</i>. <b>Word</b> opens the sounds and the word. <b>Tract</b> opens the tongue
+      and voice controls. <b>Lab</b> plays you two versions and lets you keep the better one,
+      over and over, until the voice is what you want.</p>
+
+      <h3>Where the shapes came from</h3>
+      <p>The vowel shapes were not guessed. In 1952 Peterson and Barney measured the resonances
+      of thousands of spoken vowels, and those numbers are still the standard reference. We
+      searched over tube shapes until the simulation matched their measurements.</p>
+
+      <p>What came out of that search is the nice part. Nobody told it any phonetics, but it
+      independently found that /o/ needs a narrowing at the back of the throat plus rounded
+      lips, and that /ɑ/ needs a narrowing low in the throat with the jaw open — which is
+      exactly what those vowels are.</p>
+
+      <h3>Under the hood</h3>
+      <p>The model is a <b>Kelly–Lochbaum digital waveguide</b> (1962). The tract is a chain of
+      cylindrical sections carrying two counter-propagating travelling waves. At every boundary
+      where the cross-sectional area changes, part of each wave reflects:</p>
 
       <p class="eqn">r = (A₁ − A₂) / (A₁ + A₂)</p>
 
-      <p>That one line is the entire model. There are <b>no formant filters anywhere in this
-      code</b>. Change the shape of the tube and its resonances move on their own — which is
-      what a vowel is. Each cylinder in the 3D view is lit by the standing-wave energy actually
-      present in that section, so you are watching the pressure pattern that produces a formant.</p>
+      <p>That is the entire model. There are no formant filters anywhere in the code — the
+      resonances are standing waves, and each cylinder in the 3D view is lit by the wave energy
+      actually present in that section, so you are watching the pressure pattern that
+      <i>is</i> a formant.</p>
 
-      <h3>Why it exists</h3>
-      <p>It started as a goal cry. A <a href="https://johnhenryburns.github.io/three-sided-football/"
-      target="_blank" rel="noopener">three-sided football simulator</a> needed a stadium
-      <i>GOOOOAAALLL</i>, and rather than ship an audio file we tried to synthesize one. Nine
-      iterations of formant synthesis later it had sounded — in order — like a ghost, a sasquatch,
-      a cow, a Spanish speaker and a sheep. Each of those turned out to be a precise diagnosis of
-      a real defect. We shelved that approach and modelled the tube instead.</p>
+      <p>The /l/ needs more than a single tube. A lateral splits the airflow around the tongue
+      and leaves a closed pocket, which puts a <b>zero</b> in the transfer function — and a
+      single unbranched tube is an all-pole system that cannot produce one. So the tract now
+      carries a side branch, coupled through a three-port scattering junction:</p>
 
-      <h3>Using it</h3>
-      <p><b>Hold</b> voices whatever shape the tract is currently in — one sustained vowel.
-      <b>Play word</b> speaks the word you have built; it starts as <i>g o ɑ l</i>.
-      <b>Word</b> opens the phoneme palette and the word you are assembling.
-      <b>Tract</b> opens the articulators and the voice.
-      <b>Lab</b> runs an A/B tournament that tunes the voice against your ear.</p>
+      <p class="eqn">p<sub>j</sub> = 2·Σu⁺ / ΣA &nbsp;&nbsp;·&nbsp;&nbsp; u⁻ᵢ = Aᵢ·p<sub>j</sub> − u⁺ᵢ</p>
 
-      <p>The vowel shapes were not guessed. They were <b>solved</b>: a search over tube geometry,
-      scored against Peterson &amp; Barney's 1952 formant measurements, until the simulation
-      matched. The solver independently rediscovered real articulatory phonetics — that /o/ wants
-      a back constriction plus lip rounding, and /ɑ/ a low pharyngeal one with an open jaw.</p>
+      <p>which reduces exactly to the two-port form when the branch is shut, so it cannot
+      disturb the tract it taps into. With the lateral re-solved around it, the shipping engine
+      measures a −33.7 dB notch at 1950 Hz. The same mechanism with an open far end at the
+      velum will give the nasals.</p>
 
-      <h3>What it can't do</h3>
-      <p>The /l/ is imperfect and comes out closer to a <i>w</i>. A real lateral splits the airflow
-      around the tongue, producing a spectral <b>zero</b>, and a single unbranched tube is an
-      all-pole system that structurally cannot make one. Nasals need the same fix: a branched
-      waveguide. That is the next build.</p>
+      <p>Still missing: nasals, voiceless stops and fricatives. The glottal source is a
+      Rosenberg pulse, which models speech rather than shouting — replacing it with the LF model
+      is the next real step, since a shout is pressed phonation and not merely loud speech.</p>
 
       <p class="links">
         <a href="https://github.com/JohnHenryBurns/vocal-tract-lab" target="_blank" rel="noopener">Source on GitHub</a>
-        <a href="https://github.com/JohnHenryBurns/three-sided-football/blob/main/docs/AUDIO-EXPERIMENT.md" target="_blank" rel="noopener">The nine-iteration write-up</a>
+        <a href="https://github.com/JohnHenryBurns/vocal-tract-lab/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a>
+        <a href="https://github.com/JohnHenryBurns/three-sided-football/blob/main/docs/AUDIO-EXPERIMENT.md" target="_blank" rel="noopener">The nine-attempt write-up</a>
         <a href="https://dood.al/pink-trombone/" target="_blank" rel="noopener">Pink Trombone</a>
       </p>
     </div>
