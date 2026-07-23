@@ -789,12 +789,14 @@ class TractProcessor extends AudioWorkletProcessor {
 
       let amp=this.voicing;
       if(this.seq){
-        amp = this.seqT<0.055 ? 0.18
-            : this.seqT<0.115 ? 0.18+0.82*(this.seqT-0.055)/0.06 : 1;
+        // The glottis does not pause for a stop. It buzzes the whole way through; the SEAL is
+        // what makes the silence, and the release is abrupt because the tube opens, not because
+        // an envelope ramps. Fading voicing here was adding a 60 ms rise — which is a /w/.
+        amp=1;
         const tail=this.seq.end-this.seqT;
-        if(tail<0.35) amp*=Math.max(0,tail/0.35);
+        if(tail<0.30) amp*=Math.max(0,tail/0.30);
       }
-      this.vAmp += (amp-this.vAmp)*0.002;
+      this.vAmp += (amp-this.vAmp)*0.004;
       const g=this.glottal(this.phase);
       let src=(g*0.9 + (Math.random()*2-1)*this.breath*g)*this.vAmp;
 
