@@ -1292,8 +1292,12 @@ class TractProcessor extends AudioWorkletProcessor {
       // injected forward so that only the cavity in FRONT of the constriction shapes it.
       // That is the whole reason /s/ is high and /ʃ/ is lower: a shorter front cavity.
       const breath=this.flow;
-      if(this.fric>0.001 && breath>0.01 && cl>0.045 && cl<0.42){
-        const jet=1-Math.abs(cl-0.19)/0.24;          // strongest at a small but open gap
+      // The turbulence window used HARD edges, so the hiss switched on and off between one
+      // sample and the next — which draws a vertical stripe in the spectrogram and is heard
+      // as a spike. Real airflow rises and falls; fade the edges instead.
+      const sm=(a,b,x)=>{ const t=Math.max(0,Math.min(1,(x-a)/(b-a))); return t*t*(3-2*t); };
+      if(this.fric>0.001 && breath>0.01 && cl>0.030 && cl<0.48){
+        const jet=(1-Math.abs(cl-0.19)/0.28) * sm(0.030,0.075,cl) * (1-sm(0.36,0.48,cl));
         if(jet>0){
           // A sibilant is a jet striking the teeth while the short cavity in front of the
           // constriction rings. Four sections cannot ring on their own, so the resonance is
