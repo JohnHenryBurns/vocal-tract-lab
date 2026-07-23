@@ -98,8 +98,16 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
   letter-spacing:.08em;text-transform:uppercase;color:var(--dim);pointer-events:none}
 
 .readout{display:flex;gap:1.1rem;padding:.5rem 1rem;font-family:var(--mono);font-size:.8rem;
-  color:var(--dim);border-top:1px solid var(--rule);flex-wrap:wrap;align-items:center}
-.readout b{color:var(--ink);font-weight:500}
+  color:var(--dim);border-top:1px solid var(--rule);align-items:center;
+  flex-wrap:nowrap;overflow:hidden;white-space:nowrap}
+.readout span{flex:0 0 auto}
+.readout b{color:var(--ink);font-weight:500;display:inline-block;text-align:left;
+  font-variant-numeric:tabular-nums}
+/* widths held in ch so the longest value never pushes its neighbours */
+#fmt{min-width:16ch}
+#vstate{min-width:3ch}
+#mode{min-width:9ch}
+#hstat{display:inline-block;min-width:10ch;text-align:right}
 
 #dock{display:flex;gap:.4rem;padding:.6rem 1rem;border-top:1px solid var(--rule);
   background:var(--panel)}
@@ -1351,7 +1359,7 @@ function frame(){
   drawSpectro();
   document.getElementById('vstate').textContent = voicedNow? 'on':'off';
   document.getElementById('mode').textContent =
-    sequencing ? 'saying GOOOAAALLL' : (voicing ? 'holding one vowel' : (started?'silent':'idle'));
+    sequencing ? 'speaking' : (voicing ? 'holding' : (started?'silent':'idle'));
   renderer.render(scene,camera);
 }
 buildTubes();
