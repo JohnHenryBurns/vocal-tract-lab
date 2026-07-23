@@ -29,7 +29,7 @@ function loadPage() {
   const arr  = (name) => new Function("return " + main.match(new RegExp("const " + name + "\\s*=\\s*(\\[[^\\]]*\\])"))[1])();
   return { html, worklet, ART, articulate, VOICE_SPEC, defaultVoice,
            STOP_KEYS: arr("STOP_KEYS"), APPROX: arr("APPROX"),
-           NASAL: grab("NASAL"), VOICELESS: grab("VOICELESS"), FRICATIVE: grab("FRICATIVE"),
+           NASAL: grab("NASAL"), VOICELESS: grab("VOICELESS"), FRICATIVE: grab("FRICATIVE"), ASPIRATE: grab("ASPIRATE"),
            BRANCHED: grab("BRANCHED") };
 }
 
@@ -51,7 +51,8 @@ function sustain(sym, { n = 44, seconds = 1.2, voice = null, f0 = 110 } = {}) {
   p.port.onmessage({ data: { type: "voice", v } });
   p.port.onmessage({ data: { type: "shape", diam: P.articulate(P.ART[sym], n),
       br: P.BRANCHED[sym] || 0, nz: P.NASAL[sym] || 0,
-      fr: P.FRICATIVE[sym] || 0, vl: P.VOICELESS[sym] || 0, snap: true } });
+      fr: P.FRICATIVE[sym] || 0, vl: P.VOICELESS[sym] || 0,
+      as: P.ASPIRATE[sym] || 0, snap: true } });
   p.voicing = 1; p.vAmp = 1; p.flow = 1; p.flowT = 1; p.f0 = f0;
   const blocks = Math.ceil(seconds * SR / 128);
   const buf = new Float64Array(blocks * 128), out = [new Float32Array(128)];
@@ -79,7 +80,7 @@ function plan(chain, D, voice, n) {
   chain.forEach((sym, i) => {
     const d = Array.from(P.articulate(P.ART[sym], n));
     const o = { b: P.BRANCHED[sym]||0, nz: P.NASAL[sym]||0,
-                vl: P.VOICELESS[sym]||0, fr: P.FRICATIVE[sym]||0 };
+                vl: P.VOICELESS[sym]||0, fr: P.FRICATIVE[sym]||0, as: P.ASPIRATE[sym]||0 };
     const dur = isS(sym) ? stopHold : pool*vw[k++]/ws;
     if (i > 0) t += gf(i);
     keys.push({ t, d, ...o });

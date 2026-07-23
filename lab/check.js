@@ -141,6 +141,22 @@ check("frication breathes rather than sitting flat", () => {
   return { ok, note: notes.join("  ") + " envelope flutter" };
 });
 
+check("every fricative actually sounds", () => {
+  // /f/ once sat at 7% of a vowel because its constriction was far from where the jet blows,
+  // and /h/ was SILENT because it is glottal aspiration, not a constriction fricative — with
+  // voicing off it had no path to make any noise at all.
+  const vowel = H.rms(H.sustain("ɑ", { seconds: 1.0 }), 0.5, 0.95);
+  const weak = [], notes = [];
+  for (const sym of ["s", "ʃ", "z", "f", "v", "h"]) {
+    const r = H.rms(H.sustain(sym, { seconds: 1.0 }), 0.5, 0.95);
+    const pct = r / vowel * 100;
+    if (pct < 25) weak.push(`${sym} ${pct.toFixed(0)}%`);
+    notes.push(`${sym} ${pct.toFixed(0)}`);
+  }
+  return { ok: weak.length === 0,
+           note: weak.length ? "too quiet: " + weak.join(" ") : notes.join(" ") + " (% of a vowel)" };
+});
+
 // ── words behave ───────────────────────────────────────────────────────────
 const WORDS = [["g","o","ɑ","l"], ["b","ʊ","l","d","ɔ","g"], ["m","æ","k","s","ɪ","m","ə","s"],
                ["d","æ","d"], ["s","o","l","ɑ","n","ə"]];

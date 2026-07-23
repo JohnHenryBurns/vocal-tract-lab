@@ -813,7 +813,7 @@ const ART = {
   "bodyHi": 0.15,
   "tipPos": 0.84,
   "tipHi": 0.0,
-  "lip": 0.09
+  "lip": 0.03
  },
  "w": {
   "jaw": 0.651,
@@ -853,7 +853,7 @@ const ART = {
   "bodyHi": 0.15,
   "tipPos": 0.84,
   "tipHi": 0.0,
-  "lip": 0.09
+  "lip": 0.03
  }
 };
 
@@ -937,6 +937,7 @@ class TractProcessor extends AudioWorkletProcessor {
     this.dcX=0; this.dcY=0; this.tick=0;
     this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1; this.bnz=0; this.bn1=0; this.bn2=0;
     this.voiceless=0; this.nasalOut=0; this.fric=0; this.fz=0; this.hiss=1; this.fy1=0; this.fy2=0; this.fcLast=0;
+    this.asp=0; this.ah=0;
     this.flow=0; this.flowT=0; this.turb=1; this.turbT=1; this.turbCd=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;
     this.seqFrom=null; this.seqFromB=0; this.blend=0.03;
     this.seq=null; this.seqT=0; this.prevClose=1;
@@ -949,6 +950,7 @@ class TractProcessor extends AudioWorkletProcessor {
         if(d.br!==undefined){ this.bTarget=d.br; if(d.snap) this.bOpen=d.br; }
         if(d.nz!==undefined){ this.nasalT=d.nz; if(d.snap) this.nasal=d.nz; }
         if(d.fr!==undefined) this.fric=d.fr*(this.hiss===undefined?1:this.hiss);
+        if(d.as!==undefined) this.asp=d.as;
         if(d.vl!==undefined) this.voiceless=d.vl;
       }
       if(d.type==='f0') this.f0=d.value;
@@ -963,7 +965,9 @@ class TractProcessor extends AudioWorkletProcessor {
         // closure — which lets the glottis leak before the stop has formed.
         this.blend = this.vAmp>0.02 ? 0.030 : 0.002;
       }
-      if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; this.fric=0; this.flow=0; this.flowT=0; this.turb=1; this.turbT=1; this.turbCd=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0; }
+      if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; this.fric=0; this.asp=0;
+        this.flow=0; this.flowT=0; this.turb=1; this.turbT=1; this.turbCd=0;
+        this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0; }
       if(d.type==='tract'){
         // Tract LENGTH is what makes a voice a man, a woman or a child — not pitch. Fewer
         // sections is a shorter tube, so every resonance rises together. Helium is the same
@@ -1105,19 +1109,22 @@ class TractProcessor extends AudioWorkletProcessor {
             this.nasal=(a.nz||0)+((b.nz||0)-(a.nz||0))*u;
             this.voiceless=(u<0.5?(a.vl||0):(b.vl||0));
             this.fric=((a.fr||0)+((b.fr||0)-(a.fr||0))*u)*(this.hiss===undefined?1:this.hiss);
+            this.asp=(a.as||0)+((b.as||0)-(a.as||0))*u;
             done=false; break;
           }
         }
         if(done){
           if(this.seqT>this.seq.end){
             this.seq=null; this.voicing=0;   // the word is over
-            this.fric=0; this.flow=0; this.flowT=0; this.turb=1; this.turbT=1; this.turbCd=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;   // the air stops: no hiss outliving the word
+            this.fric=0; this.asp=0; this.flow=0; this.flowT=0; this.turb=1; this.turbT=1;
+            this.turbCd=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;   // the air stops
             this.target.set(this.diam);      // hand the tract back where it stands
           }
           else { const last=K[K.length-1];
                  for(let i=0;i<n;i++) this.diam[i]=last.d[i];
                  this.bOpen=last.b||0; this.nasal=last.nz||0; this.voiceless=last.vl||0;
-                 this.fric=(last.fr||0)*(this.hiss===undefined?1:this.hiss); }
+                 this.fric=(last.fr||0)*(this.hiss===undefined?1:this.hiss);
+                 this.asp=last.as||0; }
         }
         if(this.seq){                        // only read the contour while one exists
           const F=this.seq.f0;
@@ -1180,6 +1187,13 @@ class TractProcessor extends AudioWorkletProcessor {
       if(Math.abs(rdNow-this.lastRd)>0.012){ this.makeLF(rdNow); this.lastRd=rdNow; }
       const g=this.glottal(this.phase);
       let src=(g*0.9 + (Math.random()*2-1)*this.breath*g)*this.vAmp;
+      // /h/ is not a constriction fricative — it is turbulence at the GLOTTIS with the tract
+      // wide open. It needs a noise path that does not require the folds to be vibrating, or
+      // a voiceless /h/ is silent. Which is exactly what it was.
+      if(this.asp>0.001){
+        this.ah=(this.ah||0)*0.62+(Math.random()*2-1)*0.38;
+        src += this.ah*this.asp*this.flow*0.75;
+      }
 
       // ---- the tube ----
       let y=0;
@@ -1394,7 +1408,7 @@ function pushShape(snap){
   curArt = params();
   curShape = articulate(curArt, N);
   if(!node) return;
-  node.port.postMessage({type:'shape', diam:curShape, br:0, nz:0, fr:0, vl:0, snap:!!snap});
+  node.port.postMessage({type:'shape', diam:curShape, br:0, nz:0, fr:0, vl:0, as:0, snap:!!snap});
 }
 [sJaw,sBody,sHi,sTip,sLip].forEach(s=>s.addEventListener('input',()=>{
   heldSym='';
@@ -1466,11 +1480,13 @@ function openedShape(sym, amt){
 const BRANCHED={ l:1 };                 // /l/ opens the closed pocket at the tongue tip
 const NASAL={ m:1, n:1, 'ŋ':1 };        // the velum opens the nasal tract
 const VOICELESS={ p:1, t:1, k:1, s:1, 'ʃ':1, f:1, h:1 };   // folds apart
-const FRICATIVE={ s:1, z:1, 'ʃ':1, f:0.7, v:0.55, h:0.35 };  // turbulence at the constriction
+const FRICATIVE={ s:1, z:1, 'ʃ':1, f:0.85, v:0.65 };   // turbulence at a constriction
+const ASPIRATE ={ h:1 };                               // turbulence at the glottis instead
 const branchFor=sym=>BRANCHED[sym]||0;
 const nasalFor =sym=>NASAL[sym]||0;
 const voicelessFor=sym=>VOICELESS[sym]||0;
 const fricFor=sym=>FRICATIVE[sym]||0;
+const aspFor =sym=>ASPIRATE[sym]||0;
 function applyPhoneme(sym){
   const A = baseFor(sym);
   heldSym = sym;
@@ -1480,7 +1496,8 @@ function applyPhoneme(sym){
   pushShape(false);
   curShape = shapeFor(sym);
   if(node) node.port.postMessage({type:'shape', diam:curShape, br:branchFor(sym),
-                                   nz:nasalFor(sym), fr:fricFor(sym), vl:voicelessFor(sym)});
+                                   nz:nasalFor(sym), fr:fricFor(sym), vl:voicelessFor(sym),
+                                   as:aspFor(sym)});
 }
 function drawChain(){
   const html = chain.length
@@ -2004,10 +2021,11 @@ function buildWord(chain, D, drawl, glide, stopHold, open){
   chain.forEach((sym,i)=>{
     const d=Array.from(shapeFor(sym));
     const A=baseFor(sym);
-    const b=branchFor(sym), nz=nasalFor(sym), vl=voicelessFor(sym), fr=fricFor(sym);
+    const b=branchFor(sym), nz=nasalFor(sym), vl=voicelessFor(sym),
+          fr=fricFor(sym), as=aspFor(sym);
     const dur=isStop(sym) ? stopHold : pool*vw[k++]/wsum;
     if(i>0) t+=glideFor(i);
-    keys.push({t,d,b,nz,vl,fr}); art.push({t,A});
+    keys.push({t,d,b,nz,vl,fr,as}); art.push({t,A});
     t+=dur;
     // a long held vowel drifts open; a short one has no time to
     const canOpen = !isStop(sym) && !isAp(sym) && open>0.01 && dur>0.28;
@@ -2016,9 +2034,9 @@ function buildWord(chain, D, drawl, glide, stopHold, open){
       const A2={...A, jaw:Math.min(1,A.jaw+amt*(1-A.jaw)),
                       bodyHi:Math.max(0,A.bodyHi*(1-amt*0.55)),
                       lip:Math.min(1,A.lip+amt*0.35*(1-A.lip))};
-      keys.push({t,d:Array.from(openedShape(sym,amt)),b,nz,vl,fr}); art.push({t,A:A2});
+      keys.push({t,d:Array.from(openedShape(sym,amt)),b,nz,vl,fr,as}); art.push({t,A:A2});
     } else {
-      keys.push({t,d,b,nz,vl,fr}); art.push({t,A});
+      keys.push({t,d,b,nz,vl,fr,as}); art.push({t,A});
     }
   });
   return {keys, art, end:t+0.22};
