@@ -905,6 +905,30 @@ const ART = {
   "tipPos": 0.84,
   "tipHi": 0.0,
   "lip": 0.03
+ },
+ "ʒ": {
+  "jaw": 0.44999999999999996,
+  "bodyPos": 0.55,
+  "bodyHi": 0.28,
+  "tipPos": 0.86,
+  "tipHi": 0.8,
+  "lip": 0.55
+ },
+ "θ": {
+  "jaw": 0.38,
+  "bodyPos": 0.5,
+  "bodyHi": 0.2,
+  "tipPos": 0.92,
+  "tipHi": 0.79,
+  "lip": 0.85
+ },
+ "ð": {
+  "jaw": 0.38,
+  "bodyPos": 0.5,
+  "bodyHi": 0.2,
+  "tipPos": 0.92,
+  "tipHi": 0.79,
+  "lip": 0.85
  }
 };
 
@@ -1508,7 +1532,8 @@ sSect.addEventListener('input',()=>{
 // ── phoneme palette, built from the solved inventory ──
 const VOWEL_KEYS = ['i', 'ɪ', 'ɛ', 'æ', 'ʌ', 'ɑ', 'ɔ', 'ʊ', 'u', 'ɝ', 'ə', 'o', 'l'];
 const STOP_KEYS  = ['b','d','g','p','t','k'];
-const CONS_KEYS  = ['l','r','w','j','m','n','ŋ','b','d','g','p','t','k','s','z','ʃ','f','v','h'];
+const CONS_KEYS  = ['l','r','w','j','m','n','ŋ','b','d','g','p','t','k',
+                    's','z','ʃ','ʒ','θ','ð','f','v','h'];
 let chain = ['g','o','l'];             // one gliding vowel — the opening does the rest
 
 function makeKey(sym, host){
@@ -1525,8 +1550,11 @@ function makeKey(sym, host){
   });
   host.appendChild(b);
 }
-function baseFor(sym){ return ART[sym] || ART['ə']; }
-function shapeFor(sym){ return articulate(ART[sym]||ART['ə'], N); }
+function baseFor(sym){ return ART[sym] || (DIPH[sym] && ART[DIPH[sym][0]]) || ART['ə']; }
+function shapeFor(sym){
+  if(DIPH[sym]) return articulate(ART[DIPH[sym][0]], N);      // a diphthong starts at its first
+  return articulate(ART[sym]||ART['ə'], N);
+}
 // Hold a shout and your jaw drops — the vowel opens as it goes. That is what makes a long
 // /o/ become "goooaaa" without a second vowel target, and it is why "g o ɑ l" was heard as
 // three separate segments: it WAS three separate segments.
@@ -1539,9 +1567,13 @@ function openedShape(sym, amt){
 }
 const BRANCHED={ l:1 };                 // /l/ opens the closed pocket at the tongue tip
 const NASAL={ m:1, n:1, 'ŋ':1 };        // the velum opens the nasal tract
-const VOICELESS={ p:1, t:1, k:1, s:1, 'ʃ':1, f:1, h:1 };   // folds apart
+const VOICELESS={ p:1, t:1, k:1, s:1, 'ʃ':1, f:1, h:1, 'θ':1 };   // folds apart
 // relative strengths: sibilants loudest, labiodentals weak — as in real speech
-const FRICATIVE={ s:1.05, z:0.8, 'ʃ':1.0, f:2.1, v:1.5 };
+// A dental fricative has no obstacle downstream, so it is weak and flat — the same reason
+// /f/ is weak. Sibilants are loud because the jet strikes the teeth.
+// Geometry sets WHERE the jet blows; these set how hard. The dental jet response is steep,
+// so the constriction sits where it is reliable and the level is trimmed here instead.
+const FRICATIVE={ s:1.05, z:0.8, 'ʃ':1.0, 'ʒ':0.8, f:2.1, v:1.5, 'θ':0.72, 'ð':0.42 };
 const ASPIRATE ={ h:1 };                               // turbulence at the glottis instead
 const branchFor=sym=>BRANCHED[sym]||0;
 const nasalFor =sym=>NASAL[sym]||0;
@@ -1607,13 +1639,13 @@ const G2P_RULES = [
   [/^sion/,      ['ʃ','ə','n']],
   [/^ought/,     ['ɔ','t']],
   [/^augh/,      ['æ','f']],
-  [/^igh/,       ['ɑ','i']],
+  [/^igh/,       ['aɪ']],
   [/^tch/,       ['t','ʃ']],
-  [/^dge/,       ['d','ʃ']],
+  [/^dge/,       ['d','ʒ']],
   [/^ch/,        ['t','ʃ']],
   [/^sh/,        ['ʃ']],
   [/^ph/,        ['f']],
-  [/^th/,        ['t']],          // no dental fricative in the inventory yet
+  [/^th/,        ['θ']],          // voiceless by default; "the/this/that" are in the dictionary
   [/^wh/,        ['w']],
   [/^ck/,        ['k']],
   [/^ng/,        ['ŋ']],
@@ -1623,16 +1655,16 @@ const G2P_RULES = [
   [/^ea/,        ['i']],
   [/^ie/,        ['i']],
   [/^oo/,        ['u']],
-  [/^ou/,        ['ɑ','ʊ']],
-  [/^ow/,        ['ɑ','ʊ']],
+  [/^ou/,        ['aʊ']],
+  [/^ow/,        ['aʊ']],
   [/^oa/,        ['o']],
   [/^oe/,        ['o']],
-  [/^ai/,        ['ɛ','i']],
-  [/^ay/,        ['ɛ','i']],
-  [/^ei/,        ['ɛ','i']],
-  [/^ey/,        ['ɛ','i']],
-  [/^oi/,        ['ɔ','i']],
-  [/^oy/,        ['ɔ','i']],
+  [/^ai/,        ['eɪ']],
+  [/^ay/,        ['eɪ']],
+  [/^ei/,        ['eɪ']],
+  [/^ey/,        ['eɪ']],
+  [/^oi/,        ['ɔɪ']],
+  [/^oy/,        ['ɔɪ']],
   [/^au/,        ['ɔ']],
   [/^aw/,        ['ɔ']],
   [/^ar/,        ['ɑ','r']],
@@ -1642,14 +1674,14 @@ const G2P_RULES = [
   [/^ur/,        ['ɝ']],
   [/^le$/,       ['ə','l']],
   // magic e: a single consonant then a final e lengthens the vowel
-  [/^a(?=[^aeiou]e$)/, ['ɛ','i']],
-  [/^i(?=[^aeiou]e$)/, ['ɑ','i']],
+  [/^a(?=[^aeiou]e$)/, ['eɪ']],
+  [/^i(?=[^aeiou]e$)/, ['aɪ']],
   [/^o(?=[^aeiou]e$)/, ['o']],
   [/^u(?=[^aeiou]e$)/, ['u']],
   [/^e(?=[^aeiou]e$)/, ['i']],
   // soft c and g
   [/^c(?=[eiy])/, ['s']],
-  [/^g(?=[eiy])/, ['d','ʃ']],
+  [/^g(?=[eiy])/, ['d','ʒ']],
   [/^c/,         ['k']],
   // y
   [/^y(?=[aeiou])/, ['j']],
@@ -1660,7 +1692,7 @@ const G2P_RULES = [
   // plain letters
   [/^a/, ['æ']], [/^e/, ['ɛ']], [/^i/, ['ɪ']], [/^o/, ['ɑ']], [/^u/, ['ʌ']],
   [/^b/, ['b']], [/^d/, ['d']], [/^f/, ['f']], [/^g/, ['g']], [/^h/, ['h']],
-  [/^j/, ['d','ʃ']], [/^k/, ['k']], [/^l/, ['l']], [/^m/, ['m']], [/^n/, ['n']],
+  [/^j/, ['d','ʒ']], [/^k/, ['k']], [/^l/, ['l']], [/^m/, ['m']], [/^n/, ['n']],
   [/^p/, ['p']], [/^r/, ['r']], [/^s/, ['s']], [/^t/, ['t']], [/^v/, ['v']],
   [/^w/, ['w']], [/^z/, ['z']],
 ];
@@ -1688,17 +1720,24 @@ function g2p(word){
 // Names are exactly where letter-to-sound rules fail, so the ones that matter ship with the
 // app. These work on every device; anything you correct yourself is stored on top of them.
 const BUILTIN_DICT = {
+  // English spells /θ/ and /ð/ identically. Only a list can tell them apart, and the
+  // voiced ones are almost all function words — a short list covers most of the language.
+  the:['ð','ə'], this:['ð','ɪ','s'], that:['ð','æ','t'], then:['ð','ɛ','n'],
+  them:['ð','ɛ','m'], these:['ð','i','z'], those:['ð','oʊ','z'], there:['ð','ɛ','r'],
+  their:['ð','ɛ','r'], they:['ð','eɪ'], though:['ð','oʊ'], than:['ð','æ','n'],
+  with:['w','ɪ','θ'], mother:['m','ʌ','ð','ɝ'], father:['f','ɑ','ð','ɝ'],
+  brother:['b','r','ʌ','ð','ɝ'], other:['ʌ','ð','ɝ'], measure:['m','ɛ','ʒ','ɝ'],
   goal:['g','o','l'],               bulldog:['b','ʊ','l','d','ɔ','g'],
   maximus:['m','æ','k','s','ɪ','m','ə','s'],  max:['m','æ','k','s'],
-  jupiter:['d','ʃ','u','p','ɪ','t','ɝ'],
+  jupiter:['d','ʒ','u','p','ɪ','t','ɝ'],
   solana:['s','o','l','ɑ','n','ə'],
-  orion:['ɔ','r','ɑ','i','ə','n'],
+  orion:['ɔ','r','aɪ','ə','n'],
   atlas:['æ','t','l','ə','s'],
-  rachel:['r','ɛ','i','t','ʃ','ə','l'],
-  john:['d','ʃ','ɑ','n'],           bo:['b','o'],
+  rachel:['r','eɪ','t','ʃ','ə','l'],
+  john:['d','ʒ','ɑ','n'],           bo:['b','o'],
   momo:['m','o','m','o'],           cliff:['k','l','ɪ','f'],
   gloria:['g','l','ɔ','r','i','ə'], greg:['g','r','ɛ','g'],
-  bridget:['b','r','ɪ','d','ʃ','ɪ','t'],
+  bridget:['b','r','ɪ','d','ʒ','ɪ','t'],
   eric:['ɛ','r','ɪ','k'],           dan:['d','æ','n'],
   lincoln:['l','ɪ','ŋ','k','ə','n'],
   wizard:['w','ɪ','z','ɝ','d'],     banana:['b','ə','n','æ','n','ə'],
@@ -2104,6 +2143,10 @@ const GOAL_WORD=['g','o','l'];   // one gliding vowel, not two — the opening d
 // Stops get a short seal + release. Whatever time is left is shared among the
 // sustainable sounds, weighted by Drawl so the first one can be stretched.
 const APPROX=['l','m','n','ŋ','w','j','r'];   // sustainable consonants: short and quick
+// A diphthong is ONE vowel gesture that moves, not two vowels in a row. Same mechanism as
+// the shouted vowel that opens as it is held — generalised to any pair.
+const DIPH={ 'aɪ':['ɑ','i'], 'aʊ':['ɑ','ʊ'], 'ɔɪ':['ɔ','i'], 'eɪ':['ɛ','i'], 'oʊ':['o','ʊ'] };
+const isDiph=sym=>!!DIPH[sym];
 function buildWord(chain, D, drawl, glide, stopHold, open){
   glide = glide||0.085; stopHold = stopHold||0.075; open = open||0;
   const isStop=c=>STOP_KEYS.includes(c), isAp=c=>APPROX.includes(c);
@@ -2131,7 +2174,13 @@ function buildWord(chain, D, drawl, glide, stopHold, open){
     seg.push({sym, a:t, b:t+dur});
     keys.push({t,d,b,nz,vl,fr,as}); art.push({t,A});
     t+=dur;
-    // a long held vowel drifts open; a short one has no time to
+    // A diphthong always glides to its second target, however short. A plain vowel only
+    // drifts open when held long enough for the jaw to move.
+    if(isDiph(sym)){
+      const A2=baseFor(DIPH[sym][1]);
+      keys.push({t,d:Array.from(articulate(A2,N)),b,nz,vl,fr,as}); art.push({t,A:A2});
+      t+=0; // the segment already advanced
+    } else {
     const canOpen = !isStop(sym) && !isAp(sym) && open>0.01 && dur>0.28;
     if(canOpen){
       const amt=open*Math.min(1,(dur-0.28)/0.9);
@@ -2141,6 +2190,7 @@ function buildWord(chain, D, drawl, glide, stopHold, open){
       keys.push({t,d:Array.from(openedShape(sym,amt)),b,nz,vl,fr,as}); art.push({t,A:A2});
     } else {
       keys.push({t,d,b,nz,vl,fr,as}); art.push({t,A});
+    }
     }
   });
   return {keys, art, seg, end:t+0.22};

@@ -147,7 +147,7 @@ check("every fricative actually sounds", () => {
   // voicing off it had no path to make any noise at all.
   const vowel = H.rms(H.sustain("ɑ", { seconds: 1.0 }), 0.5, 0.95);
   const weak = [], notes = [];
-  for (const sym of ["s", "ʃ", "z", "f", "v", "h"]) {
+  for (const sym of ["s", "ʃ", "z", "ʒ", "f", "v", "θ", "ð", "h"]) {
     const r = H.rms(H.sustain(sym, { seconds: 1.0 }), 0.5, 0.95);
     const pct = r / vowel * 100;
     if (pct < 25) weak.push(`${sym} ${pct.toFixed(0)}%`);
