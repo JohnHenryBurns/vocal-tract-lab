@@ -233,8 +233,10 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
         <div class="glabel" style="margin-top:.9rem">Consonants</div>
         <div class="keys" id="ckeys"></div>
         <p class="hint">Tapping shapes the tract <em>and</em> adds that sound to the word.
-        <b>b d g</b> seal the tube at the lips, the ridge and the velum — holding one is silent,
-        because that is what a stop is.</p>
+        <b>b d g</b> seal the tube at the lips, the ridge and the velum. <b>p t k</b> are the
+        same closures with the folds apart, so they release as a puff instead of a voice.
+        <b>m n ŋ</b> are those closures again with the <em>velum open</em>, so the sound leaves
+        through the nose — which is the whole difference between /b/ and /m/.</p>
       </div>
 
       <div class="group">
@@ -648,6 +650,54 @@ const ART = {
   "tipPos": 0.84,
   "tipHi": 0.72,
   "lip": 0.8
+ },
+ "m": {
+  "jaw": 0.25,
+  "bodyPos": 0.3,
+  "bodyHi": 0.1,
+  "tipPos": 0.85,
+  "tipHi": 0.0,
+  "lip": 0.0
+ },
+ "n": {
+  "jaw": 0.3,
+  "bodyPos": 0.55,
+  "bodyHi": 0.25,
+  "tipPos": 0.83,
+  "tipHi": 1.0,
+  "lip": 0.75
+ },
+ "ŋ": {
+  "jaw": 0.28,
+  "bodyPos": 0.56,
+  "bodyHi": 1.0,
+  "tipPos": 0.85,
+  "tipHi": 0.0,
+  "lip": 0.72
+ },
+ "p": {
+  "jaw": 0.25,
+  "bodyPos": 0.3,
+  "bodyHi": 0.1,
+  "tipPos": 0.85,
+  "tipHi": 0.0,
+  "lip": 0.0
+ },
+ "t": {
+  "jaw": 0.3,
+  "bodyPos": 0.55,
+  "bodyHi": 0.25,
+  "tipPos": 0.83,
+  "tipHi": 1.0,
+  "lip": 0.75
+ },
+ "k": {
+  "jaw": 0.28,
+  "bodyPos": 0.56,
+  "bodyHi": 1.0,
+  "tipPos": 0.85,
+  "tipHi": 0.0,
+  "lip": 0.72
  }
 };
 
@@ -715,8 +765,18 @@ class TractProcessor extends AudioWorkletProcessor {
     this.bOpen = 0; this.bTarget = 0;
     this.bR=new Float64Array(this.bN); this.bL=new Float64Array(this.bN);
     this.bRin=new Float64Array(this.bN); this.bLin=new Float64Array(this.bN);
+    // ---- the nasal tract: a long branch at the velum, open at the nostrils ----
+    this.nN   = Math.max(8, Math.round(0.11/secM));   // ~11 cm
+    // The velopharyngeal port must sit UPSTREAM of a velar closure, or /ŋ/ seals the
+    // nose off from the glottis and makes no sound at all.
+    this.nPos = Math.round(n*0.44);
+    this.nArea= 2.4; this.nEnd = -0.82;               // radiating, like the lips
+    this.nasal=0; this.nasalT=0;
+    this.nR=new Float64Array(this.nN); this.nL=new Float64Array(this.nN);
+    this.nRin=new Float64Array(this.nN); this.nLin=new Float64Array(this.nN);
     this.dcX=0; this.dcY=0; this.tick=0;
     this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1; this.bnz=0; this.bn1=0; this.bn2=0;
+    this.voiceless=0; this.nasalOut=0;
     this.seqFrom=null; this.seqFromB=0; this.blend=0.03;
     this.seq=null; this.seqT=0; this.prevClose=1;
     this.velar=Math.round(${VELAR}*(n-1));
@@ -726,6 +786,7 @@ class TractProcessor extends AudioWorkletProcessor {
         this.target.set(d.diam);
         if(d.snap) this.diam.set(d.diam);
         if(d.br!==undefined){ this.bTarget=d.br; if(d.snap) this.bOpen=d.br; }
+        if(d.nz!==undefined){ this.nasalT=d.nz; if(d.snap) this.nasal=d.nz; }
       }
       if(d.type==='f0') this.f0=d.value;
       if(d.type==='breath') this.breath=d.value;
@@ -808,6 +869,20 @@ class TractProcessor extends AudioWorkletProcessor {
       this.Rin[i+1]=this.R[i]-w;
       this.Lin[i]=this.L[i+1]+w;
     }
+    if(this.nasal>0.0005){                 // the velum opens: nasal tract joins the oral one
+      const k=Math.max(0,Math.min(n-2,this.nPos));
+      const A1=this.A[k], A2=this.A[k+1], An=this.nArea*this.nasal;
+      const pj=2*(this.R[k]+this.L[k+1]+this.nL[0])/(A1+A2+An);
+      this.Lin[k]   = A1*pj - this.R[k];
+      this.Rin[k+1] = A2*pj - this.L[k+1];
+      const into = An*pj - this.nL[0];
+      for(let j=0;j<this.nN-1;j++){ this.nRin[j+1]=this.nR[j]; this.nLin[j]=this.nL[j+1]; }
+      this.nRin[0]=into;
+      this.nLin[this.nN-1]=this.nR[this.nN-1]*this.nEnd;
+      this.nasalOut=(1+this.nEnd)*this.nR[this.nN-1];      // radiates from the nostrils
+      const dn=this.dampNow===undefined?this.damp:this.dampNow;
+      for(let j=0;j<this.nN;j++){ this.nR[j]=this.nRin[j]*dn; this.nL[j]=this.nLin[j]*dn; }
+    } else this.nasalOut=0;
     if(this.bOpen>0.0005){                 // three-port junction where the branch taps in
       const k=Math.max(0,Math.min(n-2,this.bPos));
       const A1=this.A[k], A2=this.A[k+1], Ab=this.bArea*this.bOpen;
@@ -822,7 +897,7 @@ class TractProcessor extends AudioWorkletProcessor {
       for(let j=0;j<this.bN;j++){ this.bR[j]=this.bRin[j]*dmb; this.bL[j]=this.bLin[j]*dmb; }
     }
     this.Lin[n-1]=this.R[n-1]*this.lipR;
-    const out=(1+this.lipR)*this.R[n-1];
+    const out=(1+this.lipR)*this.R[n-1] + (this.nasalOut||0);
     const dm=this.dampNow===undefined?this.damp:this.dampNow;
     for(let i=0;i<n;i++){ this.R[i]=this.Rin[i]*dm; this.L[i]=this.Lin[i]*dm; }
     return out;
@@ -849,6 +924,8 @@ class TractProcessor extends AudioWorkletProcessor {
             let u=(this.seqT-a.t)/(b.t-a.t); u=u*u*(3-2*u);
             for(let i=0;i<n;i++) this.diam[i]=a.d[i]+(b.d[i]-a.d[i])*u;
             this.bOpen=(a.b||0)+((b.b||0)-(a.b||0))*u;
+            this.nasal=(a.nz||0)+((b.nz||0)-(a.nz||0))*u;
+            this.voiceless=(u<0.5?(a.vl||0):(b.vl||0));
             done=false; break;
           }
         }
@@ -859,7 +936,7 @@ class TractProcessor extends AudioWorkletProcessor {
           }
           else { const last=K[K.length-1];
                  for(let i=0;i<n;i++) this.diam[i]=last.d[i];
-                 this.bOpen=last.b||0; }
+                 this.bOpen=last.b||0; this.nasal=last.nz||0; this.voiceless=last.vl||0; }
         }
         if(this.seq){                        // only read the contour while one exists
           const F=this.seq.f0;
@@ -873,6 +950,7 @@ class TractProcessor extends AudioWorkletProcessor {
       } else {
         for(let i=0;i<n;i++) this.diam[i]+=(this.target[i]-this.diam[i])*0.0006;
         this.bOpen += (this.bTarget-this.bOpen)*0.0006;
+        this.nasal += (this.nasalT-this.nasal)*0.0006;
       }
       this.calcRefl();
 
@@ -893,7 +971,7 @@ class TractProcessor extends AudioWorkletProcessor {
         // The glottis does not pause for a stop. It buzzes the whole way through; the SEAL is
         // what makes the silence, and the release is abrupt because the tube opens, not because
         // an envelope ramps. Fading voicing here was adding a 60 ms rise — which is a /w/.
-        amp=voiceBar;
+        amp = this.voiceless ? 0 : voiceBar;
         // the glottis spins up, and never before the tract has reached its first shape
         const spin=Math.max(0.025,this.blend+0.010);
         if(this.seqT<spin) amp*=this.seqT/spin;
@@ -929,7 +1007,8 @@ class TractProcessor extends AudioWorkletProcessor {
         this.sealAt=mi;
       } else if((this.charge||0)>0.12 && cl>0.22){
         this.burstN=Math.floor(sr*0.014);
-        this.burstA=this.charge*(this.burstK===undefined?0.16:this.burstK);
+        this.burstA=this.charge*(this.burstK===undefined?0.16:this.burstK)
+                    *(this.voiceless?4.2:1);   // a voiceless stop is aspirated and loud
         this.burstAt=this.sealAt||mi;
         this.charge=0;
       }
@@ -1066,7 +1145,7 @@ function pushShape(snap){
   curArt = params();
   curShape = articulate(curArt, N);
   if(!node) return;
-  node.port.postMessage({type:'shape', diam:curShape, br:0, snap:!!snap});
+  node.port.postMessage({type:'shape', diam:curShape, br:0, nz:0, snap:!!snap});
 }
 [sJaw,sBody,sHi,sTip,sLip].forEach(s=>s.addEventListener('input',()=>{
   document.querySelectorAll('.key').forEach(k=>k.classList.remove('on'));
@@ -1089,8 +1168,8 @@ sHold.addEventListener('input',()=>document.getElementById('vHold').textContent=
 
 // ── phoneme palette, built from the solved inventory ──
 const VOWEL_KEYS = ['i', 'ɪ', 'ɛ', 'æ', 'ʌ', 'ɑ', 'ɔ', 'ʊ', 'u', 'ɝ', 'ə', 'o', 'l'];
-const STOP_KEYS  = ['b','d','g'];
-const CONS_KEYS  = ['l','b','d','g'];
+const STOP_KEYS  = ['b','d','g','p','t','k'];
+const CONS_KEYS  = ['l','m','n','ŋ','b','d','g','p','t','k'];
 let chain = ['g','o','ɑ','l'];        // the word starts as the goal cry
 
 function makeKey(sym, host){
@@ -1106,8 +1185,12 @@ function makeKey(sym, host){
 }
 function baseFor(sym){ return ART[sym] || ART['ə']; }
 function shapeFor(sym){ return articulate(ART[sym]||ART['ə'], N); }
-const BRANCHED={ l:1 };                 // /l/ opens the closed pocket; nasals will join it
+const BRANCHED={ l:1 };                 // /l/ opens the closed pocket at the tongue tip
+const NASAL={ m:1, n:1, 'ŋ':1 };        // the velum opens the nasal tract
+const VOICELESS={ p:1, t:1, k:1 };      // same closures, folds apart
 const branchFor=sym=>BRANCHED[sym]||0;
+const nasalFor =sym=>NASAL[sym]||0;
+const voicelessFor=sym=>VOICELESS[sym]||0;
 function applyPhoneme(sym){
   const A = baseFor(sym);
   curArt = {...A};
@@ -1115,7 +1198,8 @@ function applyPhoneme(sym){
   sTip.value=A.tipHi; sLip.value=A.lip;
   pushShape(false);
   curShape = shapeFor(sym);
-  if(node) node.port.postMessage({type:'shape', diam:curShape, br:branchFor(sym)});
+  if(node) node.port.postMessage({type:'shape', diam:curShape,
+                                   br:branchFor(sym), nz:nasalFor(sym)});
 }
 function drawChain(){
   const el=document.getElementById('chain');
@@ -1332,7 +1416,7 @@ document.getElementById('goalPreset').addEventListener('click',()=>{
 // ── one player for any word ─────────────────────────────────────────────
 // Stops get a short seal + release. Whatever time is left is shared among the
 // sustainable sounds, weighted by Drawl so the first one can be stretched.
-const APPROX=['l'];                      // sustainable, but consonants: short and quick
+const APPROX=['l','m','n','ŋ'];          // sustainable consonants: short and quick
 function buildWord(chain, D, drawl, glide, stopHold){
   glide = glide||0.085; stopHold = stopHold||0.075;
   const isStop=c=>STOP_KEYS.includes(c), isAp=c=>APPROX.includes(c);
@@ -1353,12 +1437,12 @@ function buildWord(chain, D, drawl, glide, stopHold){
   chain.forEach((sym,i)=>{
     const d=Array.from(shapeFor(sym));
     const A=baseFor(sym);
-    const b=branchFor(sym);
+    const b=branchFor(sym), nz=nasalFor(sym), vl=voicelessFor(sym);
     const dur=isStop(sym) ? stopHold : pool*vw[k++]/wsum;
     if(i>0) t+=glideFor(i);
-    keys.push({t,d,b}); art.push({t,A});
+    keys.push({t,d,b,nz,vl}); art.push({t,A});
     t+=dur;
-    keys.push({t,d,b}); art.push({t,A});
+    keys.push({t,d,b,nz,vl}); art.push({t,A});
   });
   return {keys, art, end:t+0.22};
 }

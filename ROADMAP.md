@@ -201,7 +201,19 @@ tournament is for.
 
 ---
 
-## Phase 5 — the rest of English
+## Phase 5 — the rest of English  (nasals and voiceless stops ✅ built)
+
+**5a built.** The nasal tract is a second branch — 11 cm, open at the nostrils — coupled by a
+velum parameter. /m n ŋ/ are the /b d g/ closures with the velum open, and they measure as
+proper murmurs (F1 330/380/415 Hz). One anatomical bug worth recording: the velopharyngeal port
+was first placed at u=0.57, *downstream* of a velar closure, which sealed the nose off from the
+glottis and left /ŋ/ completely silent. It has to sit upstream of the closure.
+
+Voiceless stops are the same articulations with the folds apart: voicing gated to zero during
+closure and a release about four times stronger, because a /k/ is aspirated where a /g/ is not.
+
+The inventory is now **22 phonemes**, and *Maximus* is down to a single missing sound class.
+
 
 Everything above serves one word. This phase makes the instrument general.
 
@@ -212,8 +224,8 @@ things are missing, and they differ enormously in cost:
 
 | missing | what it needs | cost |
 |---|---|---|
-| /m n ŋ/ nasals | side branch coupled at the velum | **free** — Phase 2 already builds it |
-| /p t k/ voiceless stops | existing closure, voicing gated off, aspiration on release | cheap |
+| /m n ŋ/ nasals | side branch coupled at the velum | ✅ **built** |
+| /p t k/ voiceless stops | existing closure, voicing gated off, aspiration on release | ✅ **built** |
 | /s ʃ f θ/ fricatives | sustained turbulence at a constriction, plus the short front cavity that gives sibilants their resonance | the real work |
 
 Note the ordering that falls out of this: **Phase 2 pays for the nasals as a side effect.** The
