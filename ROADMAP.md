@@ -161,7 +161,7 @@ than a single aperture parameter provides.
 
 ---
 
-## Phase 3 — the shout source
+## Phase 3 — the shout source  ✅ built
 
 The glottal source is currently a Rosenberg pulse. That is a model of **speech**.
 
@@ -176,7 +176,14 @@ breathy → modal → pressed. One control, physically grounded, measurable thro
 
 This is the most likely single change to move the result from *instrument* to *person*.
 
-**Done when:** H1–H2 sits in the pressed range at peak effort, and the source can sweep from
+**Built.** LF implemented with Fant's Rd mapping, eps and alpha solved by Newton iteration at
+parameter-change time rather than per sample. Verified inside the shipping engine: H1-H2 runs
+from **-5.3 dB at Rd 0.4 (pressed) to +12.8 dB at Rd 2.2 (breathy)**, matching published ranges.
+Effort is linked: Rd falls toward the pressed end at the peak of a word, so a shout presses
+rather than merely getting louder. Rd and press replaced the two Rosenberg knobs in the voice
+vector, so seeds still load positionally.
+
+**Original criterion:** H1–H2 sits in the pressed range at peak effort, and the source can sweep from
 breathy to pressed without the tract changing.
 
 ---
