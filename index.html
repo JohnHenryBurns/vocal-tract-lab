@@ -126,7 +126,7 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
   <h1>Vocal Tract Lab</h1>
   <span class="sub">Kelly–Lochbaum waveguide · 1962</span>
   <span class="spacer"></span>
-  <button id="startBtn" class="btn">Start audio</button>
+  <span class="sub" id="hstat">audio off</span>
 </header>
 
 <main>
@@ -168,26 +168,31 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
     <div class="group">
       <div class="glabel">Vowels</div>
       <div class="keys" id="vkeys"></div>
-      <div class="glabel" style="margin-top:.85rem">Stops</div>
+      <div class="glabel" style="margin-top:.9rem">Consonants</div>
       <div class="keys" id="ckeys"></div>
-      <p class="hint">Tap to shape the tract — and to add it to the word below.</p>
+      <p class="hint">Tapping shapes the tract <em>and</em> adds that sound to the word.
+      <b>b d g</b> seal the tube at the lips, the ridge and the velum — holding one is silent,
+      because that is what a stop is.</p>
     </div>
 
     <div class="group">
       <div class="glabel">Word</div>
-      <div id="chain" class="chain"><span class="empty">tap phonemes to build one</span></div>
+      <div id="chain" class="chain"></div>
       <div class="crow">
-        <button class="btn" id="playChain">Play</button>
+        <button class="btn dim" id="goalPreset">GOOOAAALLL</button>
+        <button class="btn dim" id="undoChain">Undo</button>
         <button class="btn dim" id="clearChain">Clear</button>
       </div>
+      <p class="hint">Play word speaks whatever is here. It starts as the goal cry;
+      tap any phoneme to extend it, or Clear and build your own.</p>
     </div>
 
     <div class="group">
-      <div class="glabel">The cry</div>
+      <div class="glabel">Timing</div>
       <div class="row"><span>Length</span><span class="v" id="vDur">2.9 s</span></div>
-      <input type="range" id="sDur" min="1.2" max="5" step="0.1" value="2.9">
-      <div class="row"><span>Vowel hold</span><span class="v" id="vHold">0.55</span></div>
-      <input type="range" id="sHold" min="0.2" max="0.8" step="0.01" value="0.55">
+      <input type="range" id="sDur" min="0.6" max="5" step="0.1" value="2.9">
+      <div class="row"><span>Drawl</span><span class="v" id="vHold">0.55</span></div>
+      <input type="range" id="sHold" min="0" max="1" step="0.01" value="0.55">
       <p class="hint">These two set the timing of the cry. The articulator sliders hold
       <em>one</em> shape, so the voice sustains a single vowel — <b>SAY GOOOAAALLL</b> at the
       top is the only control that moves the tract through /g/ → o → ɑ → l and says the word.</p>
@@ -199,7 +204,8 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 
 <div id="specWrap"><canvas id="spectro"></canvas><span id="specTag">spectrogram · 0–4.2 kHz</span></div>
 <div id="dock">
-  <button class="btn solid say" id="sayBtn">Say GOOOAAALLL</button>
+  <button class="btn" id="holdBtn" title="Voice the shape the tract is in right now">Hold</button>
+  <button class="btn solid say" id="playBtn">Play word</button>
   <button class="btn" id="panelToggle">Controls</button>
 </div>
 <div id="scrim"></div>
@@ -520,19 +526,20 @@ async function start(){
   node.port.postMessage({type:'breath', value:+sBr.value});
 }
 
-const startBtn=document.getElementById('startBtn');
+const holdBtn=document.getElementById('holdBtn');
 function paintBtn(){
-  if(!started){ startBtn.textContent='Start audio'; startBtn.classList.remove('dim'); return; }
-  startBtn.textContent = voicing ? 'Stop voice' : 'Start voice';
-  startBtn.classList.toggle('dim', !voicing);
+  holdBtn.textContent = voicing ? 'Holding' : 'Hold';
+  holdBtn.classList.toggle('solid', !!voicing);
+  const hs=document.getElementById('hstat');
+  if(hs) hs.textContent = !started ? 'audio off' : (sequencing ? 'speaking' : (voicing?'sustaining':'ready'));
 }
 function setVoice(v){
   voicing=v;
   if(node) node.port.postMessage({type:'voicing', value:v});
   paintBtn();
 }
-startBtn.addEventListener('click', async ()=>{
-  if(!started){ await start(); setVoice(1); }
+holdBtn.addEventListener('click', async ()=>{
+  if(!started){ await start(); setVoice(1); }   // any control may unlock the audio
   else setVoice(voicing?0:1);
 });
 // space bar is the obvious thing to reach for
@@ -588,7 +595,8 @@ sHold.addEventListener('input',()=>document.getElementById('vHold').textContent=
 // ── phoneme palette, built from the solved inventory ──
 const VOWEL_KEYS = ['i', 'ɪ', 'ɛ', 'æ', 'ʌ', 'ɑ', 'ɔ', 'ʊ', 'u', 'ɝ', 'ə', 'o', 'l'];
 const STOP_KEYS  = ['b','d','g'];
-let chain = [];
+const CONS_KEYS  = ['l','b','d','g'];
+let chain = ['g','o','ɑ','l'];        // the word starts as the goal cry
 
 function makeKey(sym, host){
   const b=document.createElement('button');
@@ -617,10 +625,10 @@ function drawChain(){
   const el=document.getElementById('chain');
   el.innerHTML = chain.length
     ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
-    : '<span class="empty">tap phonemes to build one</span>';
+    : '<span class="empty">tap a phoneme to start a word</span>';
 }
-VOWEL_KEYS.forEach(k=>makeKey(k, document.getElementById('vkeys')));
-STOP_KEYS.forEach(k=>makeKey(k, document.getElementById('ckeys')));
+VOWEL_KEYS.filter(k=>k!=='l').forEach(k=>makeKey(k, document.getElementById('vkeys')));
+CONS_KEYS.forEach(k=>makeKey(k, document.getElementById('ckeys')));
 drawChain();
 
 // ── the control sheet (mobile) ──
@@ -635,44 +643,50 @@ document.getElementById('panelToggle').addEventListener('click',()=>
 scrim.addEventListener('click',()=>sheet(false));
 addEventListener('keydown',e=>{ if(e.key==='Escape') sheet(false); });
 
+const GOAL_WORD=['g','o','ɑ','l'];
 document.getElementById('clearChain').addEventListener('click',()=>{ chain=[]; drawChain(); });
-document.getElementById('playChain').addEventListener('click', async ()=>{
-  if(!chain.length) return;
-  if(!started) await start();
-  const hold=0.17, glide=0.09, lead=0.05;
-  const keys=[]; let t=0;
+document.getElementById('undoChain').addEventListener('click',()=>{ chain.pop(); drawChain(); });
+document.getElementById('goalPreset').addEventListener('click',()=>{
+  chain=[...GOAL_WORD]; drawChain();
+  sDur.value=2.9; sHold.value=0.55;
+  document.getElementById('vDur').textContent='2.9 s';
+  document.getElementById('vHold').textContent='0.55';
+});
+
+
+// ── one player for any word ─────────────────────────────────────────────
+// Stops get a short seal + release. Whatever time is left is shared among the
+// sustainable sounds, weighted by Drawl so the first one can be stretched.
+function buildWord(chain, D, drawl){
+  const glide=0.085, stopHold=0.075;
+  const stops=chain.filter(c=>STOP_KEYS.includes(c)).length;
+  const subs =chain.length-stops;
+  const glides=Math.max(0,chain.length-1)*glide;
+  let pool=Math.max(0.12*Math.max(subs,1), D-stops*stopHold-glides);
+  const w=[]; let wi=0;
+  chain.forEach(c=>{ if(!STOP_KEYS.includes(c)){ w.push(wi++===0 ? 1+drawl*2.6 : 1); } });
+  const wsum=w.reduce((a,b)=>a+b,0)||1;
+  const keys=[]; let t=0, k=0;
   chain.forEach((sym,i)=>{
     const d=Array.from(shapeFor(sym));
     const isStop=STOP_KEYS.includes(sym);
-    if(i===0){ keys.push({t:0,d}); t=isStop?0.06:hold; keys.push({t,d}); }
-    else { t+=isStop?lead:glide; keys.push({t,d}); t+=isStop?0.05:hold; keys.push({t,d}); }
+    const dur=isStop ? stopHold : pool*w[k++]/wsum;
+    if(i>0) t+=glide;
+    keys.push({t,d});
+    t+=dur;
+    keys.push({t,d});
   });
-  const end=t+0.25;
-  const f0=[[0,215],[0.15,238],[end*0.7,236],[end,196]];
-  node.port.postMessage({type:'goal', seq:{keys, f0, end}});
-});
-
-document.getElementById('sayBtn').addEventListener('click', async ()=>{
+  return {keys, end:t+0.22};
+}
+async function playWord(){
+  if(!chain.length) return;
   if(!started) await start();
-  const D=+sDur.value, hold=+sHold.value;
-  const oh=buildShape(SHAPES['o'],N), ah=buildShape(SHAPES['ɑ'],N), ll=buildShape(SHAPES['l'],N);
-  const g=withClosure(oh,N);
-  const vEnd = 0.10 + (D-0.10)*hold;              // where "oh" gives way to "aah"
-  const lStart = D*0.80;
-  const keys=[
-    {t:0,        d:g },
-    {t:0.055,    d:g },
-    {t:0.105,    d:oh},
-    {t:vEnd,     d:oh},
-    {t:vEnd+0.18,d:ah},
-    {t:lStart,   d:ah},
-    {t:lStart+0.20, d:ll},
-    {t:D,        d:ll},
-  ];
-  const f0=[[0,208],[0.12,244],[0.55,252],[D*0.7,249],[D*0.85,238],[D*0.95,205],[D+0.2,182]];
-  node.port.postMessage({type:'goal', seq:{keys:keys.map(k=>({t:k.t,d:Array.from(k.d)})),
-                                          f0, end:D+0.18}});
-});
+  const D=+sDur.value, drawl=+sHold.value;
+  const {keys,end}=buildWord(chain, D, drawl);
+  const f0=[[0,208],[Math.min(0.12,end*0.1),242],[end*0.55,248],[end*0.82,236],[end,196],[end+0.2,180]];
+  node.port.postMessage({type:'goal', seq:{keys, f0, end}});
+}
+document.getElementById('playBtn').addEventListener('click', playWord);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3D: the tube stack, laid along a mid-sagittal path from glottis to lips.
