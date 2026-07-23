@@ -698,6 +698,38 @@ const ART = {
   "tipPos": 0.85,
   "tipHi": 0.0,
   "lip": 0.72
+ },
+ "s": {
+  "jaw": 0.44999999999999996,
+  "bodyPos": 0.55,
+  "bodyHi": 0.28,
+  "tipPos": 0.91,
+  "tipHi": 0.8500000000000002,
+  "lip": 0.9
+ },
+ "z": {
+  "jaw": 0.44999999999999996,
+  "bodyPos": 0.55,
+  "bodyHi": 0.28,
+  "tipPos": 0.91,
+  "tipHi": 0.8500000000000002,
+  "lip": 0.9
+ },
+ "ʃ": {
+  "jaw": 0.44999999999999996,
+  "bodyPos": 0.55,
+  "bodyHi": 0.28,
+  "tipPos": 0.86,
+  "tipHi": 0.8,
+  "lip": 0.55
+ },
+ "f": {
+  "jaw": 0.3,
+  "bodyPos": 0.35,
+  "bodyHi": 0.15,
+  "tipPos": 0.84,
+  "tipHi": 0.0,
+  "lip": 0.09
  }
 };
 
@@ -776,7 +808,7 @@ class TractProcessor extends AudioWorkletProcessor {
     this.nRin=new Float64Array(this.nN); this.nLin=new Float64Array(this.nN);
     this.dcX=0; this.dcY=0; this.tick=0;
     this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1; this.bnz=0; this.bn1=0; this.bn2=0;
-    this.voiceless=0; this.nasalOut=0;
+    this.voiceless=0; this.nasalOut=0; this.fric=0; this.fz=0; this.hiss=1;
     this.seqFrom=null; this.seqFromB=0; this.blend=0.03;
     this.seq=null; this.seqT=0; this.prevClose=1;
     this.velar=Math.round(${VELAR}*(n-1));
@@ -787,6 +819,8 @@ class TractProcessor extends AudioWorkletProcessor {
         if(d.snap) this.diam.set(d.diam);
         if(d.br!==undefined){ this.bTarget=d.br; if(d.snap) this.bOpen=d.br; }
         if(d.nz!==undefined){ this.nasalT=d.nz; if(d.snap) this.nasal=d.nz; }
+        if(d.fr!==undefined) this.fric=d.fr*(this.hiss===undefined?1:this.hiss);
+        if(d.vl!==undefined) this.voiceless=d.vl;
       }
       if(d.type==='f0') this.f0=d.value;
       if(d.type==='breath') this.breath=d.value;
@@ -810,6 +844,7 @@ class TractProcessor extends AudioWorkletProcessor {
         if(v.lipR!==undefined) this.lipR=v.lipR;
         if(v.brth!==undefined) this.breath=v.brth;
         if(v.burst!==undefined) this.burstK=v.burst;
+        if(v.hiss !==undefined) this.hiss=v.hiss;
       }
     };
     this.calcRefl();
@@ -926,6 +961,7 @@ class TractProcessor extends AudioWorkletProcessor {
             this.bOpen=(a.b||0)+((b.b||0)-(a.b||0))*u;
             this.nasal=(a.nz||0)+((b.nz||0)-(a.nz||0))*u;
             this.voiceless=(u<0.5?(a.vl||0):(b.vl||0));
+            this.fric=((a.fr||0)+((b.fr||0)-(a.fr||0))*u)*(this.hiss===undefined?1:this.hiss);
             done=false; break;
           }
         }
@@ -936,7 +972,8 @@ class TractProcessor extends AudioWorkletProcessor {
           }
           else { const last=K[K.length-1];
                  for(let i=0;i<n;i++) this.diam[i]=last.d[i];
-                 this.bOpen=last.b||0; this.nasal=last.nz||0; this.voiceless=last.vl||0; }
+                 this.bOpen=last.b||0; this.nasal=last.nz||0; this.voiceless=last.vl||0;
+                 this.fric=(last.fr||0)*(this.hiss===undefined?1:this.hiss); }
         }
         if(this.seq){                        // only read the contour while one exists
           const F=this.seq.f0;
@@ -1025,6 +1062,18 @@ class TractProcessor extends AudioWorkletProcessor {
         // pressure escapes toward the opening, not equally in both directions
         this.R[this.burstAt]+=b; this.L[this.burstAt]+=b*0.28;
         this.burstN--;
+      }
+      // ---- frication ----
+      // Turbulence is made where the air squeezes through, NOT at the glottis, and it is
+      // injected forward so that only the cavity in FRONT of the constriction shapes it.
+      // That is the whole reason /s/ is high and /ʃ/ is lower: a shorter front cavity.
+      if(this.fric>0.001 && cl>0.045 && cl<0.42){
+        const jet=1-Math.abs(cl-0.19)/0.24;          // strongest at a small but open gap
+        if(jet>0){
+          this.fz=(this.fz||0)*0.48+(Math.random()*2-1)*0.52;   // let the front cavity shape it
+          const at=Math.min(n-2, mi+1);
+          this.R[at] += this.fz*jet*this.fric*0.55;
+        }
       }
       this.prevClose=cl;
 
@@ -1145,7 +1194,7 @@ function pushShape(snap){
   curArt = params();
   curShape = articulate(curArt, N);
   if(!node) return;
-  node.port.postMessage({type:'shape', diam:curShape, br:0, nz:0, snap:!!snap});
+  node.port.postMessage({type:'shape', diam:curShape, br:0, nz:0, fr:0, vl:0, snap:!!snap});
 }
 [sJaw,sBody,sHi,sTip,sLip].forEach(s=>s.addEventListener('input',()=>{
   document.querySelectorAll('.key').forEach(k=>k.classList.remove('on'));
@@ -1169,7 +1218,7 @@ sHold.addEventListener('input',()=>document.getElementById('vHold').textContent=
 // ── phoneme palette, built from the solved inventory ──
 const VOWEL_KEYS = ['i', 'ɪ', 'ɛ', 'æ', 'ʌ', 'ɑ', 'ɔ', 'ʊ', 'u', 'ɝ', 'ə', 'o', 'l'];
 const STOP_KEYS  = ['b','d','g','p','t','k'];
-const CONS_KEYS  = ['l','m','n','ŋ','b','d','g','p','t','k'];
+const CONS_KEYS  = ['l','m','n','ŋ','b','d','g','p','t','k','s','z','ʃ','f'];
 let chain = ['g','o','ɑ','l'];        // the word starts as the goal cry
 
 function makeKey(sym, host){
@@ -1187,10 +1236,12 @@ function baseFor(sym){ return ART[sym] || ART['ə']; }
 function shapeFor(sym){ return articulate(ART[sym]||ART['ə'], N); }
 const BRANCHED={ l:1 };                 // /l/ opens the closed pocket at the tongue tip
 const NASAL={ m:1, n:1, 'ŋ':1 };        // the velum opens the nasal tract
-const VOICELESS={ p:1, t:1, k:1 };      // same closures, folds apart
+const VOICELESS={ p:1, t:1, k:1, s:1, 'ʃ':1, f:1 };   // folds apart
+const FRICATIVE={ s:1, z:1, 'ʃ':1, f:0.7 };            // turbulence at the constriction
 const branchFor=sym=>BRANCHED[sym]||0;
 const nasalFor =sym=>NASAL[sym]||0;
 const voicelessFor=sym=>VOICELESS[sym]||0;
+const fricFor=sym=>FRICATIVE[sym]||0;
 function applyPhoneme(sym){
   const A = baseFor(sym);
   curArt = {...A};
@@ -1198,8 +1249,8 @@ function applyPhoneme(sym){
   sTip.value=A.tipHi; sLip.value=A.lip;
   pushShape(false);
   curShape = shapeFor(sym);
-  if(node) node.port.postMessage({type:'shape', diam:curShape,
-                                   br:branchFor(sym), nz:nasalFor(sym)});
+  if(node) node.port.postMessage({type:'shape', diam:curShape, br:branchFor(sym),
+                                   nz:nasalFor(sym), fr:fricFor(sym), vl:voicelessFor(sym)});
 }
 function drawChain(){
   const el=document.getElementById('chain');
@@ -1239,6 +1290,7 @@ const VOICE_SPEC=[
   {k:'glide',lo:0.03,   hi:0.22,    d:0.085},  // transition time between sounds
   {k:'stopT',lo:0.035,  hi:0.15,    d:0.075},  // how long a stop stays sealed
   {k:'burst',lo:0.02,   hi:1.2,     d:0.16},   // release strength; the seal does most of the work
+  {k:'hiss', lo:0.3,    hi:2.2,     d:1.0},    // how hard fricatives hiss
 ];
 const defaultVoice=()=>Object.fromEntries(VOICE_SPEC.map(p=>[p.k,p.d]));
 let champion=defaultVoice(), challenger=null, round=1, step=1.0;
@@ -1437,12 +1489,12 @@ function buildWord(chain, D, drawl, glide, stopHold){
   chain.forEach((sym,i)=>{
     const d=Array.from(shapeFor(sym));
     const A=baseFor(sym);
-    const b=branchFor(sym), nz=nasalFor(sym), vl=voicelessFor(sym);
+    const b=branchFor(sym), nz=nasalFor(sym), vl=voicelessFor(sym), fr=fricFor(sym);
     const dur=isStop(sym) ? stopHold : pool*vw[k++]/wsum;
     if(i>0) t+=glideFor(i);
-    keys.push({t,d,b,nz,vl}); art.push({t,A});
+    keys.push({t,d,b,nz,vl,fr}); art.push({t,A});
     t+=dur;
-    keys.push({t,d,b,nz,vl}); art.push({t,A});
+    keys.push({t,d,b,nz,vl,fr}); art.push({t,A});
   });
   return {keys, art, end:t+0.22};
 }

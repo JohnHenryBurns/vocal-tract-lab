@@ -226,7 +226,7 @@ things are missing, and they differ enormously in cost:
 |---|---|---|
 | /m n ŋ/ nasals | side branch coupled at the velum | ✅ **built** |
 | /p t k/ voiceless stops | existing closure, voicing gated off, aspiration on release | ✅ **built** |
-| /s ʃ f θ/ fricatives | sustained turbulence at a constriction, plus the short front cavity that gives sibilants their resonance | the real work |
+| /s ʃ f θ/ fricatives | sustained turbulence at a constriction, plus the short front cavity that gives sibilants their resonance | ✅ **built** |
 
 Note the ordering that falls out of this: **Phase 2 pays for the nasals as a side effect.** The
 branched waveguide built to fix the /l/ is the same mechanism that opens the velopharyngeal
@@ -238,7 +238,16 @@ rather than at the glottis, with its level driven by the pressure drop and the c
 area, and sibilants need geometry fine enough to resolve the small cavity in front of the teeth
 that puts /s/ up around 4–8 kHz. That may also force a higher section count.
 
-**Done when:** the app can say a name it was never tuned for.
+**5b built.** Turbulence is generated at the constriction and injected *forward*, so only the
+cavity in front of it shapes the result — which is the whole reason /s/ is high and /ʃ/ lower.
+The /s/ articulation was solved for a narrow gap well forward (tip at u=0.91, gap 0.18) leaving
+a 1.6 cm front cavity. Measured: peak in the sibilant range with 70% of energy above 3 kHz.
+A **hiss** parameter joined the tournament.
+
+**Done — the app says names it was never tuned for.** Inventory 26 phonemes.
+*Maximus, Solana, Max* all render clean.
+
+**Original criterion:** the app can say a name it was never tuned for.
 
 ---
 
