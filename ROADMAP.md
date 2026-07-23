@@ -88,7 +88,7 @@ on a phone, and a winner can be recovered exactly from its code.
 
 ---
 
-## Phase 2 — the lateral branch
+## Phase 2 — the lateral branch  ✅ built
 
 The /l/ is the largest intelligibility defect. It reads as a *w*.
 
@@ -100,7 +100,14 @@ The fix is a side-branch waveguide — a second short tube coupled at a junction
 scattering. It is the same mechanism that produces nasals, so /m n ŋ/ come almost free
 afterwards.
 
-**Done when:** the spectrum during /l/ shows a measurable anti-resonance, and the F2 trajectory
+**Built.** Three-port scattering junction (pj = 2·Σu⁺/ΣA, u⁻ᵢ = Aᵢ·pj − u⁺ᵢ), verified to
+reduce exactly to the two-port form when the branch is shut so it cannot disturb the validated
+tract. The lateral was then re-solved *with* the pocket coupled: tongue-tip constriction at
+u=0.74, a 12-section closed pocket tapping it. Measured in the shipping engine: a **−33.7 dB
+notch at 1950 Hz**, and F2 lifted clear of /w/ territory. The same mechanism, with an open far
+end at the velum, gives the nasals in Phase 5.
+
+**Original criterion:** the spectrum during /l/ shows a measurable anti-resonance, and the F2 trajectory
 stops rising into *w* territory at the end of the word.
 
 ---

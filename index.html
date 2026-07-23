@@ -237,6 +237,9 @@ aside section{display:block}
           <button class="btn" id="pickA" disabled>Keep A</button>
           <button class="btn" id="pickB" disabled>Keep B</button>
         </div>
+        <div class="crow" style="margin-top:.4rem">
+          <button class="btn dim" id="pickNone" disabled>Neither — search wider</button>
+        </div>
         <div class="row" style="margin-top:.9rem"><span>Search width</span><span class="v" id="vStep">100%</span></div>
       </div>
 
@@ -447,11 +450,11 @@ const SHAPES = {
   "lip": 1.24
  },
  "l": {
-  "base": 2.53,
-  "cPos": 0.432,
-  "cDiam": 1.11,
-  "cWidth": 0.268,
-  "lip": 0.9
+  "base": 2.2,
+  "cPos": 0.74,
+  "cDiam": 0.8,
+  "cWidth": 0.16,
+  "lip": 1.3
  }
 };
 // stop consonants are the same move at three places along the tract
@@ -503,12 +506,24 @@ class TractProcessor extends AudioWorkletProcessor {
     this.phase=0; this.jit=0; this.jitT=0; this.jitCd=0;
     this.glotR=0.75; this.lipR=-0.85; this.damp=0.9995;
     this.OQ=0.60; this.SQ=2.8; this.jitAmt=1;      // glottal shape + irregularity
+    // ---- side branch: the closed pocket that gives /l/ its anti-resonance ----
+    const secM = 350/(sampleRate*2);
+    this.bN    = Math.max(4, Math.round(12*0.00397/secM));  // solved pocket
+    this.bPos  = Math.round(n*0.74);            // taps at the tongue-tip constriction
+    this.bArea = 3; this.bEnd = 0.97;      // closed pocket
+    this.bOpen = 0; this.bTarget = 0;
+    this.bR=new Float64Array(this.bN); this.bL=new Float64Array(this.bN);
+    this.bRin=new Float64Array(this.bN); this.bLin=new Float64Array(this.bN);
     this.dcX=0; this.dcY=0; this.tick=0;
     this.seq=null; this.seqT=0; this.prevClose=1;
     this.velar=Math.round(${VELAR}*(n-1));
     this.port.onmessage=(e)=>{
       const d=e.data;
-      if(d.type==='shape'){ this.target.set(d.diam); if(d.snap) this.diam.set(d.diam); }
+      if(d.type==='shape'){
+        this.target.set(d.diam);
+        if(d.snap) this.diam.set(d.diam);
+        if(d.br!==undefined){ this.bTarget=d.br; if(d.snap) this.bOpen=d.br; }
+      }
       if(d.type==='f0') this.f0=d.value;
       if(d.type==='breath') this.breath=d.value;
       if(d.type==='voicing') this.voicing=d.value;
@@ -549,6 +564,18 @@ class TractProcessor extends AudioWorkletProcessor {
       this.Rin[i+1]=this.R[i]-w;
       this.Lin[i]=this.L[i+1]+w;
     }
+    if(this.bOpen>0.0005){                 // three-port junction where the branch taps in
+      const k=Math.max(0,Math.min(n-2,this.bPos));
+      const A1=this.A[k], A2=this.A[k+1], Ab=this.bArea*this.bOpen;
+      const pj=2*(this.R[k]+this.L[k+1]+this.bL[0])/(A1+A2+Ab);
+      this.Lin[k]   = A1*pj - this.R[k];
+      this.Rin[k+1] = A2*pj - this.L[k+1];
+      const into = Ab*pj - this.bL[0];
+      for(let j=0;j<this.bN-1;j++){ this.bRin[j+1]=this.bR[j]; this.bLin[j]=this.bL[j+1]; }
+      this.bRin[0]=into;
+      this.bLin[this.bN-1]=this.bR[this.bN-1]*this.bEnd;
+      for(let j=0;j<this.bN;j++){ this.bR[j]=this.bRin[j]*this.damp; this.bL[j]=this.bLin[j]*this.damp; }
+    }
     this.Lin[n-1]=this.R[n-1]*this.lipR;
     const out=(1+this.lipR)*this.R[n-1];
     for(let i=0;i<n;i++){ this.R[i]=this.Rin[i]*this.damp; this.L[i]=this.Lin[i]*this.damp; }
@@ -568,6 +595,7 @@ class TractProcessor extends AudioWorkletProcessor {
             const a=K[k-1], b=K[k];
             let u=(this.seqT-a.t)/(b.t-a.t); u=u*u*(3-2*u);
             for(let i=0;i<n;i++) this.diam[i]=a.d[i]+(b.d[i]-a.d[i])*u;
+            this.bOpen=(a.b||0)+((b.b||0)-(a.b||0))*u;
             done=false; break;
           }
         }
@@ -576,7 +604,9 @@ class TractProcessor extends AudioWorkletProcessor {
             this.seq=null; this.voicing=0;   // the word is over
             this.target.set(this.diam);      // hand the tract back where it stands
           }
-          else for(let i=0;i<n;i++) this.diam[i]=K[K.length-1].d[i];
+          else { const last=K[K.length-1];
+                 for(let i=0;i<n;i++) this.diam[i]=last.d[i];
+                 this.bOpen=last.b||0; }
         }
         if(this.seq){                        // only read the contour while one exists
           const F=this.seq.f0;
@@ -589,6 +619,7 @@ class TractProcessor extends AudioWorkletProcessor {
         }
       } else {
         for(let i=0;i<n;i++) this.diam[i]+=(this.target[i]-this.diam[i])*0.0006;
+        this.bOpen += (this.bTarget-this.bOpen)*0.0006;
       }
       this.calcRefl();
 
@@ -737,7 +768,7 @@ function pushShape(snap){
   document.getElementById('vBase').textContent=(+sBase.value).toFixed(2);
   curShape = buildShape(params(), N);
   if(!node) return;
-  node.port.postMessage({type:'shape', diam:curShape, snap:!!snap});
+  node.port.postMessage({type:'shape', diam:curShape, br:0, snap:!!snap});
 }
 [sPos,sCon,sWid,sLip,sBase].forEach(s=>s.addEventListener('input',()=>{
   document.querySelectorAll('.key').forEach(k=>k.classList.remove('on'));
@@ -780,12 +811,14 @@ function shapeFor(sym){
   if(STOP_KEYS.includes(sym)) return withClosure(buildShape(SHAPES['ə'],N), N, STOPS[sym]);
   return buildShape(baseFor(sym), N);
 }
+const BRANCHED={ l:1 };                 // /l/ opens the closed pocket; nasals will join it
+const branchFor=sym=>BRANCHED[sym]||0;
 function applyPhoneme(sym){
   const p = STOP_KEYS.includes(sym) ? SHAPES['ə'] : baseFor(sym);
   sBase.value=p.base; sPos.value=p.cPos; sCon.value=p.cDiam; sWid.value=p.cWidth; sLip.value=p.lip;
   pushShape(false);
   curShape = shapeFor(sym);
-  if(node) node.port.postMessage({type:'shape', diam:curShape});
+  if(node) node.port.postMessage({type:'shape', diam:curShape, br:branchFor(sym)});
 }
 function drawChain(){
   const el=document.getElementById('chain');
@@ -822,6 +855,8 @@ const VOICE_SPEC=[
   {k:'f0b',  lo:190,    hi:330,     d:250},     //        peak
   {k:'f0c',  lo:120,    hi:235,     d:190},     //        fall
   {k:'drawl',lo:0,      hi:1,       d:0.55},    // how much the first vowel is stretched
+  {k:'glide',lo:0.03,   hi:0.22,    d:0.085},  // transition time between sounds
+  {k:'stopT',lo:0.035,  hi:0.15,    d:0.075},  // how long a stop stays sealed
 ];
 const defaultVoice=()=>Object.fromEntries(VOICE_SPEC.map(p=>[p.k,p.d]));
 let champion=defaultVoice(), challenger=null, round=1, step=1.0;
@@ -865,7 +900,7 @@ async function speakWith(v){
   if(!node) return;                     // audio never came up — fail quietly, not fatally
   applyVoice(v);
   const D=+sDur.value;
-  const {keys,end}=buildWord(chain, D, v.drawl);
+  const {keys,end}=buildWord(chain, D, v.drawl, v.glide, v.stopT);
   const f0=[[0,v.f0a],[Math.min(0.12,end*0.1),v.f0b],[end*0.55,v.f0b],
             [end*0.82,(v.f0b+v.f0c)/2],[end,v.f0c],[end+0.2,v.f0c*0.92]];
   node.port.postMessage({type:'goal', seq:{keys, f0, end}});
@@ -886,11 +921,14 @@ function paintLab(){
   const ready = heardA && heardB;
   if(ka) ka.disabled = !ready;
   if(kb) kb.disabled = !ready;
+  const kn=document.getElementById('pickNone');
+  if(kn) kn.disabled = !ready;
   if(note) note.textContent = ready ? 'Which one?'
     : (heardA||heardB) ? 'Now hear the other one.' : 'Hear both, then choose.';
   // say plainly whether A is the same voice as last round
   if(what) what.textContent = round===1 ? 'both new'
     : lastPick==='B' ? 'A is your last pick · B is new'
+    : lastPick==='N' ? 'both rejected · searching wider'
     : 'A unchanged · B is new';
 }
 function nextRound(){
@@ -918,6 +956,13 @@ document.getElementById('pickB').addEventListener('click',()=>{
   if(!(heardA&&heardB)) return;
   lastPick='B';
   champion=challenger;                 // new champion: keep exploring at this width
+  round++; nextRound();
+});
+document.getElementById('pickNone').addEventListener('click',()=>{
+  if(!(heardA&&heardB)) return;
+  lastPick='N';
+  step=Math.min(1.4, step*1.5);        // both bad: this neighbourhood is wrong, jump further
+  champion=mutate(champion, step);     // and move on — do not sit on a voice you rejected
   round++; nextRound();
 });
 document.getElementById('resetVoice').addEventListener('click',()=>{
@@ -971,8 +1016,8 @@ document.getElementById('goalPreset').addEventListener('click',()=>{
 // ── one player for any word ─────────────────────────────────────────────
 // Stops get a short seal + release. Whatever time is left is shared among the
 // sustainable sounds, weighted by Drawl so the first one can be stretched.
-function buildWord(chain, D, drawl){
-  const glide=0.085, stopHold=0.075;
+function buildWord(chain, D, drawl, glide, stopHold){
+  glide = glide||0.085; stopHold = stopHold||0.075;
   const stops=chain.filter(c=>STOP_KEYS.includes(c)).length;
   const subs =chain.length-stops;
   const glides=Math.max(0,chain.length-1)*glide;
@@ -983,12 +1028,13 @@ function buildWord(chain, D, drawl){
   const keys=[]; let t=0, k=0;
   chain.forEach((sym,i)=>{
     const d=Array.from(shapeFor(sym));
+    const b=branchFor(sym);
     const isStop=STOP_KEYS.includes(sym);
     const dur=isStop ? stopHold : pool*w[k++]/wsum;
     if(i>0) t+=glide;
-    keys.push({t,d});
+    keys.push({t,d,b});
     t+=dur;
-    keys.push({t,d});
+    keys.push({t,d,b});
   });
   return {keys, end:t+0.22};
 }
@@ -997,7 +1043,7 @@ async function playWord(){
   if(!started) await start();
   if(!node) return;
   const D=+sDur.value, drawl=+sHold.value;
-  const {keys,end}=buildWord(chain, D, drawl);
+  const {keys,end}=buildWord(chain, D, drawl, champion.glide, champion.stopT);
   const f0=[[0,208],[Math.min(0.12,end*0.1),242],[end*0.55,248],[end*0.82,236],[end,196],[end+0.2,180]];
   node.port.postMessage({type:'goal', seq:{keys, f0, end}});
   sequencing=true; paintBtn();          // respond immediately, the engine confirms in a few ms

@@ -26,6 +26,14 @@ class Tract {
     this.lipReflection     = -0.85;
     this.damp = 0.9995;
     this.out  = 0;
+    // ---- side branch: a closed pocket for /l/, an open one for nasals ----
+    this.bN    = 9;                      // sections
+    this.bPos  = Math.round(n*0.80);     // where it taps the main tract
+    this.bArea = 0.9;                    // mouth area when fully coupled
+    this.bOpen = 0;                      // 0..1 coupling
+    this.bEnd  = 0.97;                   // +closed pocket, -0.85 open (nostrils)
+    this.bR=new Float64Array(this.bN); this.bL=new Float64Array(this.bN);
+    this.bRin=new Float64Array(this.bN); this.bLin=new Float64Array(this.bN);
     this.calcReflections();
   }
 
@@ -46,6 +54,21 @@ class Tract {
       const w = this.refl[i] * (this.R[i] + this.L[i + 1]);
       this.Rin[i + 1] = this.R[i] - w;
       this.Lin[i]     = this.L[i + 1] + w;
+    }
+    // ---- three-port junction where the branch taps in ----
+    // pj = 2*sum(u_in)/sum(A);  u_out_i = A_i*pj - u_in_i.  Ab=0 reduces to the line above.
+    if (this.bOpen > 0.0005) {
+      const k = Math.max(0, Math.min(n - 2, this.bPos));
+      const A1 = this.A[k], A2 = this.A[k + 1], Ab = this.bArea * this.bOpen;
+      const pj = 2 * (this.R[k] + this.L[k + 1] + this.bL[0]) / (A1 + A2 + Ab);
+      this.Lin[k]     = A1 * pj - this.R[k];
+      this.Rin[k + 1] = A2 * pj - this.L[k + 1];
+      const intoBranch = Ab * pj - this.bL[0];
+      // propagate the branch: uniform tube, reflective far end
+      for (let j = 0; j < this.bN - 1; j++) { this.bRin[j + 1] = this.bR[j]; this.bLin[j] = this.bL[j + 1]; }
+      this.bRin[0] = intoBranch;
+      this.bLin[this.bN - 1] = this.bR[this.bN - 1] * this.bEnd;
+      for (let j = 0; j < this.bN; j++) { this.bR[j] = this.bRin[j] * this.damp; this.bL[j] = this.bLin[j] * this.damp; }
     }
     // lip boundary: mostly reflected (open end), the rest radiates out
     this.Lin[n - 1] = this.R[n - 1] * this.lipReflection;
