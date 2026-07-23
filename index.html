@@ -596,6 +596,12 @@ const SHAPES = {
 };
 // stop consonants are the same move at three places along the tract
 const STOPS = { b:0.97, d:0.80, g:0.568 };   // lips · alveolar ridge · velum
+// the posture behind the seal is what gives a stop its identity on release
+const STOP_POSTURE = {
+  b:{base:1.75, cPos:0.30, cDiam:1.60, cWidth:0.25, lip:1.60},  // tongue neutral, lips shut
+  d:{base:1.80, cPos:0.62, cDiam:1.10, cWidth:0.22, lip:1.55},  // blade up, body forward
+  g:{base:1.90, cPos:0.575,cDiam:0.05, cWidth:0.20, lip:1.55},  // body high and back at the velum
+};
 const VELAR = STOPS.g;
 
 function buildShape(p, n){
@@ -807,7 +813,7 @@ class TractProcessor extends AudioWorkletProcessor {
         this.sealAt=mi;
       } else if((this.charge||0)>0.12 && cl>0.22){
         this.burstN=Math.floor(sr*0.014);
-        this.burstA=this.charge*(this.burstK||1.9);
+        this.burstA=this.charge*(this.burstK===undefined?0.45:this.burstK);
         this.burstAt=this.sealAt||mi;
         this.charge=0;
       }
@@ -975,13 +981,14 @@ function makeKey(sym, host){
 }
 function baseFor(sym){ return SHAPES[sym] || SHAPES['ə']; }
 function shapeFor(sym){
-  if(STOP_KEYS.includes(sym)) return withClosure(buildShape(SHAPES['ə'],N), N, STOPS[sym]);
+  if(STOP_KEYS.includes(sym))
+    return withClosure(buildShape(STOP_POSTURE[sym]||SHAPES['ə'], N), N, STOPS[sym]);
   return buildShape(baseFor(sym), N);
 }
 const BRANCHED={ l:1 };                 // /l/ opens the closed pocket; nasals will join it
 const branchFor=sym=>BRANCHED[sym]||0;
 function applyPhoneme(sym){
-  const p = STOP_KEYS.includes(sym) ? SHAPES['ə'] : baseFor(sym);
+  const p = STOP_KEYS.includes(sym) ? (STOP_POSTURE[sym]||SHAPES['ə']) : baseFor(sym);
   sBase.value=p.base; sPos.value=p.cPos; sCon.value=p.cDiam; sWid.value=p.cWidth; sLip.value=p.lip;
   pushShape(false);
   curShape = shapeFor(sym);
@@ -1024,7 +1031,7 @@ const VOICE_SPEC=[
   {k:'drawl',lo:0,      hi:1,       d:0.55},    // how much the first vowel is stretched
   {k:'glide',lo:0.03,   hi:0.22,    d:0.085},  // transition time between sounds
   {k:'stopT',lo:0.035,  hi:0.15,    d:0.075},  // how long a stop stays sealed
-  {k:'burst',lo:0.5,    hi:3.4,     d:1.9},    // how hard a stop releases
+  {k:'burst',lo:0.05,   hi:1.8,     d:0.45},   // release strength; a voiced stop is gentle
 ];
 const defaultVoice=()=>Object.fromEntries(VOICE_SPEC.map(p=>[p.k,p.d]));
 let champion=defaultVoice(), challenger=null, round=1, step=1.0;
