@@ -112,6 +112,55 @@ stops rising into *w* territory at the end of the word.
 
 ---
 
+## Phase 2b — the articulatory layer
+
+The tract is currently parameterised abstractly: *a constriction somewhere, this wide, this
+tight.* It reaches the vowels, but it does not know what a tongue is — which is how the solver
+once handed back a lateral with **rounded lips**. Nothing in the model said lips and tongue are
+different organs.
+
+Replace that with six things a person actually has: **jaw, tongue body position, tongue body
+height, tongue tip, lip aperture**, and later the velum.
+
+**Feasibility, measured before committing:** an articulator model reaches **9 of 11 English
+vowels within 10%** — the same accuracy as the abstract parameterisation. More tellingly, the
+articulations it found are correct without being told any phonetics: /i/ came out high and
+front, /ɑ/ low and back with an open jaw, /u/ with rounded lips, and schwa with the tongue at
+rest and the jaw nearly closed. That is the vowel quadrilateral, recovered from tube acoustics.
+
+**What it buys:**
+
+- **Impossible solutions become impossible.** A tongue cannot be in two places, and lips are
+  not part of it. The rounded-lip lateral could not have been proposed.
+- **Six shared parameters instead of sixty-five.** Every phoneme currently carries five
+  abstract numbers of its own. Articulators are shared, so the search space means something.
+- **Coarticulation stops being interpolation.** A tongue has mass and cannot teleport;
+  transitions become physical rather than linear blends between abstract shapes.
+- **The picture becomes the point.** A mid-sagittal view — palate, tongue, jaw, lips — driving
+  the area function that drives the tubes. You watch the tongue make the vowel.
+
+**Done when:** every phoneme in the inventory is expressed as articulator positions, and the
+mid-sagittal view and the tube view are two renderings of the same state.
+
+### Does this break the rest of the plan?
+
+No, and it helps three of the remaining phases:
+
+| phase | interaction |
+|---|---|
+| **1 — tournament** | Untouched. The tournament tunes the *voice*; articulation belongs to the *word*. Seeds stay stable. |
+| **2 — lateral branch** | Improved. The branch taps wherever the tongue tip is, instead of a hand-solved position — and the rounded-lip failure becomes unreachable. |
+| **3 — LF source** | Orthogonal. The source sits upstream of the tract and does not care how the tube got its shape. |
+| **4 — prosody** | Improved. Articulator mass gives transition timing a physical basis rather than a tuned constant. |
+| **5 — rest of English** | Substantially helped. Nasals need a **velum**, which is an articulator. Fricatives need turbulence injected *at the constriction*, and an articulatory model knows where the constriction is by construction. |
+| **library** | Improved. A word becomes a sequence of articulator targets — smaller, and portable across voices. |
+
+The one real cost is a one-time re-solve of the whole phoneme inventory in articulator space,
+plus a likely small accuracy loss on the rounded back vowels, which want finer lip modelling
+than a single aperture parameter provides.
+
+---
+
 ## Phase 3 — the shout source
 
 The glottal source is currently a Rosenberg pulse. That is a model of **speech**.
