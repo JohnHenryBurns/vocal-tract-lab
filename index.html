@@ -731,9 +731,12 @@ class TractProcessor extends AudioWorkletProcessor {
       if(d.type==='voicing') this.voicing=d.value;
       if(d.type==='goal'){
         this.seq=d.seq; this.seqT=0; this.voicing=1;
-        this.seqFrom=Float64Array.from(this.diam);   // no snap: ease out of the current shape
+        this.seqFrom=Float64Array.from(this.diam);
         this.seqFromB=this.bOpen;
-        this.blend=0.030;
+        // The blend exists to avoid snapping the tract while it is ALREADY sounding.
+        // From silence there is nothing to snap, and blending only delays the first
+        // closure — which lets the glottis leak before the stop has formed.
+        this.blend = this.vAmp>0.02 ? 0.030 : 0.002;
       }
       if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; }
       if(d.type==='voice'){                        // the tournament varies these
@@ -850,7 +853,9 @@ class TractProcessor extends AudioWorkletProcessor {
         // what makes the silence, and the release is abrupt because the tube opens, not because
         // an envelope ramps. Fading voicing here was adding a 60 ms rise — which is a /w/.
         amp=1;
-        if(this.seqT<0.025) amp*=this.seqT/0.025;   // no instantaneous phonation at t=0
+        // the glottis spins up, and never before the tract has reached its first shape
+        const spin=Math.max(0.025,this.blend+0.010);
+        if(this.seqT<spin) amp*=this.seqT/spin;
         const tail=this.seq.end-this.seqT;
         if(tail<0.30) amp*=Math.max(0,tail/0.30);
       }
