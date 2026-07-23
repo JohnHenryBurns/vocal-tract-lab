@@ -85,6 +85,18 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 .mode{flex:1;font-family:var(--sans);font-size:.92rem;font-weight:500;color:var(--dim);
   background:transparent;border:0;border-radius:6px;padding:.5rem 0;cursor:pointer}
 .mode.on{background:var(--ink);color:#0f1316}
+#quick{position:fixed;left:0;right:0;bottom:0;z-index:55;background:var(--panel);
+  border-top:1px solid var(--line);box-shadow:0 -14px 36px rgba(0,0,0,.55);
+  padding:.8rem 1rem 1rem}
+#quick[hidden]{display:none}
+.qcard{display:flex;gap:.5rem;align-items:center}
+#quickIn{flex:1;min-width:0;font-family:var(--sans);font-size:1.15rem;
+  background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;
+  padding:.7rem .75rem}
+#quickIn:focus{outline:none;border-color:var(--ink)}
+#quickIn::placeholder{color:var(--dim)}
+#quick .icn{width:3rem;height:2.9rem;font-size:1.1rem}
+#quickChain{margin-top:.7rem;min-height:2.4rem;border:0;padding:0;justify-content:center}
 #kbd{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--panel);
   border-top:1px solid var(--line);box-shadow:0 -18px 44px rgba(0,0,0,.6);
   max-height:82vh;display:flex;flex-direction:column}
@@ -395,6 +407,17 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 </div>
 <div id="scrim"></div>
 
+<div id="quick" hidden>
+  <div class="qcard">
+    <input id="quickIn" type="text" value="goal" placeholder="type a word"
+           autocomplete="off" autocapitalize="off" spellcheck="false"
+           enterkeyhint="go" aria-label="Word to say">
+    <button class="icn play" id="quickPlay" title="Say it" aria-label="Say it">&#9654;</button>
+    <button class="icn" id="quickMore" title="More options" aria-label="More">&#8599;</button>
+  </div>
+  <div id="quickChain" class="chain"></div>
+</div>
+
 <div id="kbd" hidden>
   <div class="kbdhead">
     <div id="kbdChain" class="chain"></div>
@@ -446,8 +469,8 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
         <p>That's what this is. It isn't done. Press Play and you'll hear that. But it's real
         physics now instead of a guess, and it's getting closer.</p>
 
-        <p class="tryit"><b>Try it:</b> press <b>Play word</b>, then open <b>Word</b> and build
-        your own.</p>
+        <p class="tryit"><b>Try it:</b> type a word and press <b>▶</b>. That is the whole thing.
+        Everything else — other voices, the tongue, the tuning — is optional.</p>
       </section>
 
       <section data-tab="tool" hidden>
@@ -1369,7 +1392,10 @@ function paintBtn(){
   const open = panel && panel.classList.contains('open');
   const shown = panel ? panel.dataset.show : '';
   const wb=document.getElementById('wordBtn'), ab=document.getElementById('advBtn');
-  if(wb) wb.classList.toggle('solid', !!open && shown==='word');
+  const q=document.getElementById('quick');
+  if(wb) wb.classList.toggle('solid', (!!open && shown==='word') || (q && !q.hidden));
+  const qp=document.getElementById('quickPlay');
+  if(qp){ qp.innerHTML = sequencing ? '&#9632;' : '&#9654;'; qp.classList.toggle('solid', !!sequencing); }
   if(ab) ab.classList.toggle('solid', !!open && shown==='adv');
   const hs=document.getElementById('hstat');
   if(hs) hs.textContent = !started ? 'audio off' : (sequencing ? 'speaking' : (voicing?'sustaining':'ready'));
@@ -1510,6 +1536,10 @@ function drawChain(){
     ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
     : '<span class="empty">type a word above, or tap Edit sounds</span>';
   const el=document.getElementById('chain');    if(el) el.innerHTML=html;
+  const qc=document.getElementById('quickChain');
+  if(qc) qc.innerHTML = chain.length
+    ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
+    : '<span class="empty">type a word and press play</span>';
   const kc=document.getElementById('kbdChain');
   if(kc) kc.innerHTML = chain.length
     ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
@@ -1844,9 +1874,11 @@ try{ firstVisit = !localStorage.getItem('vtl.seen'); }catch(e){}
 if(firstVisit) showAbout(true);
 // once the introduction is out of the way, land where the work happens
 const _closeAbout=showAbout;
-showAbout=function(v){ _closeAbout(v); if(!v && firstVisit){ firstVisit=false; sheet('word'); } };
+showAbout=function(v){ _closeAbout(v); if(!v && firstVisit){ firstVisit=false; openQuick(true); } };
 
-document.getElementById('wordBtn').addEventListener('click',()=>openSheet('word'));
+document.getElementById('wordBtn').addEventListener('click',()=>{
+  if(!quick.hidden) openQuick(false); else { sheet(null); openQuick(true); }
+});
 document.getElementById('advBtn').addEventListener('click',()=>openSheet('adv'));
 scrim.addEventListener('click',()=>sheet(null));
 document.getElementById('sheetClose').addEventListener('click',()=>sheet(null));
@@ -1857,6 +1889,7 @@ document.getElementById('sheetPlay').addEventListener('click',()=>{
 addEventListener('keydown',e=>{
   if(e.key!=='Escape') return;
   if(!document.getElementById('kbd').hidden){ openKbd(false); return; }
+  if(!quick.hidden){ openQuick(false); return; }
   sheet(null);
 });
 
@@ -1867,8 +1900,9 @@ function openKbd(v){
   document.body.style.overflow = v ? 'hidden' : (document.querySelector('aside').classList.contains('open')?'hidden':'');
   drawChain();
 }
-function soundOut(){
-  const raw=document.getElementById('wordIn').value.trim();
+function soundOut(raw){
+  if(typeof raw!=='string') raw=document.getElementById('wordIn').value;
+  raw=String(raw).trim();
   if(!raw) return;
   lastTyped=raw;
   const r=g2p(raw);
@@ -1888,7 +1922,36 @@ function soundOut(){
       : r.from==='built in'  ? 'A name that ships with the app, so it works on any device.'
       : 'Sounded out from the rules. If that is wrong, fix it below and press Remember.');
 }
-document.getElementById('spellBtn').addEventListener('click', soundOut);
+document.getElementById('spellBtn').addEventListener('click', ()=>soundOut());
+
+// ── the quick word bar: type, hear. Nothing else in the way. ──
+const quick=document.getElementById('quick');
+function openQuick(v){
+  quick.hidden=!v;
+  if(v){
+    const qi=document.getElementById('quickIn');
+    qi.value = lastTyped || document.getElementById('wordIn').value || '';
+    drawChain();
+    setTimeout(()=>{ qi.focus(); qi.select(); }, 60);
+  }
+  paintBtn();
+}
+async function quickSay(){
+  const qi=document.getElementById('quickIn');
+  document.getElementById('wordIn').value=qi.value;
+  soundOut(qi.value);
+  await playWord();
+}
+document.getElementById('quickPlay').addEventListener('click', quickSay);
+document.getElementById('quickIn').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); quickSay(); }
+});
+document.getElementById('quickMore').addEventListener('click', ()=>{
+  const qi=document.getElementById('quickIn');
+  document.getElementById('wordIn').value=qi.value;
+  if(qi.value.trim() && qi.value.trim()!==lastTyped) soundOut(qi.value);
+  openQuick(false); sheet('word');
+});
 document.getElementById('editSounds').addEventListener('click', ()=>openKbd(true));
 document.getElementById('chain').addEventListener('click', ()=>openKbd(true));
 document.getElementById('kbdDone').addEventListener('click', ()=>openKbd(false));
@@ -2207,7 +2270,7 @@ function bounceWord(){
   } else if(!sequencing) playSeg=null;
   if(idx===lastBounce) return;
   lastBounce=idx;
-  for(const host of ['chain','kbdChain']){
+  for(const host of ['chain','kbdChain','quickChain']){
     const el=document.getElementById(host);
     if(!el) continue;
     el.querySelectorAll('.chip').forEach((c,i)=>c.classList.toggle('now', i===idx));
