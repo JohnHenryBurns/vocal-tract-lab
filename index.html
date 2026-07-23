@@ -39,6 +39,12 @@ main>*{min-width:0}
 #stage{position:relative;min-height:0;touch-action:none;
   background:radial-gradient(120% 90% at 42% 22%,#171d21 0%,#0d1013 64%)}
 #stage canvas{display:block;width:100%;height:100%}
+#stageChain{position:absolute;left:0;right:0;bottom:.9rem;z-index:2;
+  display:flex;flex-wrap:wrap;gap:.35rem;justify-content:center;
+  padding:0 1rem;pointer-events:none}
+#stageChain .chip{background:rgba(23,28,32,.82);border-color:var(--line);
+  font-size:1.15rem;padding:.24rem .55rem}
+#stageChain .chip.now{background:var(--ink);color:#0f1316;border-color:var(--ink)}
 #mouth{position:absolute;inset:0;z-index:1}
 #mouth[hidden]{display:none}
 .viewtabs{position:absolute;right:.8rem;top:.8rem;z-index:3;display:flex;gap:.3rem;
@@ -99,7 +105,6 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 #quickIn:focus{outline:none;border-color:var(--ink)}
 #quickIn::placeholder{color:var(--dim)}
 #quick .icn{width:3rem;height:2.9rem;font-size:1.1rem}
-#quickChain{margin-top:.7rem;min-height:2.4rem;border:0;padding:0;justify-content:center}
 #kbd{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--panel);
   border-top:1px solid var(--line);box-shadow:0 -18px 44px rgba(0,0,0,.6);
   max-height:82vh;display:flex;flex-direction:column}
@@ -278,6 +283,7 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
       <button class="vt on" data-view="tube">Tube</button>
       <button class="vt" data-view="mouth">Mouth</button>
     </div>
+    <div id="stageChain"></div>
     <div class="badge">
       <b id="secCount">—</b> cylinders · <b id="lenCm">—</b> cm<br>
       colour = standing-wave energy<br>
@@ -419,7 +425,6 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
     <button class="icn play" id="quickPlay" title="Say it" aria-label="Say it">&#9654;</button>
     <button class="icn" id="quickMore" title="More options" aria-label="More">&#8599;</button>
   </div>
-  <div id="quickChain" class="chain"></div>
   </div>
 </div>
 
@@ -1541,10 +1546,8 @@ function drawChain(){
     ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
     : '<span class="empty">type a word above, or tap Edit sounds</span>';
   const el=document.getElementById('chain');    if(el) el.innerHTML=html;
-  const qc=document.getElementById('quickChain');
-  if(qc) qc.innerHTML = chain.length
-    ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
-    : '<span class="empty">type a word and press play</span>';
+  const sc=document.getElementById('stageChain');
+  if(sc) sc.innerHTML = chain.map(c=>`<span class="chip">${c}</span>`).join('');
   const kc=document.getElementById('kbdChain');
   if(kc) kc.innerHTML = chain.length
     ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
@@ -1947,6 +1950,7 @@ async function quickSay(){
   const qi=document.getElementById('quickIn');
   document.getElementById('wordIn').value=qi.value;
   soundOut(qi.value);
+  openQuick(false);            // step out of the way — the word plays over the tract
   await playWord();
 }
 document.getElementById('quickPlay').addEventListener('click', quickSay);
@@ -2278,7 +2282,7 @@ function bounceWord(){
   } else if(!sequencing) playSeg=null;
   if(idx===lastBounce) return;
   lastBounce=idx;
-  for(const host of ['chain','kbdChain','quickChain']){
+  for(const host of ['chain','kbdChain','stageChain']){
     const el=document.getElementById(host);
     if(!el) continue;
     el.querySelectorAll('.chip').forEach((c,i)=>c.classList.toggle('now', i===idx));
