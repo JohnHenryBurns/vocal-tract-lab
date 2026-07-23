@@ -1657,7 +1657,7 @@ const G2P_RULES = [
   [/^oo/,        ['u']],
   [/^ou/,        ['aʊ']],
   [/^ow/,        ['aʊ']],
-  [/^oa/,        ['o']],
+  [/^oa/,        ['oʊ']],
   [/^oe/,        ['o']],
   [/^ai/,        ['eɪ']],
   [/^ay/,        ['eɪ']],
@@ -1722,12 +1722,17 @@ function g2p(word){
 const BUILTIN_DICT = {
   // English spells /θ/ and /ð/ identically. Only a list can tell them apart, and the
   // voiced ones are almost all function words — a short list covers most of the language.
+  // English writes "oo" for two different vowels and gives no clue which. Only a list knows.
+  good:['g','ʊ','d'], book:['b','ʊ','k'], look:['l','ʊ','k'], took:['t','ʊ','k'],
+  foot:['f','ʊ','t'], hood:['h','ʊ','d'], wood:['w','ʊ','d'], wool:['w','ʊ','l'],
+  could:['k','ʊ','d'], would:['w','ʊ','d'], should:['ʃ','ʊ','d'], put:['p','ʊ','t'],
+  bulldog:['b','ʊ','l','d','ɔ','g'],
   the:['ð','ə'], this:['ð','ɪ','s'], that:['ð','æ','t'], then:['ð','ɛ','n'],
   them:['ð','ɛ','m'], these:['ð','i','z'], those:['ð','oʊ','z'], there:['ð','ɛ','r'],
   their:['ð','ɛ','r'], they:['ð','eɪ'], though:['ð','oʊ'], than:['ð','æ','n'],
   with:['w','ɪ','θ'], mother:['m','ʌ','ð','ɝ'], father:['f','ɑ','ð','ɝ'],
   brother:['b','r','ʌ','ð','ɝ'], other:['ʌ','ð','ɝ'], measure:['m','ɛ','ʒ','ɝ'],
-  goal:['g','o','l'],               bulldog:['b','ʊ','l','d','ɔ','g'],
+  goal:['g','o','l'],
   maximus:['m','æ','k','s','ɪ','m','ə','s'],  max:['m','æ','k','s'],
   jupiter:['d','ʒ','u','p','ɪ','t','ɝ'],
   solana:['s','o','l','ɑ','n','ə'],
