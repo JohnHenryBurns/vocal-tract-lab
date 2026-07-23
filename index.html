@@ -54,7 +54,7 @@ main>*{min-width:0}
 aside{border-left:1px solid var(--rule);background:var(--panel);overflow-y:auto;
   padding:0 1rem 1.4rem;min-height:0;-webkit-overflow-scrolling:touch}
 
-.grab{display:none}
+.sheethead{display:none}
 .group{margin-bottom:1.2rem}
 .glabel{font-family:var(--mono);font-size:.8rem;font-weight:500;letter-spacing:.07em;
   text-transform:uppercase;color:var(--dim);margin:0 0 .65rem;display:flex;align-items:center;gap:.6rem}
@@ -190,16 +190,18 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
   aside[data-show="tract"] section:not([data-panel="tract"]){display:none}
   aside[data-show="lab"]   section:not([data-panel="lab"]){display:none}
 
-  /* controls become a sheet that slides over, instead of a strip you scroll past */
-  aside{position:fixed;left:0;right:0;bottom:0;z-index:40;max-height:76vh;
-    border-left:0;border-top:1px solid var(--rule);border-radius:14px 14px 0 0;
-    padding:0 1rem 1.6rem;transform:translateY(101%);transition:transform .26s ease;
-    box-shadow:0 -20px 44px rgba(0,0,0,.55)}
+  /* the controls take the whole screen — there is too much in them for a strip */
+  aside{position:fixed;inset:0;z-index:40;max-height:none;
+    border-left:0;border-top:0;border-radius:0;
+    padding:0 1rem 2rem;transform:translateY(100%);transition:transform .24s ease;
+    background:var(--bg)}
   aside.open{transform:none}
-  #scrim.on{display:block}
-  .grab{display:block;position:sticky;top:0;background:var(--panel);z-index:2;
-    padding:.6rem 0 .5rem;margin-bottom:.2rem}
-  .grab i{display:block;width:2.4rem;height:4px;border-radius:2px;background:var(--line);margin:0 auto}
+  #scrim{display:none!important}
+  .sheethead{display:flex;align-items:center;gap:.5rem;position:sticky;top:0;z-index:5;
+    background:var(--bg);padding:.75rem 0 .7rem;margin-bottom:1rem;
+    border-bottom:1px solid var(--rule)}
+  .sheethead span{font-weight:600;font-size:1.05rem}
+  #sheetPlay{margin-left:auto}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -229,7 +231,11 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
   </div>
 
   <aside data-show="word">
-    <div class="grab"><i></i></div>
+    <div class="sheethead">
+      <span id="sheetTitle">Word</span>
+      <button class="btn" id="sheetPlay">Play</button>
+      <button class="btn" id="sheetClose">Close</button>
+    </div>
 
     <section data-panel="word">
       <div class="group">
@@ -1217,6 +1223,8 @@ function paintBtn(){
   holdBtn.classList.toggle('solid', !!voicing && !sequencing);
   playBtn.textContent = sequencing ? 'Stop' : 'Play word';
   playBtn.classList.toggle('solid', !!sequencing);
+  const sp=document.getElementById('sheetPlay');
+  if(sp){ sp.textContent = sequencing ? 'Stop' : 'Play'; sp.classList.toggle('solid', !!sequencing); }
   const panel=document.querySelector('aside');          // looked up, not closed over
   const open = panel && panel.classList.contains('open');
   const shown = panel ? panel.dataset.show : '';
@@ -1337,10 +1345,16 @@ drawChain();
 
 // ── two sheets: what to say, and how the instrument behaves ──
 const aside=document.querySelector('aside'), scrim=document.getElementById('scrim');
-function sheet(name){                     // name = 'word' | 'tract' | null
-  if(name) aside.dataset.show=name;
+const SHEET_TITLE={word:'Word', tract:'Tract', lab:'Lab'};
+function sheet(name){                     // name = 'word' | 'tract' | 'lab' | null
+  if(name){
+    aside.dataset.show=name;
+    const t=document.getElementById('sheetTitle');
+    if(t) t.textContent=SHEET_TITLE[name]||'';
+  }
   aside.classList.toggle('open', !!name);
   scrim.classList.toggle('on', !!name);
+  document.body.style.overflow = name ? 'hidden' : '';
   paintBtn();
 }
 function openSheet(name){
@@ -1643,6 +1657,11 @@ document.getElementById('wordBtn').addEventListener('click',()=>openSheet('word'
 document.getElementById('tractBtn').addEventListener('click',()=>openSheet('tract'));
 document.getElementById('labBtn').addEventListener('click',()=>openSheet('lab'));
 scrim.addEventListener('click',()=>sheet(null));
+document.getElementById('sheetClose').addEventListener('click',()=>sheet(null));
+document.getElementById('sheetPlay').addEventListener('click',()=>{
+  if(sequencing){ node && node.port.postMessage({type:'stopSeq'}); sequencing=false; voicing=0; paintBtn(); }
+  else playWord();
+});
 addEventListener('keydown',e=>{ if(e.key==='Escape') sheet(null); });
 
 // ── typing a word ──
