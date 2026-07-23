@@ -888,6 +888,7 @@ class TractProcessor extends AudioWorkletProcessor {
     this.dcX=0; this.dcY=0; this.tick=0;
     this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1; this.bnz=0; this.bn1=0; this.bn2=0;
     this.voiceless=0; this.nasalOut=0; this.fric=0; this.fz=0; this.hiss=1; this.fy1=0; this.fy2=0; this.fcLast=0;
+    this.flow=0; this.flowT=0;
     this.seqFrom=null; this.seqFromB=0; this.blend=0.03;
     this.seq=null; this.seqT=0; this.prevClose=1;
     this.velar=Math.round(${VELAR}*(n-1));
@@ -913,7 +914,7 @@ class TractProcessor extends AudioWorkletProcessor {
         // closure — which lets the glottis leak before the stop has formed.
         this.blend = this.vAmp>0.02 ? 0.030 : 0.002;
       }
-      if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; }
+      if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; this.fric=0; this.flow=0; this.flowT=0; }
       if(d.type==='voice'){                        // the tournament varies these
         const v=d.v;
         if(v.rd   !==undefined) this.rd=v.rd;
@@ -1047,6 +1048,7 @@ class TractProcessor extends AudioWorkletProcessor {
         if(done){
           if(this.seqT>this.seq.end){
             this.seq=null; this.voicing=0;   // the word is over
+            this.fric=0; this.flow=0; this.flowT=0;   // the air stops: no hiss outliving the word
             this.target.set(this.diam);      // hand the tract back where it stands
           }
           else { const last=K[K.length-1];
@@ -1087,13 +1089,21 @@ class TractProcessor extends AudioWorkletProcessor {
         // The glottis does not pause for a stop. It buzzes the whole way through; the SEAL is
         // what makes the silence, and the release is abrupt because the tube opens, not because
         // an envelope ramps. Fading voicing here was adding a 60 ms rise — which is a /w/.
-        amp = this.voiceless ? 0 : voiceBar;
-        // the glottis spins up, and never before the tract has reached its first shape
+        // AIRFLOW and VOICING are different things. Air moves through a /s/ for its whole
+        // duration; the folds simply are not vibrating. Gating frication on voicing silenced
+        // every voiceless fricative, because for those, voicing is zero by definition.
+        let flow=1;
         const spin=Math.max(0.025,this.blend+0.010);
-        if(this.seqT<spin) amp*=this.seqT/spin;
+        if(this.seqT<spin) flow*=this.seqT/spin;
         const tail=this.seq.end-this.seqT;
-        if(tail<0.30) amp*=Math.max(0,tail/0.30);
+        if(tail<0.16) flow*=Math.max(0,tail/0.16);   // short, or it eats a final consonant
+        this.flowT=flow;
+        amp = this.voiceless ? 0 : flow*voiceBar;
+      } else {
+        this.flowT = this.voicing;
+        amp = this.voiceless ? 0 : this.voicing*voiceBar;
       }
+      this.flow += ((this.flowT||0)-this.flow)*0.004;
       this.vAmp += (amp-this.vAmp)*0.004;
       // effort presses the folds: Rd falls toward the pressed end at the peak of the word
       let eff=0;
@@ -1146,7 +1156,8 @@ class TractProcessor extends AudioWorkletProcessor {
       // Turbulence is made where the air squeezes through, NOT at the glottis, and it is
       // injected forward so that only the cavity in FRONT of the constriction shapes it.
       // That is the whole reason /s/ is high and /ʃ/ is lower: a shorter front cavity.
-      if(this.fric>0.001 && cl>0.045 && cl<0.42){
+      const breath=this.flow;
+      if(this.fric>0.001 && breath>0.01 && cl>0.045 && cl<0.42){
         const jet=1-Math.abs(cl-0.19)/0.24;          // strongest at a small but open gap
         if(jet>0){
           // A sibilant is a jet striking the teeth while the short cavity in front of the
@@ -1164,7 +1175,7 @@ class TractProcessor extends AudioWorkletProcessor {
           this.fy2=this.fy1||0; this.fy1=y;
           const at=Math.min(n-2, mi+1);
           // keep only a trace of unshaped noise, or it dominates the top and reads as static
-          this.R[at] += (y*0.92 + raw*0.035) * jet * this.fric * 2.6;
+          this.R[at] += (y*0.92 + raw*0.035) * jet * this.fric * breath * 1.7;
         }
       }
       this.prevClose=cl;
