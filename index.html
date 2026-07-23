@@ -1674,6 +1674,9 @@ function soundOut(){
   const known=new Set(Object.keys(ART));
   const missing=[...new Set(r.ph.filter(x=>!known.has(x)))];
   chain=r.ph.filter(x=>known.has(x));
+  // A typed word is speech, not a stadium cry. Left on the goal-cry settings it inherits a
+  // three-second length and a heavy drawl, and every word turns into one stretched vowel.
+  setTiming(Math.max(0.5, Math.min(2.2, chain.length*0.17)), 0.08);
   drawChain();
   document.getElementById('rememberBtn').disabled=false;
   const note=document.getElementById('spellNote');
@@ -1694,14 +1697,19 @@ document.getElementById('rememberBtn').addEventListener('click', ()=>{
     `"${lastTyped}" will sound like this from now on.`;
 });
 
+function setTiming(dur,drawl){
+  sDur.value=dur.toFixed(1); sHold.value=drawl.toFixed(2);
+  document.getElementById('vDur').textContent=(+sDur.value).toFixed(1)+' s';
+  document.getElementById('vHold').textContent=(+sHold.value).toFixed(2);
+}
 const GOAL_WORD=['g','o','ɑ','l'];
 document.getElementById('clearChain').addEventListener('click',()=>{ chain=[]; drawChain(); });
 document.getElementById('undoChain').addEventListener('click',()=>{ chain.pop(); drawChain(); });
 document.getElementById('goalPreset').addEventListener('click',()=>{
   chain=[...GOAL_WORD]; drawChain();
-  sDur.value=2.9; sHold.value=0.55;
-  document.getElementById('vDur').textContent='2.9 s';
-  document.getElementById('vHold').textContent='0.55';
+  setTiming(2.9, 0.55);            // the cry is the one thing that WANTS to be drawn out
+  document.getElementById('wordIn').value='';
+  document.getElementById('spellNote').textContent='The goal cry: long, and heavy on the first vowel.';
 });
 
 
