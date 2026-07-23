@@ -644,7 +644,8 @@ class TractProcessor extends AudioWorkletProcessor {
     this.bR=new Float64Array(this.bN); this.bL=new Float64Array(this.bN);
     this.bRin=new Float64Array(this.bN); this.bLin=new Float64Array(this.bN);
     this.dcX=0; this.dcY=0; this.tick=0;
-    this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1;
+    this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1; this.bnz=0;
+    this.seqFrom=null; this.seqFromB=0; this.blend=0.03;
     this.seq=null; this.seqT=0; this.prevClose=1;
     this.velar=Math.round(${VELAR}*(n-1));
     this.port.onmessage=(e)=>{
@@ -657,7 +658,12 @@ class TractProcessor extends AudioWorkletProcessor {
       if(d.type==='f0') this.f0=d.value;
       if(d.type==='breath') this.breath=d.value;
       if(d.type==='voicing') this.voicing=d.value;
-      if(d.type==='goal'){ this.seq=d.seq; this.seqT=0; this.voicing=1; }
+      if(d.type==='goal'){
+        this.seq=d.seq; this.seqT=0; this.voicing=1;
+        this.seqFrom=Float64Array.from(this.diam);   // no snap: ease out of the current shape
+        this.seqFromB=this.bOpen;
+        this.blend=0.030;
+      }
       if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; }
       if(d.type==='voice'){                        // the tournament varies these
         const v=d.v;
@@ -721,6 +727,13 @@ class TractProcessor extends AudioWorkletProcessor {
         this.seqT += 1/sr;
         const K=this.seq.keys;
         let done=true;
+        if(this.seqT < this.blend){          // glide into the first keyframe
+          let u=this.seqT/this.blend; u=u*u*(3-2*u);
+          const k0=K[0];
+          for(let i=0;i<n;i++) this.diam[i]=this.seqFrom[i]+(k0.d[i]-this.seqFrom[i])*u;
+          this.bOpen=this.seqFromB+((k0.b||0)-this.seqFromB)*u;
+          done=false;
+        } else
         for(let k=1;k<K.length;k++){
           if(this.seqT<=K[k].t){
             const a=K[k-1], b=K[k];
@@ -791,8 +804,11 @@ class TractProcessor extends AudioWorkletProcessor {
         this.charge=0;
       }
       if(this.burstN>0){
-        const k=this.burstN/(sr*0.014);
-        const b=(Math.random()*2-1)*this.burstA*k*k;
+        const tot=sr*0.014, age=tot-this.burstN;
+        const atk=Math.min(1, age/(sr*0.0009));        // ~1 ms rise, so it is not a step
+        const k=this.burstN/tot;
+        this.bnz = (this.bnz||0)*0.55 + (Math.random()*2-1)*0.45;   // soften the spectrum
+        const b=this.bnz*this.burstA*k*k*atk;
         this.R[this.burstAt]+=b; this.L[this.burstAt]+=b;
         this.burstN--;
       }
