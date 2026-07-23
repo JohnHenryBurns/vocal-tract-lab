@@ -83,6 +83,19 @@ went through nine iterations of formant synthesis that variously sounded like a 
 sasquatch, a cow and a sheep, and ended up here. The write-up of that journey — including a
 retracted finding — is in that repo under `docs/AUDIO-EXPERIMENT.md`.
 
+## Relation to other physical models
+
+Karplus–Strong, the standard plucked-string algorithm, is the same family: sound in a
+one-dimensional medium as two travelling waves, simulated by delay and filtering. Julius Smith
+formalised both as digital waveguide synthesis. A string is uniform so a single delay loop
+suffices; a vocal tract changes cross-section, so it needs a scattering junction at every
+boundary — hence 44 of them here.
+
+Make every section of this tube the same diameter and the reflection coefficients vanish,
+leaving a plain delay loop. Then only the ends decide what it is: with one end open it
+resonates at 500/1505/2505 Hz (odd multiples of c/4L — a stopped tube), and with both ends
+reflecting at 1000/2005/3005 Hz (the full harmonic series of a string). Same code.
+
 ## Reading
 
 - Kelly & Lochbaum (1962), *Speech Synthesis* — the waveguide model

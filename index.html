@@ -132,6 +132,12 @@ aside section{display:block}
 .cardbody .tryit{background:var(--panel2);border:1px solid var(--rule);border-radius:8px;
   padding:.75rem .9rem;font-size:.96rem}
 .cardbody sub{font-size:.72em}
+table.mini{width:100%;border-collapse:collapse;margin:0 0 1rem;font-size:.9rem}
+table.mini th{text-align:left;font-family:var(--mono);font-size:.74rem;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--dim);font-weight:500;padding:.35rem .5rem;
+  border-bottom:1px solid var(--rule)}
+table.mini td{padding:.5rem .5rem;border-bottom:1px solid var(--rule);vertical-align:top}
+table.mini .dimtd{color:var(--dim);font-size:.84em}
 .cardbody h3{font-size:.82rem;letter-spacing:.09em;text-transform:uppercase;
   color:var(--dim);margin:1.5rem 0 .6rem;font-family:var(--mono);font-weight:500}
 .cardbody b{font-weight:600}
@@ -424,6 +430,37 @@ aside section{display:block}
         measures a −33.7 dB notch at 1950 Hz. The same mechanism with an open far end at the
         velum gives the nasals.</p>
 
+        <h3>The same algorithm plucks a string</h3>
+        <p>Anyone who has built synthesizers will recognise the machinery. <b>Karplus–Strong</b>
+        (1983) — a delay line with a loss filter in its feedback path, kicked with a burst of
+        noise — is the standard way to synthesize a plucked string, and it is the same idea:
+        sound in a one-dimensional medium is two travelling waves, so you simulate it by
+        delaying and filtering rather than by solving anything.</p>
+
+        <p>Kelly and Lochbaum got there first, in 1962, with the vocal tract. Julius O. Smith
+        later formalised the whole family as <b>digital waveguide synthesis</b> and showed that
+        Karplus–Strong is a waveguide with the simplifications a string allows.</p>
+
+        <p>The difference is geometry. A string is uniform, so nothing scatters along its
+        length and a single delay loop is enough. A vocal tract changes cross-section
+        constantly, so it needs a scattering junction at every boundary — which is why this
+        model carries 44 of them.</p>
+
+        <p>You can watch the two collapse into each other. Make every section of this tube the
+        same diameter and every reflection coefficient goes to zero, leaving a plain delay loop.
+        Then only the ends decide what it is:</p>
+
+        <table class="mini">
+          <tr><th></th><th>resonances</th><th>theory</th></tr>
+          <tr><td>one end open<br><span class="dimtd">(vocal tract)</span></td>
+              <td>500 · 1505 · 2505 · 3510 Hz</td><td>odd × c/4L</td></tr>
+          <tr><td>both ends reflecting<br><span class="dimtd">(string)</span></td>
+              <td>1000 · 2005 · 3005 · 4010 Hz</td><td>all × c/2L</td></tr>
+        </table>
+
+        <p>Odd harmonics only is a tube stopped at one end — a clarinet, a throat. The full
+        harmonic series is a string fixed at both ends. Same code, two numbers changed.</p>
+
         <h3>What is still missing</h3>
         <p>Nasals, voiceless stops and fricatives. And the glottal source is a Rosenberg pulse,
         which models <i>speech</i> — a shout is pressed phonation, not merely loud speech, so
@@ -434,6 +471,7 @@ aside section{display:block}
           <a href="https://github.com/JohnHenryBurns/vocal-tract-lab/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a>
           <a href="https://github.com/JohnHenryBurns/three-sided-football/blob/main/docs/AUDIO-EXPERIMENT.md" target="_blank" rel="noopener">The nine-attempt write-up</a>
           <a href="https://dood.al/pink-trombone/" target="_blank" rel="noopener">Pink Trombone</a>
+          <a href="https://ccrma.stanford.edu/~jos/pasp/" target="_blank" rel="noopener">Smith, Physical Audio Signal Processing</a>
         </p>
       </section>
 
