@@ -353,6 +353,38 @@ something already known to be broken:
 
 ---
 
+## The harness
+
+`node lab/check.js` — one command, one verdict, exit 0 means shippable. It drives the
+**shipping engine**, extracted straight out of index.html, so it cannot drift from what
+actually runs. Eleven checks, each with a band that exists because something once broke that
+way: the uniform tube still resonating at c/4L, vowels against Peterson & Barney, stops sealing
+at their own place of articulation, the lateral not collapsing into a /w/, nasals producing a
+murmur, sibilants shaped rather than broadband, no clicks at releases, silence after a word
+ends, every non-stop sound audible, output finite and unclipped, and Rd spanning the phonation
+range.
+
+Two rules learned the hard way. **Bands are calibrated against a known-bad build, not guessed** —
+the click threshold sits at 220% because a deliberately over-driven burst measures 558% while
+the shipping build measures 177%, and an earlier guess of 140% was flagging normal /d/
+dynamics. And **the check must exit non-zero**: a gate that prints a failure but lets the
+pipeline continue is not a gate, and one did exactly that here.
+
+The harness found a real physics bug on its first run: the voice-bar decay was being applied to
+nasals. That decay models pressure building behind a closure, but a nasal's closure has the
+nose open, so pressure never builds — which is precisely why /m/ can be held forever and /b/
+cannot. It was silencing /n/ and /ŋ/.
+
+**On resolution.** The acoustic timestep is not a free parameter: section length = c × timestep,
+so halving the step halves the section. At 44.1 kHz with two scattering steps per sample the
+sections are 3.97 mm and articulation is recomputed every sample. For vowels that is ample — a
+resonance spans dozens of sections. Where it bites is **sibilants**: the front cavity that gives
+/s/ its character is only six sections long, so its resonance is quantised coarsely. Doubling to
+four steps per sample would halve the sections and roughly double the CPU. That is the honest
+case for finer resolution, and it is about fricatives, not about the model being under-sampled.
+
+---
+
 ## Note on method
 
 Four times during the earlier synthesis work, a confident diagnosis turned out to be a

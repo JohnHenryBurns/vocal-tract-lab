@@ -1083,7 +1083,10 @@ class TractProcessor extends AudioWorkletProcessor {
       // across the folds collapses, and voicing fades. That is why a voiced stop cannot be
       // held. Driving the glottis at full power into a sealed tube stored energy that had to
       // come out somewhere — which it did, as a 165% overshoot at the release.
-      const sealedFor = (this.prevClose<0.14) ? (this.charge||0) : 0;
+      // Pressure only builds if the air has nowhere to go. With the velum open it escapes
+      // through the nose, which is exactly why /m/ can be held forever and /b/ cannot —
+      // and why applying the stop's voice-bar decay to a nasal silenced it.
+      const sealedFor = (this.prevClose<0.14 && this.nasal<0.15) ? (this.charge||0) : 0;
       const voiceBar = 1 - 0.88*sealedFor;
       if(this.seq){
         // The glottis does not pause for a stop. It buzzes the whole way through; the SEAL is
@@ -1133,8 +1136,12 @@ class TractProcessor extends AudioWorkletProcessor {
         this.sealAt=mi;
       } else if((this.charge||0)>0.12 && cl>0.22){
         this.burstN=Math.floor(sr*0.014);
+        // A release near the lips radiates almost directly; one at the velum has a whole
+        // mouth in front of it to excite. Scaling by the front cavity is why a labial /b/ is
+        // a soft thump and a velar /k/ is a crisp burst.
+        const frontFrac=(n-1-(this.sealAt||mi))/n;
         this.burstA=this.charge*(this.burstK===undefined?0.16:this.burstK)
-                    *(this.voiceless?4.2:1);   // a voiceless stop is aspirated and loud
+                    *(this.voiceless?2.0:1)*(0.35+1.3*frontFrac);
         this.burstAt=this.sealAt||mi;
         this.charge=0;
       }
