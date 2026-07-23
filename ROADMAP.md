@@ -114,6 +114,60 @@ tournament is for.
 
 ---
 
+## Phase 5 — the rest of English
+
+Everything above serves one word. This phase makes the instrument general.
+
+The current inventory is twelve vowels plus /l b d g/, which is enough for **goal, gold, ball,
+bulldog, dad, good, bird** and any other word built from voiced stops and vowels. It is not
+enough for most names. Taking "Maximus" — /m æ k s ɪ m ə s/ — as the worked example, three
+things are missing, and they differ enormously in cost:
+
+| missing | what it needs | cost |
+|---|---|---|
+| /m n ŋ/ nasals | side branch coupled at the velum | **free** — Phase 2 already builds it |
+| /p t k/ voiceless stops | existing closure, voicing gated off, aspiration on release | cheap |
+| /s ʃ f θ/ fricatives | sustained turbulence at a constriction, plus the short front cavity that gives sibilants their resonance | the real work |
+
+Note the ordering that falls out of this: **Phase 2 pays for the nasals as a side effect.** The
+branched waveguide built to fix the /l/ is the same mechanism that opens the velopharyngeal
+port. Voiceless stops are close to free once it exists — the tube already seals and releases;
+what changes is that the glottis is quiet and the burst is aspirated rather than voiced.
+
+Fricatives are the genuine addition. A noise source has to be injected *at* the constriction
+rather than at the glottis, with its level driven by the pressure drop and the constriction
+area, and sibilants need geometry fine enough to resolve the small cavity in front of the teeth
+that puts /s/ up around 4–8 kHz. That may also force a higher section count.
+
+**Done when:** the app can say a name it was never tuned for.
+
+---
+
+## The calibration library
+
+A/B tournaments should not produce one good goal cry. They should produce a **voice**.
+
+The parameters divide cleanly, and this division is what makes a library possible:
+
+- **A voice** is the source and expression: glottal shape, effort arc, pitch range, roughness,
+  brightness. It is completely word-independent. *"Stadium shout", "announcer", "small child",
+  "grandfather".*
+- **A word** is a phoneme sequence and its timing. It is completely voice-independent.
+  *goal, bulldog, Maximus.*
+
+They compose. Any voice can say any word. A tournament tunes a **voice**, and every word in the
+library immediately inherits the result — so the listening effort spent perfecting the goal cry
+is not spent again on the next word.
+
+That means the seed code from Phase 1c should encode the pair — `voice:word` — and the library
+is simply two lists that multiply.
+
+The near-term consequence: tune the stadium-shout voice on *goal*, because it is short and we
+know what it should sound like. Then point it at *bulldog*, and later at the kids' names, and
+the hard-won calibration comes along for free.
+
+---
+
 ## Which parameters go where
 
 The split matters, because it decides what costs human attention:
@@ -139,6 +193,7 @@ something already known to be broken:
 3. H1–H2 in the pressed range at peak effort
 4. No AM above ~2% in the 4–9 Hz band
 5. Spectral tilt in voice range, not buzz range
+6. A tuned voice can speak a word it was never tuned on, without retuning
 
 ---
 
