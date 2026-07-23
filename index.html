@@ -118,7 +118,14 @@ aside section{display:block}
   border-bottom:1px solid var(--rule)}
 .cardhead h2{margin:0;font-size:1.25rem;font-weight:600;letter-spacing:-.01em}
 .cardhead .btn{margin-left:auto}
+.tabs{display:flex;gap:.3rem;padding:.6rem 1.2rem 0;border-bottom:1px solid var(--rule)}
+.tab{font-family:var(--sans);font-size:.92rem;font-weight:500;color:var(--dim);
+  background:transparent;border:0;border-bottom:2px solid transparent;
+  padding:.5rem .1rem .55rem;margin-right:1.1rem;cursor:pointer}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--ink);border-bottom-color:var(--ink)}
 .cardbody{padding:1.1rem 1.2rem 1.4rem;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.cardbody section[hidden]{display:none}
 .cardbody p{font-size:1rem;line-height:1.66;margin:0 0 1rem;color:var(--ink)}
 .cardbody .lead{font-size:1.35rem;line-height:1.3;color:var(--ink);font-weight:600;
   margin-bottom:1rem;letter-spacing:-.01em}
@@ -305,92 +312,131 @@ aside section{display:block}
       <h2 id="aboutTitle">Vocal Tract Lab</h2>
       <button class="btn" id="aboutClose">Close</button>
     </div>
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-tab="mission">The mission</button>
+      <button class="tab" data-tab="tool">The tool</button>
+      <button class="tab" data-tab="science">The science</button>
+    </div>
     <div class="cardbody">
-      <p class="lead">We are trying to make a computer shout GOOOOAAALLL.</p>
 
-      <p>Not play a recording of one. Build a throat, and make it shout.</p>
+      <section data-tab="mission">
+        <p class="lead">I wanted a goal cry.</p>
 
-      <p>That is what this page is. It began with a football game that needed a goal cry, and
-      turned into a working model of the thing people shout with. It is not finished. You can
-      hear that for yourself in about four seconds.</p>
+        <p>I built a <a href="https://johnhenryburns.github.io/three-sided-football/"
+        target="_blank" rel="noopener">three-sided football game</a> with my kids. Three teams,
+        one ball, no permanent friends. It narrates its own matches, so it needed someone to
+        shout GOOOOAAALLL when a goal goes in.</p>
 
-      <p>Blow across the top of a bottle and you get a note. Change the bottle and the note
-      changes. The shape of the space inside is what decides the sound.</p>
+        <p>A sound file would have worked. But then it's the same shout every time, and kids
+        notice that by the third match. I wanted the computer to actually make the sound.</p>
 
-      <p>Your mouth works the same way. Your vocal cords make a buzz, and the tube above them —
-      throat, mouth, lips — turns that buzz into a vowel. Move your tongue and you change the
-      shape of the tube. That is all a vowel really is.</p>
+        <p>First attempt was filters and math faking a voice. Nine rounds of it. Along the way
+        it sounded like a ghost, then a sasquatch, then a cow, then a Spanish speaker, then a
+        sheep. Each of those turned out to be pointing at something genuinely broken, so they
+        were useful. It still never got close.</p>
 
-      <p>This page is that tube, simulated. The 3D shape is a model of a human vocal tract cut
-      into 44 short segments, and sound bounces around inside it the way it does in your own
-      head. Nothing here is a recording. Nothing here even knows what a vowel is. It only knows
-      the shape of the pipe, and the vowels come out on their own.</p>
+        <p>So we stopped faking it and built the throat.</p>
 
-      <p class="tryit"><b>Try it:</b> press <b>Play word</b>. Then open <b>Word</b> and tap
-      different sounds to build your own.</p>
+        <p>That's what this is. It isn't done. Press Play and you'll hear that. But it's real
+        physics now instead of a guess, and it's getting closer.</p>
 
-      <h3>How it got here</h3>
-      <p>The <a href="https://johnhenryburns.github.io/three-sided-football/"
-      target="_blank" rel="noopener">football simulator</a> narrates its own matches, and it
-      needed a stadium <i>GOOOOAAALLL</i>. A sound file would have meant the same shout every
-      time, so we tried to build one instead.</p>
+        <p class="tryit"><b>Try it:</b> press <b>Play word</b>, then open <b>Word</b> and build
+        your own.</p>
+      </section>
 
-      <p>The first approach faked the throat with filters. Nine attempts later it had sounded —
-      in this order — like a ghost, a sasquatch, a cow, a Spanish speaker and a sheep. Every one
-      of those turned out to point at a real, specific fault. We gave up on faking it and
-      modelled the actual tube, which is what you are looking at.</p>
+      <section data-tab="tool" hidden>
+        <p class="lead">Five controls.</p>
 
-      <h3>The controls</h3>
-      <p><b>Hold</b> gives voice to whatever shape the tract is in right now, so you hear one
-      sustained vowel. <b>Play word</b> speaks the word you have built; it starts as
-      <i>g o ɑ l</i>. <b>Word</b> opens the sounds and the word. <b>Tract</b> opens the tongue
-      and voice controls. <b>Lab</b> plays you two versions and lets you keep the better one,
-      over and over, until the voice is what you want.</p>
+        <p><b>Hold</b> gives voice to whatever shape the tract is in right now. You hear one
+        vowel, held, for as long as you like. Tap it again to stop. The space bar does the same
+        thing.</p>
 
-      <h3>Where the shapes came from</h3>
-      <p>The vowel shapes were not guessed. In 1952 Peterson and Barney measured the resonances
-      of thousands of spoken vowels, and those numbers are still the standard reference. We
-      searched over tube shapes until the simulation matched their measurements.</p>
+        <p><b>Play word</b> speaks the word you have built. It starts out as <i>g o ɑ l</i>.
+        While it is speaking, that button becomes Stop.</p>
 
-      <p>What came out of that search is the nice part. Nobody told it any phonetics, but it
-      independently found that /o/ needs a narrowing at the back of the throat plus rounded
-      lips, and that /ɑ/ needs a narrowing low in the throat with the jaw open — which is
-      exactly what those vowels are.</p>
+        <p><b>Word</b> opens the sounds. Tapping a phoneme does two things: it shapes the tract
+        so you can see it, and it adds that sound to the end of your word. Undo and Clear are
+        there too. The timing sliders control how long the word takes and how much the first
+        vowel gets stretched.</p>
 
-      <h3>Under the hood</h3>
-      <p>The model is a <b>Kelly–Lochbaum digital waveguide</b> (1962). The tract is a chain of
-      cylindrical sections carrying two counter-propagating travelling waves. At every boundary
-      where the cross-sectional area changes, part of each wave reflects:</p>
+        <p><b>Tract</b> opens the tongue and voice controls. Tongue position slides the
+        narrowing from the throat toward the lips, constriction sets how tight it is, and lip
+        aperture rounds or spreads the mouth. Between those three you can reach most of the
+        vowel space by hand.</p>
 
-      <p class="eqn">r = (A₁ − A₂) / (A₁ + A₂)</p>
+        <p><b>Lab</b> is where the tuning happens. It plays you two versions of the voice and
+        you keep the better one. Do that ten times and it converges somewhere you would not have
+        found by dragging sliders. If both sound wrong, say so — it will search somewhere else.
+        A good voice can be copied out as a 20-character seed and pasted back later.</p>
 
-      <p>That is the entire model. There are no formant filters anywhere in the code — the
-      resonances are standing waves, and each cylinder in the 3D view is lit by the wave energy
-      actually present in that section, so you are watching the pressure pattern that
-      <i>is</i> a formant.</p>
+        <p>One thing worth knowing: a voice and a word are separate. Tune a voice on
+        <i>goal</i> and it will speak <i>bulldog</i> the same way, without retuning.</p>
 
-      <p>The /l/ needs more than a single tube. A lateral splits the airflow around the tongue
-      and leaves a closed pocket, which puts a <b>zero</b> in the transfer function — and a
-      single unbranched tube is an all-pole system that cannot produce one. So the tract now
-      carries a side branch, coupled through a three-port scattering junction:</p>
+        <p class="tryit"><b>Things it can already say:</b> goal, gold, ball, bulldog, dad, good,
+        bird. Anything built from vowels, /l/, and the stops b d g.</p>
+      </section>
 
-      <p class="eqn">p<sub>j</sub> = 2·Σu⁺ / ΣA &nbsp;&nbsp;·&nbsp;&nbsp; u⁻ᵢ = Aᵢ·p<sub>j</sub> − u⁺ᵢ</p>
+      <section data-tab="science" hidden>
+        <p class="lead">A tube decides the sound.</p>
 
-      <p>which reduces exactly to the two-port form when the branch is shut, so it cannot
-      disturb the tract it taps into. With the lateral re-solved around it, the shipping engine
-      measures a −33.7 dB notch at 1950 Hz. The same mechanism with an open far end at the
-      velum will give the nasals.</p>
+        <p>Blow across the top of a bottle and you get a note. Change the bottle and the note
+        changes. The shape of the space inside is what decides it.</p>
 
-      <p>Still missing: nasals, voiceless stops and fricatives. The glottal source is a
-      Rosenberg pulse, which models speech rather than shouting — replacing it with the LF model
-      is the next real step, since a shout is pressed phonation and not merely loud speech.</p>
+        <p>Your mouth works the same way. Your vocal cords make a buzz, and the tube above them
+        turns that buzz into a vowel. Move your tongue and you change the shape of the tube.
+        That is most of what a vowel is.</p>
 
-      <p class="links">
-        <a href="https://github.com/JohnHenryBurns/vocal-tract-lab" target="_blank" rel="noopener">Source on GitHub</a>
-        <a href="https://github.com/JohnHenryBurns/vocal-tract-lab/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a>
-        <a href="https://github.com/JohnHenryBurns/three-sided-football/blob/main/docs/AUDIO-EXPERIMENT.md" target="_blank" rel="noopener">The nine-attempt write-up</a>
-        <a href="https://dood.al/pink-trombone/" target="_blank" rel="noopener">Pink Trombone</a>
-      </p>
+        <p>This page is that tube, simulated. It is cut into 44 short segments, and sound
+        bounces around inside it the way it does in your own head. Nothing here is a recording,
+        and nothing here knows what a vowel is. It only knows the shape of the pipe.</p>
+
+        <h3>Where the shapes came from</h3>
+        <p>In 1952 Peterson and Barney measured the resonances of thousands of spoken vowels,
+        and their numbers are still the standard reference. We searched over tube shapes until
+        the simulation matched those measurements.</p>
+
+        <p>The interesting part is what fell out of that search. Nobody gave it any phonetics,
+        but it independently found that /o/ needs a narrowing at the back of the throat plus
+        rounded lips, and /ɑ/ a narrowing low in the throat with the jaw open. That is exactly
+        what those vowels are.</p>
+
+        <h3>Under the hood</h3>
+        <p>The model is a <b>Kelly–Lochbaum digital waveguide</b> (1962). The tract is a chain
+        of cylindrical sections carrying two counter-propagating travelling waves. Wherever the
+        cross-sectional area changes, part of each wave reflects:</p>
+
+        <p class="eqn">r = (A₁ − A₂) / (A₁ + A₂)</p>
+
+        <p>That is the whole model. There are no formant filters in the code. The resonances are
+        standing waves, and each cylinder in the 3D view is lit by the wave energy actually
+        present in that section, so you are watching the pressure pattern that <i>is</i> a
+        formant.</p>
+
+        <p>The /l/ needs more than one tube. A lateral splits the airflow around the tongue and
+        leaves a closed pocket, which puts a <b>zero</b> in the transfer function — and a single
+        unbranched tube is an all-pole system that cannot produce one. So the tract carries a
+        side branch, coupled through a three-port scattering junction:</p>
+
+        <p class="eqn">p<sub>j</sub> = 2·Σu⁺ / ΣA &nbsp;·&nbsp; u⁻ᵢ = Aᵢ·p<sub>j</sub> − u⁺ᵢ</p>
+
+        <p>which reduces exactly to the two-port form when the branch is shut, so it cannot
+        disturb the tract it taps into. With the lateral re-solved around it, the engine
+        measures a −33.7 dB notch at 1950 Hz. The same mechanism with an open far end at the
+        velum gives the nasals.</p>
+
+        <h3>What is still missing</h3>
+        <p>Nasals, voiceless stops and fricatives. And the glottal source is a Rosenberg pulse,
+        which models <i>speech</i> — a shout is pressed phonation, not merely loud speech, so
+        replacing it with the LF model is the next real step.</p>
+
+        <p class="links">
+          <a href="https://github.com/JohnHenryBurns/vocal-tract-lab" target="_blank" rel="noopener">Source on GitHub</a>
+          <a href="https://github.com/JohnHenryBurns/vocal-tract-lab/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a>
+          <a href="https://github.com/JohnHenryBurns/three-sided-football/blob/main/docs/AUDIO-EXPERIMENT.md" target="_blank" rel="noopener">The nine-attempt write-up</a>
+          <a href="https://dood.al/pink-trombone/" target="_blank" rel="noopener">Pink Trombone</a>
+        </p>
+      </section>
+
     </div>
   </div>
 </div>
@@ -1033,6 +1079,13 @@ function showAbout(v){
   about.hidden=!v;
   if(!v){ try{ localStorage.setItem('vtl.seen','1'); }catch(e){} }
 }
+document.getElementById('tabs').addEventListener('click',e=>{
+  const b=e.target.closest('.tab'); if(!b) return;
+  const want=b.dataset.tab;
+  about.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t===b));
+  about.querySelectorAll('.cardbody section').forEach(sec=>sec.hidden = sec.dataset.tab!==want);
+  const body=about.querySelector('.cardbody'); if(body) body.scrollTop=0;
+});
 document.getElementById('aboutBtn').addEventListener('click',()=>showAbout(true));
 document.getElementById('aboutClose').addEventListener('click',()=>showAbout(false));
 about.addEventListener('click',e=>{ if(e.target===about) showAbout(false); });
