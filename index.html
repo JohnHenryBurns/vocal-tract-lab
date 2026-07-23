@@ -80,12 +80,18 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 .key:hover{border-color:var(--line)}
 .key.on{background:var(--ink);color:#0d1013;border-color:var(--ink)}
 
-.modes{display:flex;gap:.3rem;background:var(--panel2);border:1px solid var(--rule);
-  border-radius:8px;padding:.22rem;margin-bottom:1.1rem}
-.mode{flex:1;font-family:var(--sans);font-size:.9rem;font-weight:500;color:var(--dim);
-  background:transparent;border:0;border-radius:6px;padding:.45rem 0;cursor:pointer}
-.mode.on{background:var(--ink);color:#0f1316}
-[data-mode][hidden]{display:none}
+#kbd{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--panel);
+  border-top:1px solid var(--line);box-shadow:0 -18px 44px rgba(0,0,0,.6);
+  max-height:82vh;display:flex;flex-direction:column}
+#kbd[hidden]{display:none}
+.kbdhead{padding:.7rem 1rem .1rem;border-bottom:1px solid var(--rule)}
+.kbdhead .chain{margin-bottom:.7rem;min-height:2.6rem}
+.kbdbody{padding:.8rem 1rem .2rem;overflow-y:auto}
+.kbdfoot{display:flex;gap:.5rem;padding:.75rem 1rem;border-top:1px solid var(--rule)}
+.kbdfoot .btn{flex:1}
+#kbdBack{flex:.7;font-size:1.15rem}
+#chain[role=button]{cursor:pointer}
+#chain[role=button]:hover{border-color:var(--line)}
 #chainWord{font-size:1rem;color:var(--dim);margin-bottom:.35rem}
 #chainWord b{color:var(--ink);font-weight:600}
 #chainFrom{color:var(--dim);font-family:var(--mono);font-size:.72rem;
@@ -248,43 +254,28 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
     </div>
 
     <section data-panel="word">
-      <div class="modes">
-        <button class="mode on" data-mode="spell">Spell it</button>
-        <button class="mode" data-mode="phon">Build it</button>
-      </div>
-
-      <div class="group" data-mode="spell">
+      <div class="group">
+        <div class="glabel">Type a word</div>
         <div class="crow">
           <input id="wordIn" type="text" placeholder="maximus" autocomplete="off"
                  autocapitalize="off" spellcheck="false">
           <button class="btn primary" id="spellBtn">Sound it out</button>
         </div>
-        <p class="hint" id="spellNote">Rules handle most words. Names are where they fail, so if
-        it comes out wrong, switch to <b>Build it</b>, fix the sounds, and press Remember.</p>
-      </div>
-
-      <div class="group" data-mode="phon" hidden>
-        <div class="glabel">Vowels</div>
-        <div class="keys" id="vkeys"></div>
-        <div class="glabel" style="margin-top:.9rem">Consonants</div>
-        <div class="keys" id="ckeys"></div>
-        <p class="hint">Tapping shapes the tract <em>and</em> adds that sound to the word.
-        <b>b d g</b> seal the tube at the lips, the ridge and the velum. <b>p t k</b> are the
-        same closures with the folds apart. <b>m n ŋ</b> are those closures with the
-        <em>velum open</em>, so the sound leaves through the nose.</p>
+        <p class="hint" id="spellNote">Rules handle most words. Names are where they fail — if
+        it comes out wrong, edit the sounds and press Remember.</p>
       </div>
 
       <div class="group">
         <div class="glabel">Sounds <span id="chainFrom"></span></div>
         <div id="chainWord"></div>
-        <div id="chain" class="chain"></div>
+        <div id="chain" class="chain" role="button" tabindex="0"></div>
         <div class="crow">
-          <button class="btn dim" id="undoChain">Undo</button>
-          <button class="btn dim" id="clearChain">Clear</button>
-          <button class="btn dim" id="goalPreset">Goal cry</button>
+          <button class="btn" id="editSounds">Edit sounds</button>
+          <button class="btn dim" id="newWord">New word</button>
         </div>
-        <div class="crow" style="margin-top:.4rem" data-mode="spell">
-          <button class="btn dim" id="rememberBtn" disabled>Remember this spelling</button>
+        <div class="crow" style="margin-top:.4rem">
+          <button class="btn dim" id="goalPreset">Goal cry</button>
+          <button class="btn dim" id="rememberBtn" disabled>Remember</button>
         </div>
       </div>
 
@@ -375,6 +366,23 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 </div>
 <div id="scrim"></div>
 
+<div id="kbd" hidden>
+  <div class="kbdhead">
+    <div id="kbdChain" class="chain"></div>
+  </div>
+  <div class="kbdbody">
+    <div class="glabel">Vowels</div>
+    <div class="keys" id="vkeys"></div>
+    <div class="glabel" style="margin-top:.7rem">Consonants</div>
+    <div class="keys" id="ckeys"></div>
+  </div>
+  <div class="kbdfoot">
+    <button class="btn" id="kbdBack">⌫</button>
+    <button class="btn dim" id="kbdClear">Clear</button>
+    <button class="btn solid" id="kbdDone">Done</button>
+  </div>
+</div>
+
 <div id="about" hidden>
   <div class="card" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
     <div class="cardhead">
@@ -423,10 +431,10 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
         <p><b>Play word</b> speaks the word you have built. It starts out as <i>g o ɑ l</i>.
         While it is speaking, that button becomes Stop.</p>
 
-        <p><b>Word</b> opens the sounds. Tapping a phoneme does two things: it shapes the tract
-        so you can see it, and it adds that sound to the end of your word. Undo and Clear are
-        there too. The timing sliders control how long the word takes and how much the first
-        vowel gets stretched.</p>
+        <p><b>Word</b> is where a word comes from. Type one and it is sounded out for you;
+        tap the sounds it chose and a phoneme keyboard opens, with a backspace, so you can
+        correct it the way you would correct a spelling. <b>New word</b> starts clean. The
+        timing sliders set how long the word takes and how much the first vowel is stretched.</p>
 
         <p><b>Tract</b> opens the tongue and voice controls. Tongue position slides the
         narrowing from the throat toward the lips, constriction sets how tight it is, and lip
@@ -1234,7 +1242,7 @@ let ctx=null, node=null, analyser=null, gainNode=null, N=44, started=false;
 let energy=null, liveDiam=null, voicedNow=false, voicing=0;
 let curShape=null, sequencing=false;      // the tube exists before the wind does
 let curArt={jaw:0.19,bodyPos:0.35,bodyHi:0.37,tipPos:0.84,tipHi:0,lip:0.16};
-let wordMode='spell', lastTyped='', chainSource='';   // declared early: drawChain reads them
+let lastTyped='', chainSource='';   // declared early: drawChain reads them
 let artTrack=null;                        // {t0,keys,end} while a word is being spoken
 let view='tube';
 
@@ -1359,7 +1367,9 @@ function makeKey(sym, host){
     document.querySelectorAll('.key').forEach(k=>k.classList.remove('on'));
     b.classList.add('on');
     applyPhoneme(sym);
-    chain.push(sym); chainSource='built by hand'; lastTyped=''; drawChain();
+    chain.push(sym); chainSource='built by hand'; lastTyped='';
+    setTiming(Math.max(0.5,Math.min(2.2,chain.length*0.17)), 0.08);
+    drawChain();
   });
   host.appendChild(b);
 }
@@ -1384,14 +1394,16 @@ function applyPhoneme(sym){
                                    nz:nasalFor(sym), fr:fricFor(sym), vl:voicelessFor(sym)});
 }
 function drawChain(){
-  const el=document.getElementById('chain');
-  el.innerHTML = chain.length
+  const html = chain.length
     ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
-    : '<span class="empty">'+(wordMode==='spell'
-        ? 'type a word above and sound it out'
-        : 'tap a phoneme to build a word')+'</span>';
+    : '<span class="empty">type a word above, or tap Edit sounds</span>';
+  const el=document.getElementById('chain');    if(el) el.innerHTML=html;
+  const kc=document.getElementById('kbdChain');
+  if(kc) kc.innerHTML = chain.length
+    ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
+    : '<span class="empty">tap sounds to build a word</span>';
   const w=document.getElementById('chainWord');
-  if(w) w.innerHTML = (wordMode==='spell' && lastTyped) ? `<b>${lastTyped}</b> sounds like` : '';
+  if(w) w.innerHTML = lastTyped ? `<b>${lastTyped}</b> sounds like` : '';
   const f=document.getElementById('chainFrom');
   if(f) f.textContent = chainSource ? '· '+chainSource : '';
 }
@@ -1717,17 +1729,17 @@ document.getElementById('sheetPlay').addEventListener('click',()=>{
   if(sequencing){ node && node.port.postMessage({type:'stopSeq'}); sequencing=false; voicing=0; paintBtn(); }
   else playWord();
 });
-addEventListener('keydown',e=>{ if(e.key==='Escape') sheet(null); });
+addEventListener('keydown',e=>{
+  if(e.key!=='Escape') return;
+  if(!document.getElementById('kbd').hidden){ openKbd(false); return; }
+  sheet(null);
+});
 
 // ── typing a word ──
-function setWordMode(m){
-  wordMode=m;
-  document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('on', b.dataset.mode===m));
-  document.querySelectorAll('[data-mode]').forEach(el=>{
-    if(el.classList.contains('mode')) return;
-    if(el.tagName==='SECTION') return;
-    el.hidden = el.dataset.mode!==m;
-  });
+// ── the phoneme keyboard ──
+function openKbd(v){
+  document.getElementById('kbd').hidden = !v;
+  document.body.style.overflow = v ? 'hidden' : (document.querySelector('aside').classList.contains('open')?'hidden':'');
   drawChain();
 }
 function soundOut(){
@@ -1751,9 +1763,23 @@ function soundOut(){
       : r.from==='built in'  ? 'A name that ships with the app, so it works on any device.'
       : 'Sounded out from the rules. If that is wrong, fix it below and press Remember.');
 }
-document.querySelectorAll('.mode').forEach(b=>
-  b.addEventListener('click',()=>setWordMode(b.dataset.mode)));
 document.getElementById('spellBtn').addEventListener('click', soundOut);
+document.getElementById('editSounds').addEventListener('click', ()=>openKbd(true));
+document.getElementById('chain').addEventListener('click', ()=>openKbd(true));
+document.getElementById('kbdDone').addEventListener('click', ()=>openKbd(false));
+document.getElementById('kbdBack').addEventListener('click', ()=>{
+  chain.pop(); chainSource=chain.length?'edited by hand':''; drawChain();
+});
+document.getElementById('kbdClear').addEventListener('click', ()=>{
+  chain=[]; chainSource=''; lastTyped=''; drawChain();
+});
+document.getElementById('newWord').addEventListener('click', ()=>{
+  chain=[]; chainSource=''; lastTyped='';
+  const wi=document.getElementById('wordIn'); wi.value=''; 
+  document.getElementById('rememberBtn').disabled=true;
+  document.getElementById('spellNote').textContent='Type a word, or tap Edit sounds to build one.';
+  drawChain(); wi.focus();
+});
 document.getElementById('wordIn').addEventListener('keydown', e=>{ if(e.key==='Enter') soundOut(); });
 document.getElementById('rememberBtn').addEventListener('click', ()=>{
   if(!lastTyped || !chain.length) return;
@@ -1770,9 +1796,7 @@ function setTiming(dur,drawl){
   document.getElementById('vHold').textContent=(+sHold.value).toFixed(2);
 }
 const GOAL_WORD=['g','o','ɑ','l'];
-document.getElementById('clearChain').addEventListener('click',()=>{
-  chain=[]; chainSource=''; lastTyped=''; drawChain(); });
-document.getElementById('undoChain').addEventListener('click',()=>{ chain.pop(); drawChain(); });
+
 document.getElementById('goalPreset').addEventListener('click',()=>{
   chain=[...GOAL_WORD]; chainSource='the cry'; lastTyped='goal'; drawChain();
   setTiming(2.9, 0.55);            // the cry is the one thing that WANTS to be drawn out
@@ -2071,7 +2095,6 @@ function frame(){
 }
 buildTubes();
 sizeMouth();
-setWordMode('spell');       // now that every element and every binding exists
 pushShape(false);
 paintBtn();                 // set the resting state of every control
 resize(); frame();
