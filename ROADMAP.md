@@ -223,6 +223,36 @@ that puts /s/ up around 4–8 kHz. That may also force a higher section count.
 
 ---
 
+## Phase 6 — words from spelling
+
+Typing *Maximus* and having it work, instead of tapping out `m æ k s ɪ m ə s`.
+
+**The catch is ordering.** Grapheme-to-phoneme is only useful once Phase 5 exists. Today the
+inventory is twelve vowels and four consonants, so a converter would spend most of its time
+reporting phonemes the model cannot pronounce. It belongs after the rest of English, not before.
+
+**The approach**, in increasing cost:
+
+1. **A hand-written dictionary.** For a family project this is not a compromise, it is the
+   right answer for the words that matter most. Names are exactly where automatic conversion is
+   worst, and there are perhaps thirty that count.
+2. **Letter-to-sound rules.** The NRL rule set (Elovitz et al., 1976) is the classic, still used
+   in eSpeak. Around 70–85% word accuracy on ordinary English, considerably worse on names.
+3. **Rules plus an exception list**, which is what practical systems actually ship. The
+   exception list is the dictionary from (1), and it grows every time someone corrects it.
+
+**The feature that makes it work regardless of accuracy:** show the phonemes it chose, let them
+be edited by tapping, and remember the correction. Then a wrong guess costs one tap and is wrong
+only once. Given that the words we care about are family names, the personal dictionary will
+outperform any general converter within a week of use.
+
+**Usable before Phase 5:** the same machinery answers *"can this word be said yet?"* — which
+turns the missing-phoneme list into something concrete rather than abstract.
+
+**Done when:** a name can be typed, corrected once if needed, and spoken thereafter.
+
+---
+
 ## The calibration library
 
 A/B tournaments should not produce one good goal cry. They should produce a **voice**.
