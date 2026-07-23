@@ -78,6 +78,17 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 .chip{background:var(--panel2);border:1px solid var(--rule);border-radius:4px;
   padding:.2rem .5rem;font-size:1.05rem}
 .crow{display:flex;gap:.45rem}
+.btn:disabled{opacity:.32;cursor:default;border-color:var(--rule)}
+.btn:disabled:hover{background:transparent;border-color:var(--rule)}
+.btn.heard{opacity:.5}
+.roundbar{display:flex;align-items:baseline;gap:.7rem;padding:.55rem .7rem;
+  background:var(--panel2);border:1px solid var(--rule);border-radius:8px}
+.roundbar .rnum{font-family:var(--mono);font-size:.9rem;color:var(--dim)}
+.roundbar .rnum b{color:var(--ink);font-weight:500}
+.roundbar .rwhat{margin-left:auto;font-size:.82rem;color:var(--dim);text-align:right}
+.roundbar.bump{animation:bump .45s ease}
+@keyframes bump{0%{background:var(--ink)}100%{background:var(--panel2)}}
+.prompt{font-size:.86rem;color:var(--dim);margin:.55rem 0 .5rem;text-align:center}
 .crow .btn{flex:1;text-align:center}
 .hint{font-size:.86rem;color:var(--dim);line-height:1.7;margin:.65rem 0 0}
 
@@ -213,16 +224,20 @@ aside section{display:block}
         <p class="hint" style="margin-top:0">Hear both, keep the better one. Each round mutates
         around your winner, so the voice converges on what your ear prefers — the feedback the
         model has never had.</p>
-        <div class="crow" style="margin-top:.8rem">
+        <div class="roundbar">
+          <span class="rnum">Round <b id="vRound">1</b></span>
+          <span class="rwhat" id="labWhat">both new</span>
+        </div>
+        <div class="crow" style="margin-top:.7rem">
           <button class="btn primary" id="playA">Hear A</button>
           <button class="btn primary" id="playB">Hear B</button>
         </div>
-        <div class="crow" style="margin-top:.45rem">
-          <button class="btn" id="pickA">A is better</button>
-          <button class="btn" id="pickB">B is better</button>
+        <p class="prompt" id="labNote">Hear both, then choose.</p>
+        <div class="crow">
+          <button class="btn" id="pickA" disabled>Keep A</button>
+          <button class="btn" id="pickB" disabled>Keep B</button>
         </div>
-        <div class="row" style="margin-top:.9rem"><span>Round</span><span class="v" id="vRound">1</span></div>
-        <div class="row"><span>Search width</span><span class="v" id="vStep">100%</span></div>
+        <div class="row" style="margin-top:.9rem"><span>Search width</span><span class="v" id="vStep">100%</span></div>
       </div>
 
       <div class="group">
@@ -847,6 +862,7 @@ function applyVoice(v){
 }
 async function speakWith(v){
   if(!started) await start();
+  if(!node) return;                     // audio never came up — fail quietly, not fatally
   applyVoice(v);
   const D=+sDur.value;
   const {keys,end}=buildWord(chain, D, v.drawl);
@@ -855,28 +871,57 @@ async function speakWith(v){
   node.port.postMessage({type:'goal', seq:{keys, f0, end}});
   sequencing=true; paintBtn();
 }
+let heardA=false, heardB=false, lastPick=null;
 function paintLab(){
   const r=document.getElementById('vRound'), st=document.getElementById('vStep'),
-        sb=document.getElementById('seedBox');
+        sb=document.getElementById('seedBox'), note=document.getElementById('labNote'),
+        what=document.getElementById('labWhat'),
+        pa=document.getElementById('playA'), pb=document.getElementById('playB'),
+        ka=document.getElementById('pickA'), kb=document.getElementById('pickB');
   if(r)  r.textContent=round;
   if(st) st.textContent=Math.round(step*100)+'%';
   if(sb) sb.textContent=encodeVoice(champion);
+  if(pa){ pa.textContent = heardA ? 'A ✓ again' : 'Hear A'; pa.classList.toggle('heard',heardA); }
+  if(pb){ pb.textContent = heardB ? 'B ✓ again' : 'Hear B'; pb.classList.toggle('heard',heardB); }
+  const ready = heardA && heardB;
+  if(ka) ka.disabled = !ready;
+  if(kb) kb.disabled = !ready;
+  if(note) note.textContent = ready ? 'Which one?'
+    : (heardA||heardB) ? 'Now hear the other one.' : 'Hear both, then choose.';
+  // say plainly whether A is the same voice as last round
+  if(what) what.textContent = round===1 ? 'both new'
+    : lastPick==='B' ? 'A is your last pick · B is new'
+    : 'A unchanged · B is new';
 }
-function nextRound(){ challenger=mutate(champion, step); paintLab(); }
+function nextRound(){
+  challenger=mutate(champion, step);
+  heardA=false; heardB=false;          // nothing is heard until it is heard again
+  const bar=document.querySelector('.roundbar');
+  if(bar){ bar.classList.remove('bump'); void bar.offsetWidth; bar.classList.add('bump'); }
+  paintLab();
+}
 nextRound();
 
-document.getElementById('playA').addEventListener('click',()=>speakWith(champion));
-document.getElementById('playB').addEventListener('click',()=>speakWith(challenger));
+document.getElementById('playA').addEventListener('click',()=>{
+  heardA=true; paintLab(); speakWith(champion);
+});
+document.getElementById('playB').addEventListener('click',()=>{
+  heardB=true; paintLab(); speakWith(challenger);
+});
 document.getElementById('pickA').addEventListener('click',()=>{
+  if(!(heardA&&heardB)) return;
+  lastPick='A';
   step=Math.max(0.12, step*0.82);      // champion held: search closer in
   round++; nextRound();
 });
 document.getElementById('pickB').addEventListener('click',()=>{
+  if(!(heardA&&heardB)) return;
+  lastPick='B';
   champion=challenger;                 // new champion: keep exploring at this width
   round++; nextRound();
 });
 document.getElementById('resetVoice').addEventListener('click',()=>{
-  champion=defaultVoice(); step=1.0; round=1; nextRound(); applyVoice(champion);
+  champion=defaultVoice(); step=1.0; round=1; lastPick=null; nextRound(); applyVoice(champion);
 });
 document.getElementById('copySeed').addEventListener('click',()=>{
   const s=encodeVoice(champion);
@@ -889,7 +934,7 @@ document.getElementById('loadSeed').addEventListener('click',()=>{
   if(!s) return;
   const v=decodeVoice(s.trim());
   if(!v){ alert('That does not look like a seed.'); return; }
-  champion=v; step=0.5; round=1; nextRound(); applyVoice(champion);
+  champion=v; step=0.5; round=1; lastPick=null; nextRound(); applyVoice(champion);
 });
 
 // ── about dialog: shown once, reopenable from the header ──
@@ -950,6 +995,7 @@ function buildWord(chain, D, drawl){
 async function playWord(){
   if(!chain.length) return;
   if(!started) await start();
+  if(!node) return;
   const D=+sDur.value, drawl=+sHold.value;
   const {keys,end}=buildWord(chain, D, drawl);
   const f0=[[0,208],[Math.min(0.12,end*0.1),242],[end*0.55,248],[end*0.82,236],[end,196],[end+0.2,180]];
