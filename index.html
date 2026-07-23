@@ -80,6 +80,11 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 .key:hover{border-color:var(--line)}
 .key.on{background:var(--ink);color:#0d1013;border-color:var(--ink)}
 
+.modes{display:flex;gap:.3rem;background:var(--panel2);border:1px solid var(--rule);
+  border-radius:8px;padding:.22rem}
+.mode{flex:1;font-family:var(--sans);font-size:.92rem;font-weight:500;color:var(--dim);
+  background:transparent;border:0;border-radius:6px;padding:.5rem 0;cursor:pointer}
+.mode.on{background:var(--ink);color:#0f1316}
 #kbd{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--panel);
   border-top:1px solid var(--line);box-shadow:0 -18px 44px rgba(0,0,0,.6);
   max-height:82vh;display:flex;flex-direction:column}
@@ -255,6 +260,17 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 
     <section data-panel="word">
       <div class="group">
+        <div class="glabel">Voice</div>
+        <div class="modes">
+          <button class="mode on" data-say="speak">Speaking</button>
+          <button class="mode" data-say="shout">Shouting</button>
+        </div>
+        <p class="hint" id="sayNote" style="margin-top:.55rem">Speaking is ordinary: short, even,
+        modal voice. Shouting presses the folds, lifts the pitch and stretches the first vowel —
+        which is what a goal cry actually is.</p>
+      </div>
+
+      <div class="group">
         <div class="glabel">Type a word</div>
         <div class="crow">
           <input id="wordIn" type="text" placeholder="maximus" autocomplete="off"
@@ -274,7 +290,6 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
           <button class="btn dim" id="newWord">New word</button>
         </div>
         <div class="crow" style="margin-top:.4rem">
-          <button class="btn dim" id="goalPreset">Goal cry</button>
           <button class="btn dim" id="rememberBtn" disabled>Remember</button>
         </div>
       </div>
@@ -428,8 +443,13 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
         vowel, held, for as long as you like. Tap it again to stop. The space bar does the same
         thing.</p>
 
-        <p><b>Play word</b> speaks the word you have built. It starts out as <i>g o ɑ l</i>.
+        <p><b>Play word</b> speaks the word you have built. It opens on <i>goal</i>.
         While it is speaking, that button becomes Stop.</p>
+
+        <p>The <b>Speaking / Shouting</b> switch is not a volume control. Shouting presses the
+        vocal folds, lifts the pitch and stretches the first vowel — that is what a shout
+        physically is, and it measures as a real change in voice quality rather than a longer,
+        louder version of speech. Any word can be either.</p>
 
         <p><b>Word</b> is where a word comes from. Type one and it is sounded out for you;
         tap the sounds it chose and a phoneme keyboard opens, with a backspace, so you can
@@ -1368,7 +1388,7 @@ function makeKey(sym, host){
     b.classList.add('on');
     applyPhoneme(sym);
     chain.push(sym); chainSource='built by hand'; lastTyped='';
-    setTiming(Math.max(0.5,Math.min(2.2,chain.length*0.17)), 0.08);
+    applyDelivery();
     drawChain();
   });
   host.appendChild(b);
@@ -1719,6 +1739,9 @@ addEventListener('keydown',e=>{ if(e.key==='Escape' && !about.hidden) showAbout(
 let firstVisit=true;
 try{ firstVisit = !localStorage.getItem('vtl.seen'); }catch(e){}
 if(firstVisit) showAbout(true);
+// once the introduction is out of the way, land where the work happens
+const _closeAbout=showAbout;
+showAbout=function(v){ _closeAbout(v); if(!v && firstVisit){ firstVisit=false; sheet('word'); } };
 
 document.getElementById('wordBtn').addEventListener('click',()=>openSheet('word'));
 document.getElementById('tractBtn').addEventListener('click',()=>openSheet('tract'));
@@ -1753,7 +1776,7 @@ function soundOut(){
   chainSource=r.from;
   // A typed word is speech, not a stadium cry. Left on the goal-cry settings it inherits a
   // three-second length and a heavy drawl, and every word turns into one stretched vowel.
-  setTiming(Math.max(0.5, Math.min(2.2, chain.length*0.17)), 0.08);
+  applyDelivery();
   drawChain();
   document.getElementById('rememberBtn').disabled=false;
   const note=document.getElementById('spellNote');
@@ -1768,7 +1791,7 @@ document.getElementById('editSounds').addEventListener('click', ()=>openKbd(true
 document.getElementById('chain').addEventListener('click', ()=>openKbd(true));
 document.getElementById('kbdDone').addEventListener('click', ()=>openKbd(false));
 document.getElementById('kbdBack').addEventListener('click', ()=>{
-  chain.pop(); chainSource=chain.length?'edited by hand':''; drawChain();
+  chain.pop(); chainSource=chain.length?'edited by hand':''; applyDelivery(); drawChain();
 });
 document.getElementById('kbdClear').addEventListener('click', ()=>{
   chain=[]; chainSource=''; lastTyped=''; drawChain();
@@ -1790,6 +1813,33 @@ document.getElementById('rememberBtn').addEventListener('click', ()=>{
     `"${lastTyped}" will sound like this from now on.`;
 });
 
+// Speaking and shouting are not the same voice. A shout is PRESSED phonation at a higher
+// pitch with the first vowel stretched — not merely a longer, louder version of speech.
+const DELIVERY = {
+  speak: { per:0.17, minD:0.5, maxD:2.2, drawl:0.08, rd:1.05, press:0.15,
+           f0:[168,196,150] },
+  shout: { per:0.62, minD:1.6, maxD:4.6, drawl:0.55, rd:0.52, press:0.80,
+           f0:[208,268,190] },
+};
+let delivery='speak';
+function applyDelivery(){
+  const D=DELIVERY[delivery];
+  const n=Math.max(1,chain.length);
+  setTiming(Math.max(D.minD, Math.min(D.maxD, n*D.per)), D.drawl);
+  champion={...champion, rd:D.rd, press:D.press, drawl:D.drawl,
+            f0a:D.f0[0], f0b:D.f0[1], f0c:D.f0[2]};
+  applyVoice(champion);
+  if(typeof paintLab==='function') paintLab();
+}
+function setDelivery(m){
+  delivery=m;
+  document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('on', b.dataset.say===m));
+  const n=document.getElementById('sayNote');
+  if(n) n.textContent = m==='shout'
+    ? 'Shouting: pressed folds, higher pitch, first vowel stretched. This is the goal cry.'
+    : 'Speaking: ordinary length, even timing, modal voice.';
+  applyDelivery();
+}
 function setTiming(dur,drawl){
   sDur.value=dur.toFixed(1); sHold.value=drawl.toFixed(2);
   document.getElementById('vDur').textContent=(+sDur.value).toFixed(1)+' s';
@@ -1797,12 +1847,8 @@ function setTiming(dur,drawl){
 }
 const GOAL_WORD=['g','o','ɑ','l'];
 
-document.getElementById('goalPreset').addEventListener('click',()=>{
-  chain=[...GOAL_WORD]; chainSource='the cry'; lastTyped='goal'; drawChain();
-  setTiming(2.9, 0.55);            // the cry is the one thing that WANTS to be drawn out
-  document.getElementById('wordIn').value='';
-  document.getElementById('spellNote').textContent='The goal cry: long, and heavy on the first vowel.';
-});
+document.querySelectorAll('.mode').forEach(b=>
+  b.addEventListener('click',()=>setDelivery(b.dataset.say)));
 
 
 // ── one player for any word ─────────────────────────────────────────────
@@ -2095,6 +2141,10 @@ function frame(){
 }
 buildTubes();
 sizeMouth();
+document.getElementById('wordIn').value='goal';
+lastTyped='goal'; chainSource='built in';
+setDelivery('shout');              // the app opens as what it is for
+drawChain();
 pushShape(false);
 paintBtn();                 // set the resting state of every control
 resize(); frame();
