@@ -39,9 +39,12 @@ main>*{min-width:0}
 #stage{position:relative;min-height:0;touch-action:none;
   background:radial-gradient(120% 90% at 42% 22%,#171d21 0%,#0d1013 64%)}
 #stage canvas{display:block;width:100%;height:100%}
-#stageChain{position:absolute;left:0;right:0;bottom:.9rem;z-index:2;
-  display:flex;flex-wrap:wrap;gap:.35rem;justify-content:center;
-  padding:0 1rem;pointer-events:none}
+#stageInfo{position:absolute;left:0;right:0;bottom:.85rem;z-index:2;
+  padding:0 1rem;pointer-events:none;text-align:center}
+#stageChain{display:flex;flex-wrap:wrap;gap:.35rem;justify-content:center}
+#stageVoice{margin-top:.5rem;font-family:var(--mono);font-size:.76rem;color:var(--dim);
+  letter-spacing:.04em}
+#stageVoice b{color:var(--ink);font-weight:500}
 #stageChain .chip{background:rgba(23,28,32,.82);border-color:var(--line);
   font-size:1.15rem;padding:.24rem .55rem}
 #stageChain .chip.now{background:var(--ink);color:#0f1316;border-color:var(--ink)}
@@ -174,6 +177,15 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 .icn:hover{border-color:var(--ink)}
 .icn.solid{background:var(--ink);color:#0f1316;border-color:var(--ink)}
 .icn.play{font-size:1.05rem}
+/* The picker is a menu, not a readout — what is selected shows on the stage instead. */
+.selwrap{position:relative;flex:1 1 auto;min-width:0;display:flex}
+.sellabel{flex:1;display:flex;align-items:center;justify-content:center;gap:.4rem;
+  font-family:var(--sans);font-size:.86rem;color:var(--ink);
+  background:var(--panel2);border:1px solid var(--line);border-radius:7px;
+  padding:.6rem .5rem;pointer-events:none}
+.sellabel:after{content:"";width:0;height:0;border-left:4px solid transparent;
+  border-right:4px solid transparent;border-top:5px solid var(--dim);margin-top:1px}
+.selwrap select{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
 #voiceSel{flex:1 1 auto;min-width:0;font-family:var(--sans);font-size:.86rem;
   background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;
   padding:.6rem .5rem;-webkit-appearance:none;appearance:none;cursor:pointer;
@@ -283,7 +295,10 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
       <button class="vt on" data-view="tube">Tube</button>
       <button class="vt" data-view="mouth">Mouth</button>
     </div>
-    <div id="stageChain"></div>
+    <div id="stageInfo">
+      <div id="stageChain"></div>
+      <div id="stageVoice"></div>
+    </div>
     <div class="badge">
       <b id="secCount">—</b> cylinders · <b id="lenCm">—</b> cm<br>
       colour = standing-wave energy<br>
@@ -410,7 +425,8 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
   <button class="icn" id="holdBtn" title="Sustain the shape the tract is in"
           aria-label="Sustain">&#8767;</button>
   <button class="icn play" id="playBtn" title="Play the word" aria-label="Play">&#9654;</button>
-  <select id="voiceSel" aria-label="Voice"></select>
+  <span class="selwrap"><span class="sellabel">Voice</span>
+    <select id="voiceSel" aria-label="Voice"></select></span>
   <button class="btn" id="wordBtn">Word</button>
   <button class="btn" id="advBtn">Advanced</button>
 </div>
@@ -1398,6 +1414,8 @@ function paintBtn(){
   if(sp){ sp.textContent = sequencing ? 'Stop' : 'Play'; sp.classList.toggle('solid', !!sequencing); }
   const vs=document.getElementById('voiceSel');
   if(vs && vs.value!==voiceName) vs.value=voiceName;
+  const sv=document.getElementById('stageVoice');
+  if(sv && VOICES[voiceName]) sv.innerHTML='voice · <b>'+VOICES[voiceName].label+'</b>';
   const panel=document.querySelector('aside');          // looked up, not closed over
   const open = panel && panel.classList.contains('open');
   const shown = panel ? panel.dataset.show : '';
@@ -1490,7 +1508,7 @@ sSect.addEventListener('input',()=>{
 const VOWEL_KEYS = ['i', 'ɪ', 'ɛ', 'æ', 'ʌ', 'ɑ', 'ɔ', 'ʊ', 'u', 'ɝ', 'ə', 'o', 'l'];
 const STOP_KEYS  = ['b','d','g','p','t','k'];
 const CONS_KEYS  = ['l','r','w','j','m','n','ŋ','b','d','g','p','t','k','s','z','ʃ','f','v','h'];
-let chain = ['g','o','ɑ','l'];        // the word starts as the goal cry
+let chain = ['g','o','l'];             // one gliding vowel — the opening does the rest
 
 function makeKey(sym, host){
   const b=document.createElement('button');
@@ -2055,6 +2073,8 @@ function setVoice(name){
   if(V.v) champion={...defaultVoice(), ...V.v};    // a preset IS a complete voice
   const sel=document.getElementById('voiceSel'); if(sel) sel.value=name;
   const el=document.getElementById('voiceNote'); if(el) el.textContent=V.note;
+  const sv=document.getElementById('stageVoice');
+  if(sv) sv.innerHTML='voice · <b>'+V.label+'</b>';
   document.querySelectorAll('[data-custom]').forEach(e=>e.hidden = name!=='custom');
   applyDelivery();
   drawChain();
