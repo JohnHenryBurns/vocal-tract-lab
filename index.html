@@ -268,8 +268,8 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
       <div class="group">
         <div class="glabel">Type a word</div>
         <div class="crow">
-          <input id="wordIn" type="text" placeholder="maximus" autocomplete="off"
-                 autocapitalize="off" spellcheck="false">
+          <input id="wordIn" type="text" value="goal" placeholder="type a word"
+                 autocomplete="off" autocapitalize="off" spellcheck="false">
           <button class="btn primary" id="spellBtn">Sound it out</button>
         </div>
         <p class="hint" id="spellNote">Rules handle most words. Names are where they fail — if
@@ -2182,8 +2182,7 @@ function frame(){
 }
 buildTubes();
 sizeMouth();
-document.getElementById('wordIn').value='goal';
-lastTyped='goal'; chainSource='built in';
+lastTyped='goal'; chainSource='built in';   // the markup already carries the word
 setVoice('announcer');             // the app opens as what it is for
 drawChain();
 pushShape(false);
