@@ -151,7 +151,7 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 .crow input[type=text]::placeholder{color:var(--dim)}
 .hint{font-size:.86rem;color:var(--dim);line-height:1.7;margin:.65rem 0 0}
 
-#specWrap{position:relative;border-top:1px solid var(--rule)}
+#specWrap{position:relative}
 #spectro{width:100%;height:104px;display:block;background:#080b0d}
 #specTag{position:absolute;left:.8rem;top:.45rem;font-family:var(--mono);font-size:.78rem;
   letter-spacing:.08em;text-transform:uppercase;color:var(--dim);pointer-events:none}
@@ -169,7 +169,7 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 #hstat{display:inline-block;min-width:10ch;text-align:right}
 
 #dock{display:flex;gap:.4rem;padding:.55rem .7rem;border-top:1px solid var(--rule);
-  background:var(--panel);align-items:center}
+  border-bottom:1px solid var(--rule);background:var(--panel);align-items:center}
 #dock .btn{padding:.6rem .5rem;font-size:.84rem;white-space:nowrap;flex:0 0 auto}
 .icn{flex:0 0 auto;width:2.7rem;height:2.5rem;display:flex;align-items:center;justify-content:center;
   font-size:.95rem;line-height:1;background:transparent;color:var(--ink);cursor:pointer;
@@ -420,7 +420,6 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
   </aside>
 </main>
 
-<div id="specWrap"><canvas id="spectro"></canvas><span id="specTag">spectrogram · 0–10 kHz</span></div>
 <div id="dock">
   <button class="icn" id="holdBtn" title="Sustain the shape the tract is in"
           aria-label="Sustain">&#8767;</button>
@@ -430,6 +429,7 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
   <button class="btn" id="wordBtn">Word</button>
   <button class="btn" id="advBtn">Advanced</button>
 </div>
+<div id="specWrap"><canvas id="spectro"></canvas><span id="specTag">spectrogram · 0–10 kHz</span></div>
 <div id="scrim"></div>
 
 <div id="quick" hidden>
