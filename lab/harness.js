@@ -60,9 +60,12 @@ function sustain(sym, { n = 44, seconds = 1.2, voice = null, f0 = 110 } = {}) {
 }
 
 /** Build the same keyframes the page builds for a word. */
-function plan(chain, D, voice) {
+function plan(chain, D, voice, n) {
   const v = { ...P.defaultVoice(), ...(voice || {}) };
-  const glide = v.glide, stopHold = v.stopT, drawl = v.drawl, n = 44;
+  // n MUST match the processor. Hardcoding 44 while the tract was 50 left the last six
+  // diameters undefined and the whole voice came out NaN.
+  n = n || Math.round(v.sect || 44);
+  const glide = v.glide, stopHold = v.stopT, drawl = v.drawl;
   const isS = c => P.STOP_KEYS.includes(c), isA = c => P.APPROX.includes(c);
   const gf = i => (i > 0 && (isS(chain[i]) || isA(chain[i]))) ? glide*0.45 : glide;
   let gl = 0; for (let i = 1; i < chain.length; i++) gl += gf(i);
@@ -89,8 +92,10 @@ function plan(chain, D, voice) {
 
 /** Speak a word and return audio plus the segment map. */
 function say(chain, { D = null, voice = null, n = 44, extra = 0.9 } = {}) {
-  const dur = D !== null ? D : Math.max(0.5, Math.min(2.2, chain.length*0.17));
-  const { keys, seg, end, v } = plan(chain, dur, voice);
+  const vv = { ...P.defaultVoice(), ...(voice || {}) };
+  if (n === 44 && vv.sect) n = Math.round(vv.sect);      // follow the voice unless told otherwise
+  const dur = D !== null ? D : Math.max(0.5, Math.min(2.2, chain.length*(vv.per||0.17)));
+  const { keys, seg, end, v } = plan(chain, dur, voice, n);
   const p = makeProcessor(n);
   p.port.onmessage({ data: { type: "voice", v } });
   const f0 = [[0,v.f0a],[Math.min(0.12,end*0.1),v.f0b],[end*0.55,v.f0b],

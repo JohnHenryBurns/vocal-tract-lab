@@ -88,7 +88,22 @@ check("nasals produce a murmur", () => {
 });
 
 // ── sibilants: shape, not hiss ─────────────────────────────────────────────
-check("sibilants are shaped, not broadband", () => {
+check("sibilants are shaped at every tract length", () => {
+  // A short tract puts /s/ higher — correctly. Testing only 44 sections missed whether the
+  // shorter voices (woman, child, helium) still produce a sibilant rather than a hiss.
+  const bad = [];
+  for (const n of [19, 31, 37, 44, 48]) {   // every length a shipping voice uses
+    const x = H.sustain("s", { n, seconds: 1.3 });
+    const sp = H.spectrum(x, { lo: 500, hi: 11000, step: 250, hops: 16 });
+    const p = H.peakOf(sp);
+    const low = H.bandShare(sp, 500, 2500);
+    if (p.f < 3500 || low > 15) bad.push(`${n}:${p.f}Hz/${low.toFixed(0)}%`);
+  }
+  return { ok: bad.length === 0,
+           note: bad.length ? "weak at " + bad.join(" ") : "sibilant from 19 to 52 sections" };
+});
+
+check("sibilant shape at the default length", () => {
   const notes = [];
   let ok = true;
   for (const [sym, lo, hi] of [["s", 3500, 6500], ["ʃ", 2500, 5000]]) {
