@@ -382,7 +382,8 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 
 <div id="specWrap"><canvas id="spectro"></canvas><span id="specTag">spectrogram · 0–4.2 kHz</span></div>
 <div id="dock">
-  <button class="icn" id="holdBtn" title="Hold a sound" aria-label="Hold">&#9612;&#9612;</button>
+  <button class="icn" id="holdBtn" title="Sustain the shape the tract is in"
+          aria-label="Sustain">&#8767;</button>
   <button class="icn play" id="playBtn" title="Play the word" aria-label="Play">&#9654;</button>
   <select id="voiceSel" aria-label="Voice"></select>
   <button class="btn" id="wordBtn">Word</button>
@@ -448,11 +449,14 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
       <section data-tab="tool" hidden>
         <p class="lead">Five controls.</p>
 
-        <p>Along the bottom: <b>▮▮</b> holds whatever shape the tract is in, so you hear one
-        sustained sound — the space bar does the same. <b>▶</b> speaks the word, and becomes a
-        stop while it is speaking. The <b>voice</b> picker changes who is talking. <b>Word</b>
-        is where a word comes from, and <b>Advanced</b> is everything else: the articulators by
-        hand, the timing, the tract length, and the Lab.</p>
+        <p>Along the bottom: <b>∿</b> sustains whatever shape the tract is in — one sound, held,
+        for as long as you like. Which sound that is depends on what you last touched: tap a
+        phoneme and it is that one, move the articulator sliders and it is whatever the tube
+        now makes. A nasal shape gives you a hum; a stop gives you silence, because a sealed
+        tube has nothing to radiate. <b>▶</b> is the other thing entirely — a whole word,
+        articulated in sequence. One is a note, the other is a melody. The <b>voice</b> picker
+        changes who is talking, <b>Word</b> is where a word comes from, and <b>Advanced</b>
+        holds the articulators, the timing, the tract length and the Lab.</p>
 
         <p><b>Play word</b> speaks the word you have built. It opens on <i>goal</i>.
         While it is speaking, that button becomes Stop.</p>
@@ -1295,6 +1299,7 @@ let curShape=null, sequencing=false;      // the tube exists before the wind doe
 let curArt={jaw:0.19,bodyPos:0.35,bodyHi:0.37,tipPos:0.84,tipHi:0,lip:0.16};
 let lastTyped='', chainSource='';   // declared early: drawChain reads them
 let voiceName='announcer';
+let heldSym='';                    // which sound the tract is currently shaped for
 let artTrack=null;                        // {t0,keys,end} while a word is being spoken
 let view='tube';
 
@@ -1330,7 +1335,9 @@ const playBtn=document.getElementById('playBtn');
 function paintBtn(){
   // one rule everywhere: outlined = waiting, solid = active
   holdBtn.classList.toggle('solid', !!voicing && !sequencing);
-  holdBtn.title = voicing && !sequencing ? 'Stop holding' : 'Hold a sound';
+  holdBtn.title = voicing && !sequencing
+    ? 'Stop sustaining' + (heldSym ? ' /'+heldSym+'/' : '')
+    : 'Sustain the shape the tract is in' + (heldSym ? ' — currently /'+heldSym+'/' : '');
   playBtn.innerHTML = sequencing ? '&#9632;' : '&#9654;';   // stop / play
   playBtn.classList.toggle('solid', !!sequencing);
   const sp=document.getElementById('sheetPlay');
@@ -1388,6 +1395,7 @@ function pushShape(snap){
   node.port.postMessage({type:'shape', diam:curShape, br:0, nz:0, fr:0, vl:0, snap:!!snap});
 }
 [sJaw,sBody,sHi,sTip,sLip].forEach(s=>s.addEventListener('input',()=>{
+  heldSym='';
   document.querySelectorAll('.key').forEach(k=>k.classList.remove('on'));
   pushShape(false);
 }));
@@ -1434,6 +1442,7 @@ function makeKey(sym, host){
     document.querySelectorAll('.key').forEach(k=>k.classList.remove('on'));
     b.classList.add('on');
     applyPhoneme(sym);
+    audition(sym);                 // hear the sound you just tapped
     chain.push(sym); chainSource='built by hand'; lastTyped='';
     applyDelivery();
     drawChain();
@@ -1462,6 +1471,7 @@ const voicelessFor=sym=>VOICELESS[sym]||0;
 const fricFor=sym=>FRICATIVE[sym]||0;
 function applyPhoneme(sym){
   const A = baseFor(sym);
+  heldSym = sym;
   curArt = {...A};
   sJaw.value=A.jaw; sBody.value=A.bodyPos; sHi.value=A.bodyHi;
   sTip.value=A.tipHi; sLip.value=A.lip;
@@ -1926,6 +1936,18 @@ function applyDelivery(){
   applyVoice(champion);
   if(typeof paintLab==='function') paintLab();
 }
+// Tapping a sound should let you HEAR it. Without this, Hold is a button whose purpose
+// you have to guess; with it, the connection is obvious the first time you use the keyboard.
+let auditionTimer=null;
+async function audition(sym){
+  if(sequencing) return;
+  if(!started) await start();
+  if(!node) return;
+  setVoice2(voicing?voicing:1);
+  clearTimeout(auditionTimer);
+  auditionTimer=setTimeout(()=>{ if(!sequencing) setVoice2(0); }, 420);
+}
+function setVoice2(v){ voicing=v; if(node) node.port.postMessage({type:'voicing', value:v}); paintBtn(); }
 function setVoice(name){
   voiceName=name;
   const V=VOICES[name];
@@ -2227,7 +2249,9 @@ function frame(){
   if(view==='mouth'){ drawMouth(); drawSpectro();
     document.getElementById('vstate').textContent = voicedNow? 'on':'off';
     document.getElementById('mode').textContent =
-      sequencing ? 'speaking' : (voicing ? 'holding' : (started?'silent':'idle'));
+      sequencing ? 'speaking'
+      : voicing  ? (heldSym ? 'hold /'+heldSym+'/' : 'holding')
+      : (started ? 'silent' : 'idle');
     return; }
   const dist=baseDist*zoom;
   camera.position.set(2.6+Math.sin(az)*Math.cos(el)*dist, -1.0+Math.sin(el)*dist*0.9,
@@ -2251,7 +2275,9 @@ function frame(){
   drawSpectro();
   document.getElementById('vstate').textContent = voicedNow? 'on':'off';
   document.getElementById('mode').textContent =
-    sequencing ? 'speaking' : (voicing ? 'holding' : (started?'silent':'idle'));
+    sequencing ? 'speaking'
+    : voicing  ? (heldSym ? 'hold /'+heldSym+'/' : 'holding')
+    : (started ? 'silent' : 'idle');
   renderer.render(scene,camera);
 }
 buildTubes();
