@@ -888,7 +888,7 @@ class TractProcessor extends AudioWorkletProcessor {
     this.dcX=0; this.dcY=0; this.tick=0;
     this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1; this.bnz=0; this.bn1=0; this.bn2=0;
     this.voiceless=0; this.nasalOut=0; this.fric=0; this.fz=0; this.hiss=1; this.fy1=0; this.fy2=0; this.fcLast=0;
-    this.flow=0; this.flowT=0;
+    this.flow=0; this.flowT=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;
     this.seqFrom=null; this.seqFromB=0; this.blend=0.03;
     this.seq=null; this.seqT=0; this.prevClose=1;
     this.velar=Math.round(${VELAR}*(n-1));
@@ -914,7 +914,7 @@ class TractProcessor extends AudioWorkletProcessor {
         // closure — which lets the glottis leak before the stop has formed.
         this.blend = this.vAmp>0.02 ? 0.030 : 0.002;
       }
-      if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; this.fric=0; this.flow=0; this.flowT=0; }
+      if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; this.fric=0; this.flow=0; this.flowT=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0; }
       if(d.type==='voice'){                        // the tournament varies these
         const v=d.v;
         if(v.rd   !==undefined) this.rd=v.rd;
@@ -1048,7 +1048,7 @@ class TractProcessor extends AudioWorkletProcessor {
         if(done){
           if(this.seqT>this.seq.end){
             this.seq=null; this.voicing=0;   // the word is over
-            this.fric=0; this.flow=0; this.flowT=0;   // the air stops: no hiss outliving the word
+            this.fric=0; this.flow=0; this.flowT=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;   // the air stops: no hiss outliving the word
             this.target.set(this.diam);      // hand the tract back where it stands
           }
           else { const last=K[K.length-1];
@@ -1173,9 +1173,15 @@ class TractProcessor extends AudioWorkletProcessor {
           const raw=Math.random()*2-1;
           const y=raw*this.fg + this.fb1*(this.fy1||0) + this.fb2*(this.fy2||0);
           this.fy2=this.fy1||0; this.fy1=y;
+          let sig = y*0.92 + raw*0.035;
+          // A sibilant has almost nothing below its peak. Without a steep low cut the tract's
+          // own low resonances amplify the noise floor, and the result reads as broadband
+          // static rather than as an /s/. Two poles of high-pass at about 2.8 kHz.
+          const ha=0.671;
+          this.fh1 = ha*((this.fh1||0) + sig - (this.fhx||0));       this.fhx = sig;
+          this.fh2 = ha*((this.fh2||0) + this.fh1 - (this.fhy||0));  this.fhy = this.fh1;
           const at=Math.min(n-2, mi+1);
-          // keep only a trace of unshaped noise, or it dominates the top and reads as static
-          this.R[at] += (y*0.92 + raw*0.035) * jet * this.fric * breath * 1.7;
+          this.R[at] += this.fh2 * jet * this.fric * breath * 2.6;
         }
       }
       this.prevClose=cl;
