@@ -251,6 +251,21 @@ A **hiss** parameter joined the tournament.
 
 ---
 
+## The voice library  ✅ built
+
+Voices are presets over source *and tract length*, because length is what makes a voice read as
+a man, a woman or a child — pitch alone does not. Measured on /ɑ/: 17.5 cm gives 680/1070,
+14.7 cm gives 815/1280, 12.3 cm gives 980/1535. Those ratios are exactly the length ratios, and
+they land on published adult-female and child data.
+
+Helium is the same knob by another route, and the best demonstration in the app: the gas carries
+sound faster, so the same source at the same pitch rings an acoustically much shorter tube.
+Source and filter come apart audibly.
+
+Shipping: **Goal announcer, Man, Woman, Child, Helium, Whisper.** Any voice can say any word.
+
+---
+
 ## Phase 6 — words from spelling  ✅ built
 
 Typing *Maximus* and having it work, instead of tapping out `m æ k s ɪ m ə s`.
