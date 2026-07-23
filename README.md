@@ -29,6 +29,9 @@ that section, so you can watch the pressure pattern that produces a formant.
 
 ## Controls
 
+**Start audio** unlocks the browser's audio, then that same button stops and starts the
+voice — as does the space bar. **Volume** is in the Voice group.
+
 **Tongue position** slides the constriction from the pharynx toward the lips.
 **Constriction** sets how tight it is. **Lip aperture** rounds or spreads the mouth.
 Between them you can reach most of the vowel space.

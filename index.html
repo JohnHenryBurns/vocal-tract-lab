@@ -29,7 +29,7 @@ h1{font-family:var(--display);font-weight:800;font-size:1.05rem;letter-spacing:-
   text-transform:uppercase;background:var(--amber);color:#12212a;border:0;border-radius:2px;
   padding:.5rem .95rem;cursor:pointer}
 #startBtn:hover{filter:brightness(1.08)}
-#startBtn[disabled]{background:var(--panel2);color:var(--dim);cursor:default}
+#startBtn.off{background:transparent;color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber)}
 
 main{flex:1;display:grid;grid-template-columns:1fr 19rem;min-height:0}
 @media(max-width:820px){main{grid-template-columns:1fr;grid-template-rows:minmax(220px,1fr) auto}}
@@ -98,7 +98,7 @@ input[type=range]:focus-visible{outline:2px solid var(--amber);outline-offset:4p
     <div class="badge">
       <b id="secCount">—</b> cylinders · <b id="lenCm">—</b> cm<br>
       colour = standing-wave energy<br>
-      drag to orbit
+      drag to orbit · space toggles voice
     </div>
   </div>
 
@@ -123,6 +123,8 @@ input[type=range]:focus-visible{outline:2px solid var(--amber);outline-offset:4p
       <input type="range" id="sF0" min="80" max="340" step="1" value="240">
       <div class="row"><span>Breathiness</span><span class="v" id="vBr">0.02</span></div>
       <input type="range" id="sBr" min="0" max="0.25" step="0.005" value="0.02">
+      <div class="row"><span>Volume</span><span class="v" id="vVol">0.85</span></div>
+      <input type="range" id="sVol" min="0" max="1" step="0.01" value="0.85">
     </div>
 
     <div class="group">
@@ -332,7 +334,8 @@ class TractProcessor extends AudioWorkletProcessor {
         }
       }
       if((this.tick % 512)===0){
-        this.port.postMessage({e:this.energy, d:Float32Array.from(this.diam), on:this.vAmp>0.02});
+        this.port.postMessage({e:this.energy, d:Float32Array.from(this.diam),
+                               on:this.vAmp>0.02, v:this.voicing});
       }
       this.tick++;
     }
@@ -343,13 +346,11 @@ registerProcessor('tract', TractProcessor);
 `;
 
 // ─────────────────────────────────────────────────────────────────────────────
-let ctx=null, node=null, analyser=null, N=44, started=false;
-let energy=null, liveDiam=null, voicedNow=false;
+let ctx=null, node=null, analyser=null, gainNode=null, N=44, started=false;
+let energy=null, liveDiam=null, voicedNow=false, voicing=0;
 
 async function start(){
   if(started) return; started=true;
-  const btn=document.getElementById('startBtn');
-  btn.disabled=true; btn.textContent='running';
   ctx = new (window.AudioContext||window.webkitAudioContext)();
   // keep the tract ~17.5 cm whatever the hardware sample rate is
   N = Math.max(24, Math.round(ctx.sampleRate*2*0.175/350));
@@ -358,25 +359,51 @@ async function start(){
   node = new AudioWorkletNode(ctx,'tract',{processorOptions:{n:N}});
   analyser = ctx.createAnalyser();
   analyser.fftSize = 2048; analyser.smoothingTimeConstant = 0.55;
-  const gain = ctx.createGain(); gain.gain.value = 0.85;
-  node.connect(analyser); analyser.connect(gain); gain.connect(ctx.destination);
-  node.port.onmessage = e => { energy=e.data.e; liveDiam=e.data.d; voicedNow=e.data.on; };
+  gainNode = ctx.createGain(); gainNode.gain.value = +sVol.value;
+  node.connect(analyser); analyser.connect(gainNode); gainNode.connect(ctx.destination);
+  node.port.onmessage = e => {
+    energy=e.data.e; liveDiam=e.data.d; voicedNow=e.data.on;
+    if(e.data.v!==voicing){ voicing=e.data.v; paintBtn(); }   // the cry ends by itself
+  };
 
   document.getElementById('secCount').textContent = N;
   document.getElementById('lenCm').textContent = (N*350/(ctx.sampleRate*2)*100).toFixed(1);
   buildTubes();
   pushShape(true);
-  node.port.postMessage({type:'voicing', value:1});
   node.port.postMessage({type:'f0', value:+sF0.value});
   node.port.postMessage({type:'breath', value:+sBr.value});
 }
-document.getElementById('startBtn').addEventListener('click', start);
+
+const startBtn=document.getElementById('startBtn');
+function paintBtn(){
+  if(!started){ startBtn.textContent='Start audio'; startBtn.classList.remove('off'); return; }
+  startBtn.textContent = voicing ? 'Stop voice' : 'Start voice';
+  startBtn.classList.toggle('off', !voicing);
+}
+function setVoice(v){
+  voicing=v;
+  if(node) node.port.postMessage({type:'voicing', value:v});
+  paintBtn();
+}
+startBtn.addEventListener('click', async ()=>{
+  if(!started){ await start(); setVoice(1); }
+  else setVoice(voicing?0:1);
+});
+// space bar is the obvious thing to reach for
+addEventListener('keydown', e=>{
+  if(e.code!=='Space') return;
+  const tag=(e.target.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='button') return;
+  e.preventDefault();
+  if(started) setVoice(voicing?0:1);
+});
 
 // ── controls ────────────────────────────────────────────────────────────────
 const sPos=document.getElementById('sPos'), sCon=document.getElementById('sCon'),
       sWid=document.getElementById('sWid'), sLip=document.getElementById('sLip'),
       sBase=document.getElementById('sBase'), sF0=document.getElementById('sF0'),
-      sBr=document.getElementById('sBr'), sDur=document.getElementById('sDur'),
+      sBr=document.getElementById('sBr'), sVol=document.getElementById('sVol'),
+      sDur=document.getElementById('sDur'),
       sHold=document.getElementById('sHold');
 
 function params(){
@@ -399,6 +426,10 @@ function pushShape(snap){
 sF0.addEventListener('input',()=>{
   document.getElementById('vF0').textContent=sF0.value+' Hz';
   node&&node.port.postMessage({type:'f0', value:+sF0.value});
+});
+sVol.addEventListener('input',()=>{
+  document.getElementById('vVol').textContent=(+sVol.value).toFixed(2);
+  if(gainNode) gainNode.gain.value=+sVol.value;
 });
 sBr.addEventListener('input',()=>{
   document.getElementById('vBr').textContent=(+sBr.value).toFixed(2);
