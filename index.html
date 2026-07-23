@@ -658,7 +658,7 @@ class TractProcessor extends AudioWorkletProcessor {
     this.bR=new Float64Array(this.bN); this.bL=new Float64Array(this.bN);
     this.bRin=new Float64Array(this.bN); this.bLin=new Float64Array(this.bN);
     this.dcX=0; this.dcY=0; this.tick=0;
-    this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1; this.bnz=0;
+    this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1; this.bnz=0; this.bn1=0; this.bn2=0;
     this.seqFrom=null; this.seqFromB=0; this.blend=0.03;
     this.seq=null; this.seqT=0; this.prevClose=1;
     this.velar=Math.round(${VELAR}*(n-1));
@@ -824,9 +824,14 @@ class TractProcessor extends AudioWorkletProcessor {
         const tot=sr*0.014, age=tot-this.burstN;
         const atk=Math.min(1, age/(sr*0.0009));        // ~1 ms rise, so it is not a step
         const k=this.burstN/tot;
-        this.bnz = (this.bnz||0)*0.55 + (Math.random()*2-1)*0.45;   // soften the spectrum
-        const b=this.bnz*this.burstA*k*k*atk;
-        this.R[this.burstAt]+=b; this.L[this.burstAt]+=b;
+        // A velar burst is a compact mid-frequency blob, not white noise. Two poles of
+        // lowpass keep the energy where the ear expects it and stop the injection from
+        // being a broadband spike — which is what was reading as a click.
+        this.bn1=(this.bn1||0)*0.885+(Math.random()*2-1)*0.115;
+        this.bn2=(this.bn2||0)*0.885+this.bn1*0.115;
+        const b=this.bn2*this.burstA*k*k*atk*5.0;
+        // pressure escapes toward the opening, not equally in both directions
+        this.R[this.burstAt]+=b; this.L[this.burstAt]+=b*0.28;
         this.burstN--;
       }
       this.prevClose=cl;
