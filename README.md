@@ -68,6 +68,13 @@ the airflow around the tongue, producing a spectral **zero**, and a single unbra
 is an all-pole system that structurally cannot produce one. The fix is a branched waveguide,
 which is also how you would get nasals. That's the next build.
 
+## Where this is going
+
+The working plan is in [ROADMAP.md](ROADMAP.md): build the iteration rig first, then the
+lateral branch, then a pressed-phonation glottal source, then prosody. The short version is
+that the only thing which can judge a goal cry is a human ear, so the first job is making
+evaluation cheap rather than making the cry better.
+
 ## Background
 
 This started as an attempt to synthesize a stadium goal cry for a
