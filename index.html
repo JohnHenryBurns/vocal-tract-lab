@@ -1198,6 +1198,7 @@ let ctx=null, node=null, analyser=null, gainNode=null, N=44, started=false;
 let energy=null, liveDiam=null, voicedNow=false, voicing=0;
 let curShape=null, sequencing=false;      // the tube exists before the wind does
 let curArt={jaw:0.19,bodyPos:0.35,bodyHi:0.37,tipPos:0.84,tipHi:0,lip:0.16};
+let wordMode='spell', lastTyped='', chainSource='';   // declared early: drawChain reads them
 let artTrack=null;                        // {t0,keys,end} while a word is being spoken
 let view='tube';
 
@@ -1346,7 +1347,6 @@ function applyPhoneme(sym){
   if(node) node.port.postMessage({type:'shape', diam:curShape, br:branchFor(sym),
                                    nz:nasalFor(sym), fr:fricFor(sym), vl:voicelessFor(sym)});
 }
-let chainSource='';
 function drawChain(){
   const el=document.getElementById('chain');
   el.innerHTML = chain.length
@@ -1361,7 +1361,6 @@ function drawChain(){
 }
 VOWEL_KEYS.filter(k=>k!=='l').forEach(k=>makeKey(k, document.getElementById('vkeys')));
 CONS_KEYS.forEach(k=>makeKey(k, document.getElementById('ckeys')));
-setWordMode('spell');
 
 // ── two sheets: what to say, and how the instrument behaves ──
 const aside=document.querySelector('aside'), scrim=document.getElementById('scrim');
@@ -1685,7 +1684,6 @@ document.getElementById('sheetPlay').addEventListener('click',()=>{
 addEventListener('keydown',e=>{ if(e.key==='Escape') sheet(null); });
 
 // ── typing a word ──
-let lastTyped='', wordMode='spell';
 function setWordMode(m){
   wordMode=m;
   document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('on', b.dataset.mode===m));
@@ -2037,6 +2035,7 @@ function frame(){
 }
 buildTubes();
 sizeMouth();
+setWordMode('spell');       // now that every element and every binding exists
 pushShape(false);
 paintBtn();                 // set the resting state of every control
 resize(); frame();
