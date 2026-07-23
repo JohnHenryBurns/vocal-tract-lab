@@ -80,6 +80,16 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 .key:hover{border-color:var(--line)}
 .key.on{background:var(--ink);color:#0d1013;border-color:var(--ink)}
 
+.modes{display:flex;gap:.3rem;background:var(--panel2);border:1px solid var(--rule);
+  border-radius:8px;padding:.22rem;margin-bottom:1.1rem}
+.mode{flex:1;font-family:var(--sans);font-size:.9rem;font-weight:500;color:var(--dim);
+  background:transparent;border:0;border-radius:6px;padding:.45rem 0;cursor:pointer}
+.mode.on{background:var(--ink);color:#0f1316}
+[data-mode][hidden]{display:none}
+#chainWord{font-size:1rem;color:var(--dim);margin-bottom:.35rem}
+#chainWord b{color:var(--ink);font-weight:600}
+#chainFrom{color:var(--dim);font-family:var(--mono);font-size:.72rem;
+  text-transform:none;letter-spacing:0;margin-left:.1rem}
 .chain{min-height:2.3rem;border:1px dashed var(--rule);border-radius:6px;padding:.4rem .5rem;
   display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;margin-bottom:.55rem}
 .chain .empty{color:var(--dim);font-size:.88rem}
@@ -238,39 +248,42 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
     </div>
 
     <section data-panel="word">
-      <div class="group">
-        <div class="glabel">Type a word</div>
+      <div class="modes">
+        <button class="mode on" data-mode="spell">Spell it</button>
+        <button class="mode" data-mode="phon">Build it</button>
+      </div>
+
+      <div class="group" data-mode="spell">
         <div class="crow">
           <input id="wordIn" type="text" placeholder="maximus" autocomplete="off"
                  autocapitalize="off" spellcheck="false">
           <button class="btn primary" id="spellBtn">Sound it out</button>
         </div>
         <p class="hint" id="spellNote">Rules handle most words. Names are where they fail, so if
-        it comes out wrong, fix the sounds below and press Remember — it will be right every time
-        after that.</p>
+        it comes out wrong, switch to <b>Build it</b>, fix the sounds, and press Remember.</p>
       </div>
 
-      <div class="group">
+      <div class="group" data-mode="phon" hidden>
         <div class="glabel">Vowels</div>
         <div class="keys" id="vkeys"></div>
         <div class="glabel" style="margin-top:.9rem">Consonants</div>
         <div class="keys" id="ckeys"></div>
         <p class="hint">Tapping shapes the tract <em>and</em> adds that sound to the word.
         <b>b d g</b> seal the tube at the lips, the ridge and the velum. <b>p t k</b> are the
-        same closures with the folds apart, so they release as a puff instead of a voice.
-        <b>m n ŋ</b> are those closures again with the <em>velum open</em>, so the sound leaves
-        through the nose — which is the whole difference between /b/ and /m/.</p>
+        same closures with the folds apart. <b>m n ŋ</b> are those closures with the
+        <em>velum open</em>, so the sound leaves through the nose.</p>
       </div>
 
       <div class="group">
-        <div class="glabel">Word</div>
+        <div class="glabel">Sounds <span id="chainFrom"></span></div>
+        <div id="chainWord"></div>
         <div id="chain" class="chain"></div>
         <div class="crow">
-          <button class="btn dim" id="goalPreset">GOOOAAALLL</button>
           <button class="btn dim" id="undoChain">Undo</button>
           <button class="btn dim" id="clearChain">Clear</button>
+          <button class="btn dim" id="goalPreset">Goal cry</button>
         </div>
-        <div class="crow" style="margin-top:.4rem">
+        <div class="crow" style="margin-top:.4rem" data-mode="spell">
           <button class="btn dim" id="rememberBtn" disabled>Remember this spelling</button>
         </div>
       </div>
@@ -278,7 +291,7 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
       <div class="group">
         <div class="glabel">Timing</div>
         <div class="row"><span>Length</span><span class="v" id="vDur">2.9 s</span></div>
-        <input type="range" id="sDur" min="0.6" max="5" step="0.1" value="2.9">
+        <input type="range" id="sDur" min="0.4" max="5" step="0.1" value="2.9">
         <div class="row"><span>Drawl</span><span class="v" id="vHold">0.55</span></div>
         <input type="range" id="sHold" min="0" max="1" step="0.01" value="0.55">
       </div>
@@ -1309,7 +1322,7 @@ function makeKey(sym, host){
     document.querySelectorAll('.key').forEach(k=>k.classList.remove('on'));
     b.classList.add('on');
     applyPhoneme(sym);
-    chain.push(sym); drawChain();
+    chain.push(sym); chainSource='built by hand'; lastTyped=''; drawChain();
   });
   host.appendChild(b);
 }
@@ -1333,15 +1346,22 @@ function applyPhoneme(sym){
   if(node) node.port.postMessage({type:'shape', diam:curShape, br:branchFor(sym),
                                    nz:nasalFor(sym), fr:fricFor(sym), vl:voicelessFor(sym)});
 }
+let chainSource='';
 function drawChain(){
   const el=document.getElementById('chain');
   el.innerHTML = chain.length
     ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
-    : '<span class="empty">tap a phoneme to start a word</span>';
+    : '<span class="empty">'+(wordMode==='spell'
+        ? 'type a word above and sound it out'
+        : 'tap a phoneme to build a word')+'</span>';
+  const w=document.getElementById('chainWord');
+  if(w) w.innerHTML = (wordMode==='spell' && lastTyped) ? `<b>${lastTyped}</b> sounds like` : '';
+  const f=document.getElementById('chainFrom');
+  if(f) f.textContent = chainSource ? '· '+chainSource : '';
 }
 VOWEL_KEYS.filter(k=>k!=='l').forEach(k=>makeKey(k, document.getElementById('vkeys')));
 CONS_KEYS.forEach(k=>makeKey(k, document.getElementById('ckeys')));
-drawChain();
+setWordMode('spell');
 
 // ── two sheets: what to say, and how the instrument behaves ──
 const aside=document.querySelector('aside'), scrim=document.getElementById('scrim');
@@ -1665,7 +1685,17 @@ document.getElementById('sheetPlay').addEventListener('click',()=>{
 addEventListener('keydown',e=>{ if(e.key==='Escape') sheet(null); });
 
 // ── typing a word ──
-let lastTyped='';
+let lastTyped='', wordMode='spell';
+function setWordMode(m){
+  wordMode=m;
+  document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('on', b.dataset.mode===m));
+  document.querySelectorAll('[data-mode]').forEach(el=>{
+    if(el.classList.contains('mode')) return;
+    if(el.tagName==='SECTION') return;
+    el.hidden = el.dataset.mode!==m;
+  });
+  drawChain();
+}
 function soundOut(){
   const raw=document.getElementById('wordIn').value.trim();
   if(!raw) return;
@@ -1674,6 +1704,7 @@ function soundOut(){
   const known=new Set(Object.keys(ART));
   const missing=[...new Set(r.ph.filter(x=>!known.has(x)))];
   chain=r.ph.filter(x=>known.has(x));
+  chainSource=r.from;
   // A typed word is speech, not a stadium cry. Left on the goal-cry settings it inherits a
   // three-second length and a heavy drawl, and every word turns into one stretched vowel.
   setTiming(Math.max(0.5, Math.min(2.2, chain.length*0.17)), 0.08);
@@ -1686,6 +1717,8 @@ function soundOut(){
       : r.from==='built in'  ? 'A name that ships with the app, so it works on any device.'
       : 'Sounded out from the rules. If that is wrong, fix it below and press Remember.');
 }
+document.querySelectorAll('.mode').forEach(b=>
+  b.addEventListener('click',()=>setWordMode(b.dataset.mode)));
 document.getElementById('spellBtn').addEventListener('click', soundOut);
 document.getElementById('wordIn').addEventListener('keydown', e=>{ if(e.key==='Enter') soundOut(); });
 document.getElementById('rememberBtn').addEventListener('click', ()=>{
@@ -1703,10 +1736,11 @@ function setTiming(dur,drawl){
   document.getElementById('vHold').textContent=(+sHold.value).toFixed(2);
 }
 const GOAL_WORD=['g','o','ɑ','l'];
-document.getElementById('clearChain').addEventListener('click',()=>{ chain=[]; drawChain(); });
+document.getElementById('clearChain').addEventListener('click',()=>{
+  chain=[]; chainSource=''; lastTyped=''; drawChain(); });
 document.getElementById('undoChain').addEventListener('click',()=>{ chain.pop(); drawChain(); });
 document.getElementById('goalPreset').addEventListener('click',()=>{
-  chain=[...GOAL_WORD]; drawChain();
+  chain=[...GOAL_WORD]; chainSource='the cry'; lastTyped='goal'; drawChain();
   setTiming(2.9, 0.55);            // the cry is the one thing that WANTS to be drawn out
   document.getElementById('wordIn').value='';
   document.getElementById('spellNote').textContent='The goal cry: long, and heavy on the first vowel.';
