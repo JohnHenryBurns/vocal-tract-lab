@@ -253,6 +253,21 @@ A **hiss** parameter joined the tournament.
 
 ## The voice library  ✅ built
 
+**A voice is now one vector, and a seed is the whole voice.** Seventeen parameters covering
+source (Rd, effort, jitter, breath), radiation, timing (seconds per sound, drawl, glide, stop
+hold), the burst and hiss, the vowel opening, and **tract length in sections**. Thirty-four
+characters. Every preset round-trips exactly, which means a tuned voice can be handed back as a
+string and baked in as a default.
+
+Presets ship as complete vectors; **Custom** is what you get the moment you touch a slider or
+choose in the Lab, and it reveals the timing and tract-length editors. Everything else stays
+hidden, because a preset that can be half-edited is a preset you cannot trust.
+
+One caveat worth stating: **per-phoneme articulation is still global.** The tongue postures for
+/o/ or /s/ are shared by every voice; only the tube length changes. Making postures per-voice —
+so a child rounds differently from an announcer — is a further step, and probably the right one
+eventually.
+
 Voices are presets over source *and tract length*, because length is what makes a voice read as
 a man, a woman or a child — pitch alone does not. Measured on /ɑ/: 17.5 cm gives 680/1070,
 14.7 cm gives 815/1280, 12.3 cm gives 980/1535. Those ratios are exactly the length ratios, and
