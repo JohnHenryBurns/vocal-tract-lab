@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=overlays-content">
 <title>Vocal Tract Lab — a tube you can hear</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -85,10 +85,13 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 .mode{flex:1;font-family:var(--sans);font-size:.92rem;font-weight:500;color:var(--dim);
   background:transparent;border:0;border-radius:6px;padding:.5rem 0;cursor:pointer}
 .mode.on{background:var(--ink);color:#0f1316}
-#quick{position:fixed;left:0;right:0;bottom:0;z-index:55;background:var(--panel);
-  border-top:1px solid var(--line);box-shadow:0 -14px 36px rgba(0,0,0,.55);
-  padding:.8rem 1rem 1rem}
+/* A floating card, not a bar welded to the bottom. Sitting in the upper third also keeps
+   it clear of the on-screen keyboard, which now overlays the page rather than shoving it. */
+#quick{position:fixed;inset:0;z-index:55;display:flex;align-items:flex-start;
+  justify-content:center;padding:14vh 1rem 1rem;background:rgba(6,9,11,.55)}
 #quick[hidden]{display:none}
+.qbox{width:min(30rem,100%);background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:1rem;box-shadow:0 24px 60px rgba(0,0,0,.6)}
 .qcard{display:flex;gap:.5rem;align-items:center}
 #quickIn{flex:1;min-width:0;font-family:var(--sans);font-size:1.15rem;
   background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;
@@ -408,6 +411,7 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 <div id="scrim"></div>
 
 <div id="quick" hidden>
+  <div class="qbox">
   <div class="qcard">
     <input id="quickIn" type="text" value="goal" placeholder="type a word"
            autocomplete="off" autocapitalize="off" spellcheck="false"
@@ -416,6 +420,7 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
     <button class="icn" id="quickMore" title="More options" aria-label="More">&#8599;</button>
   </div>
   <div id="quickChain" class="chain"></div>
+  </div>
 </div>
 
 <div id="kbd" hidden>
@@ -1928,6 +1933,8 @@ document.getElementById('spellBtn').addEventListener('click', ()=>soundOut());
 const quick=document.getElementById('quick');
 function openQuick(v){
   quick.hidden=!v;
+  document.body.style.overflow = v ? 'hidden'
+    : (document.querySelector('aside').classList.contains('open') ? 'hidden' : '');
   if(v){
     const qi=document.getElementById('quickIn');
     qi.value = lastTyped || document.getElementById('wordIn').value || '';
@@ -1943,6 +1950,7 @@ async function quickSay(){
   await playWord();
 }
 document.getElementById('quickPlay').addEventListener('click', quickSay);
+quick.addEventListener('click', e=>{ if(e.target===quick) openQuick(false); });
 document.getElementById('quickIn').addEventListener('keydown', e=>{
   if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); quickSay(); }
 });
