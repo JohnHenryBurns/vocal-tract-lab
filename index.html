@@ -143,10 +143,28 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 #mode{min-width:9ch}
 #hstat{display:inline-block;min-width:10ch;text-align:right}
 
-#dock{display:flex;gap:.4rem;padding:.6rem 1rem;border-top:1px solid var(--rule);
-  background:var(--panel)}
-#dock .btn{padding:.7rem .35rem;font-size:.82rem;white-space:nowrap;flex:1}
-#dock .say{flex:1.4;font-size:.88rem;letter-spacing:.01em}
+#dock{display:flex;gap:.4rem;padding:.55rem .7rem;border-top:1px solid var(--rule);
+  background:var(--panel);align-items:center}
+#dock .btn{padding:.6rem .5rem;font-size:.84rem;white-space:nowrap;flex:0 0 auto}
+.icn{flex:0 0 auto;width:2.7rem;height:2.5rem;display:flex;align-items:center;justify-content:center;
+  font-size:.95rem;line-height:1;background:transparent;color:var(--ink);cursor:pointer;
+  border:1px solid var(--line);border-radius:7px}
+.icn:hover{border-color:var(--ink)}
+.icn.solid{background:var(--ink);color:#0f1316;border-color:var(--ink)}
+.icn.play{font-size:1.05rem}
+#voiceSel{flex:1 1 auto;min-width:0;font-family:var(--sans);font-size:.86rem;
+  background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px;
+  padding:.6rem .5rem;-webkit-appearance:none;appearance:none;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),
+                   linear-gradient(135deg,var(--dim) 50%,transparent 50%);
+  background-position:calc(100% - 15px) 1.15rem, calc(100% - 10px) 1.15rem;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:1.6rem}
+@media(max-width:420px){
+  #dock{gap:.3rem;padding:.5rem .5rem}
+  #dock .btn{font-size:.78rem;padding:.6rem .4rem}
+  .icn{width:2.4rem}
+  #voiceSel{font-size:.8rem}
+}
 aside section{display:block}
 #scrim{display:none;position:fixed;inset:0;background:rgba(6,9,11,.55);z-index:30}
 
@@ -207,9 +225,8 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
   .readout{font-size:.76rem;padding:.42rem .8rem;gap:.9rem}
   .readout .eq{display:none}
   .badge{font-size:.78rem;left:.7rem;top:.65rem}
-  aside[data-show="word"]  section:not([data-panel="word"]){display:none}
-  aside[data-show="tract"] section:not([data-panel="tract"]){display:none}
-  aside[data-show="lab"]   section:not([data-panel="lab"]){display:none}
+  aside[data-show="word"] section:not([data-panel="word"]){display:none}
+  aside[data-show="adv"]  section:not([data-panel="adv"]){display:none}
 
   /* the controls take the whole screen — there is too much in them for a strip */
   aside{position:fixed;inset:0;z-index:40;max-height:none;
@@ -260,13 +277,7 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 
     <section data-panel="word">
       <div class="group">
-        <div class="glabel">Voice</div>
-        <div class="keys" id="vlist"></div>
-        <p class="hint" id="voiceNote" style="margin-top:.6rem"></p>
-      </div>
-
-      <div class="group">
-        <div class="glabel">Type a word</div>
+        <p class="hint" id="voiceNote" style="margin:0 0 .9rem"></p>
         <div class="crow">
           <input id="wordIn" type="text" value="goal" placeholder="type a word"
                  autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -283,23 +294,40 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
         <div class="crow">
           <button class="btn" id="editSounds">Edit sounds</button>
           <button class="btn dim" id="newWord">New word</button>
-        </div>
-        <div class="crow" style="margin-top:.4rem">
           <button class="btn dim" id="rememberBtn" disabled>Remember</button>
         </div>
       </div>
+    </section>
 
+
+
+    <section data-panel="adv">
       <div class="group">
-        <div class="glabel">Going deeper</div>
-        <div class="crow">
-          <button class="btn dim" id="tractBtn">Tract</button>
-          <button class="btn dim" id="labBtn">Lab</button>
-        </div>
-        <p class="hint"><b>Tract</b> moves the jaw and tongue by hand. <b>Lab</b> tunes the
-        voice by ear, two versions at a time.</p>
+        <div class="glabel">Articulators</div>
+        <div class="row"><span>Jaw</span><span class="v" id="vJaw">0.19</span></div>
+        <input type="range" id="sJaw" min="0" max="1" step="0.01" value="0.19">
+        <div class="row"><span>Tongue front &harr; back</span><span class="v" id="vBody">0.35</span></div>
+        <input type="range" id="sBody" min="0.15" max="0.85" step="0.005" value="0.35">
+        <div class="row"><span>Tongue height</span><span class="v" id="vHi">0.37</span></div>
+        <input type="range" id="sHi" min="0" max="1" step="0.01" value="0.37">
+        <div class="row"><span>Tongue tip</span><span class="v" id="vTip">0.00</span></div>
+        <input type="range" id="sTip" min="0" max="1" step="0.01" value="0">
+        <div class="row"><span>Lips</span><span class="v" id="vLip">0.16</span></div>
+        <input type="range" id="sLip" min="0" max="1" step="0.01" value="0.16">
+        <p class="hint">Six things a person has, not an abstract tube. A tongue cannot be in two
+        places, which is why no setting here can produce a sound a mouth could not make.</p>
       </div>
 
-      <div class="group" data-custom hidden>
+      <div class="group">
+        <div class="glabel">Voice</div>
+        <div class="row"><span>Pitch</span><span class="v" id="vF0">240 Hz</span></div>
+        <input type="range" id="sF0" min="80" max="340" step="1" value="240">
+        <div class="row"><span>Breathiness</span><span class="v" id="vBr">0.02</span></div>
+        <input type="range" id="sBr" min="0" max="0.25" step="0.005" value="0.02">
+        <div class="row"><span>Volume</span><span class="v" id="vVol">0.85</span></div>
+        <input type="range" id="sVol" min="0" max="1" step="0.01" value="0.85">
+      </div>
+          <div class="group">
         <div class="glabel">Timing</div>
         <div class="row"><span>Length</span><span class="v" id="vDur">2.9 s</span></div>
         <input type="range" id="sDur" min="0.4" max="5" step="0.1" value="2.9">
@@ -310,11 +338,9 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
         <div class="row"><span>Tract length</span><span class="v" id="vSect">44 sections</span></div>
         <input type="range" id="sSect" min="14" max="52" step="1" value="44">
         <p class="hint">Length is geometry, not a filter: fewer sections is a shorter tube and
-        every formant rises together.</p>
+        every formant rises together. Editing anything here makes the voice <b>Custom</b>.</p>
       </div>
-    </section>
 
-    <section data-panel="lab">
       <div class="group">
         <div class="glabel">A/B tournament</div>
         <p class="hint" style="margin-top:0">Hear both, keep the better one. Each round mutates
@@ -350,43 +376,17 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
         </div>
         <p class="hint">A seed is the whole voice. Save a good one; it will speak any word.</p>
       </div>
-    </section>
-
-    <section data-panel="tract">
-      <div class="group">
-        <div class="glabel">Articulators</div>
-        <div class="row"><span>Jaw</span><span class="v" id="vJaw">0.19</span></div>
-        <input type="range" id="sJaw" min="0" max="1" step="0.01" value="0.19">
-        <div class="row"><span>Tongue front &harr; back</span><span class="v" id="vBody">0.35</span></div>
-        <input type="range" id="sBody" min="0.15" max="0.85" step="0.005" value="0.35">
-        <div class="row"><span>Tongue height</span><span class="v" id="vHi">0.37</span></div>
-        <input type="range" id="sHi" min="0" max="1" step="0.01" value="0.37">
-        <div class="row"><span>Tongue tip</span><span class="v" id="vTip">0.00</span></div>
-        <input type="range" id="sTip" min="0" max="1" step="0.01" value="0">
-        <div class="row"><span>Lips</span><span class="v" id="vLip">0.16</span></div>
-        <input type="range" id="sLip" min="0" max="1" step="0.01" value="0.16">
-        <p class="hint">Six things a person has, not an abstract tube. A tongue cannot be in two
-        places, which is why no setting here can produce a sound a mouth could not make.</p>
-      </div>
-
-      <div class="group">
-        <div class="glabel">Voice</div>
-        <div class="row"><span>Pitch</span><span class="v" id="vF0">240 Hz</span></div>
-        <input type="range" id="sF0" min="80" max="340" step="1" value="240">
-        <div class="row"><span>Breathiness</span><span class="v" id="vBr">0.02</span></div>
-        <input type="range" id="sBr" min="0" max="0.25" step="0.005" value="0.02">
-        <div class="row"><span>Volume</span><span class="v" id="vVol">0.85</span></div>
-        <input type="range" id="sVol" min="0" max="1" step="0.01" value="0.85">
-      </div>
-    </section>
+        </section>
   </aside>
 </main>
 
 <div id="specWrap"><canvas id="spectro"></canvas><span id="specTag">spectrogram · 0–4.2 kHz</span></div>
 <div id="dock">
-  <button class="btn" id="holdBtn" title="Voice the shape the tract is in right now">Hold</button>
-  <button class="btn primary say" id="playBtn">Play word</button>
+  <button class="icn" id="holdBtn" title="Hold a sound" aria-label="Hold">&#9612;&#9612;</button>
+  <button class="icn play" id="playBtn" title="Play the word" aria-label="Play">&#9654;</button>
+  <select id="voiceSel" aria-label="Voice"></select>
   <button class="btn" id="wordBtn">Word</button>
+  <button class="btn" id="advBtn">Advanced</button>
 </div>
 <div id="scrim"></div>
 
@@ -448,9 +448,11 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
       <section data-tab="tool" hidden>
         <p class="lead">Five controls.</p>
 
-        <p><b>Hold</b> gives voice to whatever shape the tract is in right now. You hear one
-        vowel, held, for as long as you like. Tap it again to stop. The space bar does the same
-        thing.</p>
+        <p>Along the bottom: <b>▮▮</b> holds whatever shape the tract is in, so you hear one
+        sustained sound — the space bar does the same. <b>▶</b> speaks the word, and becomes a
+        stop while it is speaking. The <b>voice</b> picker changes who is talking. <b>Word</b>
+        is where a word comes from, and <b>Advanced</b> is everything else: the articulators by
+        hand, the timing, the tract length, and the Lab.</p>
 
         <p><b>Play word</b> speaks the word you have built. It opens on <i>goal</i>.
         While it is speaking, that button becomes Stop.</p>
@@ -1327,20 +1329,20 @@ const holdBtn=document.getElementById('holdBtn');
 const playBtn=document.getElementById('playBtn');
 function paintBtn(){
   // one rule everywhere: outlined = waiting, solid = active
-  holdBtn.textContent = voicing && !sequencing ? 'Holding' : 'Hold';
   holdBtn.classList.toggle('solid', !!voicing && !sequencing);
-  playBtn.textContent = sequencing ? 'Stop' : 'Play word';
+  holdBtn.title = voicing && !sequencing ? 'Stop holding' : 'Hold a sound';
+  playBtn.innerHTML = sequencing ? '&#9632;' : '&#9654;';   // stop / play
   playBtn.classList.toggle('solid', !!sequencing);
   const sp=document.getElementById('sheetPlay');
   if(sp){ sp.textContent = sequencing ? 'Stop' : 'Play'; sp.classList.toggle('solid', !!sequencing); }
+  const vs=document.getElementById('voiceSel');
+  if(vs && vs.value!==voiceName) vs.value=voiceName;
   const panel=document.querySelector('aside');          // looked up, not closed over
   const open = panel && panel.classList.contains('open');
   const shown = panel ? panel.dataset.show : '';
-  const wb=document.getElementById('wordBtn'), tb=document.getElementById('tractBtn'),
-        lb=document.getElementById('labBtn');
+  const wb=document.getElementById('wordBtn'), ab=document.getElementById('advBtn');
   if(wb) wb.classList.toggle('solid', !!open && shown==='word');
-  if(tb) tb.classList.toggle('solid', !!open && shown==='tract');
-  if(lb) lb.classList.toggle('solid', !!open && shown==='lab');
+  if(ab) ab.classList.toggle('solid', !!open && shown==='adv');
   const hs=document.getElementById('hstat');
   if(hs) hs.textContent = !started ? 'audio off' : (sequencing ? 'speaking' : (voicing?'sustaining':'ready'));
 }
@@ -1487,7 +1489,7 @@ CONS_KEYS.forEach(k=>makeKey(k, document.getElementById('ckeys')));
 
 // ── two sheets: what to say, and how the instrument behaves ──
 const aside=document.querySelector('aside'), scrim=document.getElementById('scrim');
-const SHEET_TITLE={word:'Word', tract:'Tract', lab:'Lab'};
+const SHEET_TITLE={word:'Word', adv:'Advanced'};
 function sheet(name){                     // name = 'word' | 'tract' | 'lab' | null
   if(name){
     aside.dataset.show=name;
@@ -1809,8 +1811,7 @@ const _closeAbout=showAbout;
 showAbout=function(v){ _closeAbout(v); if(!v && firstVisit){ firstVisit=false; sheet('word'); } };
 
 document.getElementById('wordBtn').addEventListener('click',()=>openSheet('word'));
-document.getElementById('tractBtn').addEventListener('click',()=>openSheet('tract'));
-document.getElementById('labBtn').addEventListener('click',()=>openSheet('lab'));
+document.getElementById('advBtn').addEventListener('click',()=>openSheet('adv'));
 scrim.addEventListener('click',()=>sheet(null));
 document.getElementById('sheetClose').addEventListener('click',()=>sheet(null));
 document.getElementById('sheetPlay').addEventListener('click',()=>{
@@ -1929,7 +1930,7 @@ function setVoice(name){
   voiceName=name;
   const V=VOICES[name];
   if(V.v) champion={...defaultVoice(), ...V.v};    // a preset IS a complete voice
-  document.querySelectorAll('.vkey').forEach(b=>b.classList.toggle('on', b.dataset.voice===name));
+  const sel=document.getElementById('voiceSel'); if(sel) sel.value=name;
   const el=document.getElementById('voiceNote'); if(el) el.textContent=V.note;
   document.querySelectorAll('[data-custom]').forEach(e=>e.hidden = name!=='custom');
   applyDelivery();
@@ -1945,14 +1946,13 @@ function setTiming(dur,drawl){
 const GOAL_WORD=['g','o','l'];   // one gliding vowel, not two — the opening does the rest
 
 (() => {
-  const host=document.getElementById('vlist');
+  const sel=document.getElementById('voiceSel');
   for(const [k,V] of Object.entries(VOICES)){
-    const b=document.createElement('button');
-    b.className='key vkey'; b.textContent=V.label; b.dataset.voice=k;
-    b.style.fontSize='.86rem';
-    b.addEventListener('click',()=>setVoice(k));
-    host.appendChild(b);
+    const o=document.createElement('option');
+    o.value=k; o.textContent=V.label;
+    sel.appendChild(o);
   }
+  sel.addEventListener('change',()=>setVoice(sel.value));
 })();
 
 
