@@ -555,7 +555,7 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
         <p><b>Lab</b> is where the tuning happens. It plays you two versions of the voice and
         you keep the better one. Do that ten times and it converges somewhere you would not have
         found by dragging sliders. If both sound wrong, say so — it will search somewhere else.
-        A good voice can be copied out as a 20-character seed and pasted back later.</p>
+        A good voice can be copied out as a seed and pasted back later.</p>
 
         <p>One thing worth knowing: a voice and a word are separate. Tune a voice on
         <i>goal</i> and it will speak <i>bulldog</i> the same way, without retuning.</p>
@@ -1073,7 +1073,7 @@ async function speakWith(v){
   if(!node) return;                     // audio never came up — fail quietly, not fatally
   applyVoice(v);
   const D=+sDur.value;
-  const W=buildWord(chain, D, v.drawl, v.glide, v.stopT, v.open||0);
+  const W=buildWord(chain, D, v.drawl, v.glide, v.stopT, v.open||0, v);
   const {keys,end}=W;
   const f0=[[0,v.f0a],[Math.min(0.12,end*0.1),v.f0b],[end*0.55,v.f0b],
             [end*0.82,(v.f0b+v.f0c)/2],[end,v.f0c],[end+0.2,v.f0c*0.92]];
@@ -1390,16 +1390,16 @@ const DIPH = HOLLER.DIPH;
 const isDiph=sym=>!!DIPH[sym];
 // Delegates to the shared layer. The app's call sites are unchanged; what used to be
 // closed-over state (N, and the voice's own postures) is passed explicitly.
-function buildWord(chain, D, drawl, glide, stopHold, open){
+function buildWord(chain, D, drawl, glide, stopHold, open, pros){
   return HOLLER.buildWord(chain, {D, drawl, glide, stopHold, open, n:N, art:voiceArt(),
-                                  stress: chainStress});
+                                  stress: chainStress, pros});
 }
 async function playWord(){
   if(!chain.length) return;
   if(!started) await start();
   if(!node) return;
   const D=+sDur.value, drawl=+sHold.value;
-  const W=buildWord(chain, D, drawl, champion.glide, champion.stopT, champion.open||0);
+  const W=buildWord(chain, D, drawl, champion.glide, champion.stopT, champion.open||0, champion);
   const {keys,end}=W;
   // The voice owns the pitch. These were hardcoded, so every preset — man, child, Barry —
   // spoke at the announcer's 208-248 Hz and none of them sounded like themselves.

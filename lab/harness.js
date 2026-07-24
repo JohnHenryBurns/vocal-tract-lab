@@ -103,7 +103,7 @@ function plan(chain, D, voice, n, stress) {
   // open is 0 because plan never modelled the shouted vowel opening; that is unchanged here
   // deliberately, so no gate band moves. The app still passes its own open.
   const W = P.buildWord(chain, { D, drawl: v.drawl, glide: v.glide, stopHold: v.stopT,
-                                 open: 0, n, art: null, stress });
+                                 open: 0, n, art: null, stress, pros: v });
   return { keys: W.keys, seg: W.seg, end: W.end, v };
 }
 

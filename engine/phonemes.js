@@ -371,6 +371,29 @@ const VOICE_SPEC=[
   {k:'open', lo:0,      hi:1,       d:0.05},   // how far a held vowel opens as it is shouted
   {k:'per',  lo:0.10,   hi:0.80,    d:0.17},   // seconds per sound
   {k:'folds',lo:0,      hi:1,       d:0},      // 0 = LF waveform, 1 = two-mass oscillator
+  // ---- the prosody layer, Phase 8 ----
+  // These were module constants until now, which meant the one part of the model that most
+  // needs an ear could not be swept, could not be seeded and could not differ between voices.
+  // Phase 1's thesis was that the first job is making evaluation cheap; this is that, applied
+  // to a layer that did not exist when Phase 1 was written.
+  //
+  // They are SCALARS OVER THE PUBLISHED TABLES rather than the tables themselves. Twelve vowel
+  // durations as twelve knobs would be a search space nobody can walk, and the question an ear
+  // actually asks is not "what should /ɔ/ be" but "is the vowel-length effect too strong". So
+  // 1 means the measured values and 0 means the effect is off — which makes every one of these
+  // a bisection tool as well as a tuning knob: turn it to 0 and that part of Phase 8 is gone,
+  // continuously, without touching the code.
+  //
+  // APPENDED, not inserted. Seeds are read positionally, so adding at the end leaves every
+  // seed saved before today loading exactly as it did.
+  {k:'vlen', lo:0,      hi:2,       d:1},      // intrinsic vowel length (0 = all equal)
+  {k:'coda', lo:0,      hi:2,       d:1},      // how much a coda lengthens the vowel
+  {k:'wkdur',lo:0.35,   hi:1,       d:0.60},   // unstressed syllable duration
+  {k:'wklev',lo:0.35,   hi:1,       d:0.65},   // unstressed syllable level
+  {k:'fnl',  lo:1,      hi:1.6,     d:1.25},   // final lengthening
+  {k:'poly', lo:0,      hi:0.3,     d:0.12},   // shortening per extra syllable
+  {k:'stopVc',lo:1,     hi:2,       d:1.5},    // voiceless/voiced closure ratio
+  {k:'apw',  lo:0.15,   hi:0.7,     d:0.34},   // approximant weight against a reference vowel
 ];
 const VOICES = {
   // Measured from a real goal cry: the pitch falls the whole way (158 -> 93 Hz) and the
@@ -478,26 +501,32 @@ const VOICELESS_OBS = {p:1,t:1,k:1,f:1,'θ':1,s:1,'ʃ':1,h:1};
 // over-applies across a syllable boundary, where the consonant is really the next syllable's
 // onset. Making it syllable-aware means passing the syllabification down from the speller and
 // it is not obviously worth the coupling; noted rather than done.
-function codaFactor(chain, i){
-  if(i+1 >= chain.length || chain[i+1] === ' ') return CODA_OPEN;   // word or phrase final
-  const nx = chain[i+1];
-  if(VDUR[nx] !== undefined)  return CODA_OPEN;                     // a vowel: open syllable
-  if(VOICED_OBS[nx])          return CODA_VOICED;
-  if(VOICELESS_OBS[nx])       return CODA_VOICELESS;
-  return CODA_SONORANT;
+// `scale` is the `coda` knob: 1 gives the published factors, 0 flattens them to no effect.
+function codaFactor(chain, i, scale){
+  let f;
+  if(i+1 >= chain.length || chain[i+1] === ' ') f = CODA_OPEN;      // word or phrase final
+  else {
+    const nx = chain[i+1];
+    f = VDUR[nx] !== undefined ? CODA_OPEN                          // a vowel: open syllable
+      : VOICED_OBS[nx]         ? CODA_VOICED
+      : VOICELESS_OBS[nx]      ? CODA_VOICELESS
+      :                          CODA_SONORANT;
+  }
+  return scale === undefined || scale === 1 ? f : 1 + (f-1)*scale;
 }
 
 // A word's syllables shorten as it gets longer. Within a single word this cancels — it scales
 // every weight by the same number and they are normalised — so it only does anything across a
 // phrase, which is exactly where it belongs: it stops a long word from eating a short one's time.
-function polyShorten(chain){
+function polyShorten(chain, amt){
+  const k = amt === undefined ? POLY_SHORT : amt;
   const f = new Array(chain.length).fill(1);
   let a = 0;
   for(let b = 0; b <= chain.length; b++){
     if(b === chain.length || chain[b] === ' '){
       let nv = 0;
       for(let i = a; i < b; i++) if(VDUR[chain[i]] !== undefined) nv++;
-      const s = 1/(1 + POLY_SHORT*Math.max(0, nv-1));
+      const s = 1/(1 + k*Math.max(0, nv-1));
       for(let i = a; i < b; i++) f[i] = s;
       a = b + 1;
     }
@@ -545,7 +574,15 @@ const APPROX_W   = 0.34 * APPROX_REF;
 const UNSTRESSED_LEVEL = 0.65;      // about -3.7 dB, mid-range of the published 3-6
 
 const STOP_CLOSE = { b:0.80, d:0.80, g:0.80, p:1.20, t:1.20, k:1.20 };
-const closureFor = (sym, stopHold) => stopHold * (STOP_CLOSE[sym] === undefined ? 1 : STOP_CLOSE[sym]);
+// `ratio` is the `stopVc` knob: voiceless over voiced. Split around a mean of 1 so that
+// changing the ratio moves the split without moving how much time stops take altogether —
+// otherwise this knob would silently be a speaking-rate knob as well. 1.5 gives 0.80 / 1.20.
+function closureFor(sym, stopHold, ratio){
+  if(STOP_CLOSE[sym] === undefined) return stopHold;
+  if(ratio === undefined || ratio === 1.5) return stopHold * STOP_CLOSE[sym];
+  const vd = 2/(1+ratio), vl = 2*ratio/(1+ratio);
+  return stopHold * (STOP_CLOSE[sym] < 1 ? vd : vl);
+}
 
 // ---- a word, as keyframes ----
 function buildWord(chain, opts){
@@ -559,13 +596,23 @@ function buildWord(chain, opts){
   const drawl = o.drawl || 0;
   let glide = o.glide, stopHold = o.stopHold, open = o.open;
   glide = glide||0.085; stopHold = stopHold||0.075; open = open||0;
+  // The prosody knobs arrive as one object rather than eight arguments, so that 8.4's can join
+  // without touching a call site again. A voice IS that object — every key is in VOICE_SPEC —
+  // so callers pass the voice straight in. Absent, every one of them takes its published value
+  // and the output is bit-identical to before they existed, which the gate asserts.
+  const pr = o.pros || {};
+  const P_ = (k, dflt) => (pr[k] === undefined ? dflt : pr[k]);
+  const vlen = P_('vlen', 1), codaK = P_('coda', 1), polyK = P_('poly', POLY_SHORT);
+  const wkdur = P_('wkdur', UNSTRESSED), wklev = P_('wklev', UNSTRESSED_LEVEL);
+  const fnl = P_('fnl', FINAL_LENGTH), stopVc = P_('stopVc', 1.5);
+  const apw = P_('apw', 0.34) * APPROX_REF;
   const base  = sym => baseFor(sym, vart);
   const shape = sym => articulate(base(sym), n);
   const isStop=c=>STOP_KEYS.includes(c), isAp=c=>APPROX.includes(c);
   // The stops no longer cost the same, so the time they take out of the word has to be summed
   // rather than counted. Total word length is still exactly D — pool absorbs the difference —
   // which is the same invariant 8.1 holds and the reason no other gate band moves.
-  const stopTime=chain.filter(isStop).reduce((a,c)=>a+closureFor(c,stopHold),0);
+  const stopTime=chain.filter(isStop).reduce((a,c)=>a+closureFor(c,stopHold,stopVc),0);
   // transitions into a consonant are fast; a slow approach to /l/ just sounds like /w/
   const glideFor=(i)=> (i>0 && isPause(chain[i-1])) ? 0
                      : (i>0 && (isStop(chain[i])||isAp(chain[i]))) ? glide*0.45 : glide;
@@ -577,16 +624,17 @@ function buildWord(chain, opts){
   // formants are gated, so moving its duration is a change to make on purpose with the bench
   // watching, not a side effect of a timing step. Filed with 8.7, where dark /l/ lives.
   const stress = o.stress || null;         // parallel to chain, or null for "all stressed"
-  const poly   = polyShorten(chain);
+  const poly   = polyShorten(chain, polyK);
   let lastHeld = -1;
   chain.forEach((c,i)=>{ if(!isStop(c)&&!isPause(c)) lastHeld=i; });
   chain.forEach((c,i)=>{ if(isStop(c)||isPause(c)) return;
-    if(isAp(c)){ vw.push(APPROX_W); return; }   // a lateral is a beat, not a vowel
-    let w = (VDUR[c]===undefined ? 1 : VDUR[c])   // intrinsic length
-          * codaFactor(chain,i)                    // what closes the syllable
+    if(isAp(c)){ vw.push(apw); return; }        // a lateral is a beat, not a vowel
+    const vd = VDUR[c]===undefined ? 1 : VDUR[c];
+    let w = (vlen===1 ? vd : 1+(vd-1)*vlen)        // intrinsic length
+          * codaFactor(chain,i,codaK)              // what closes the syllable
           * poly[i];                               // how long the word is
-    if(stress && stress[i]===0) w *= UNSTRESSED;
-    if(i===lastHeld)            w *= FINAL_LENGTH;
+    if(stress && stress[i]===0) w *= wkdur;
+    if(i===lastHeld)            w *= fnl;
     if(first){ w *= 1+drawl*2.6; first=false; }    // the drawl, unchanged
     vw.push(w);
   });
@@ -616,8 +664,8 @@ function buildWord(chain, opts){
     const A=base(sym);
     const b=branchFor(sym), nz=nasalFor(sym), vl=voicelessFor(sym),
           fr=fricFor(sym), as=aspFor(sym);
-    const lv=(stress && stress[i]===0) ? UNSTRESSED_LEVEL : 1;
-    const dur=isStop(sym) ? closureFor(sym,stopHold) : pool*vw[k++]/wsum;
+    const lv=(stress && stress[i]===0) ? wklev : 1;
+    const dur=isStop(sym) ? closureFor(sym,stopHold,stopVc) : pool*vw[k++]/wsum;
     if(i>0) t+=glideFor(i);
     seg.push({sym, a:t, b:t+dur});
     keys.push({t,d,b,nz,vl,fr,as,lv}); art.push({t,A});

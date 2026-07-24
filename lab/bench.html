@@ -256,7 +256,7 @@ async function boot(src){
     articulate: P.articulate,
     buildWord: (chain, D, stress) => P.buildWord(chain, {
       D, drawl: VOICE.drawl, glide: VOICE.glide, stopHold: VOICE.stopT,
-      open: VOICE.open || 0, n: N, art: VOICE.art || null, stress })
+      open: VOICE.open || 0, n: N, art: VOICE.art || null, stress, pros: VOICE })
   };
 
   // The speller sits beside the phoneme layer. It is optional: without it the sweep, blind
