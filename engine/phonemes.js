@@ -513,6 +513,23 @@ function polyShorten(chain){
 const APPROX_REF = 1.15 * CODA_SONORANT;      // ≈ 1.495
 const APPROX_W   = 0.34 * APPROX_REF;
 
+// ─── PHASE 8.2: HOW LONG A STOP STAYS SEALED ─────────────────────────────────
+// One `stopHold` served all six. But a voiced closure cannot be held — oral pressure rises to
+// meet subglottal pressure and the folds stop — so it is SHORT, while a voiceless one has no
+// such limit and runs half again as long. Measured English closures are roughly 50-70 ms for
+// /b d g/ against 80-100 for /p t k/, and the difference is a voicing cue in its own right,
+// independent of the VOT that follows the release.
+//
+// Expressed as a multiple of `stopHold` rather than absolute milliseconds, so it still tracks
+// the voice's own timing: at the default 75 ms this is 60 against 90.
+//
+// Place of articulation also moves closure duration a little — labials longest, velars
+// shortest — but the effect is smaller and the literature less consistent than for voicing,
+// and there is nothing in the bench that would currently catch it going the wrong way. Not
+// done rather than done badly.
+const STOP_CLOSE = { b:0.80, d:0.80, g:0.80, p:1.20, t:1.20, k:1.20 };
+const closureFor = (sym, stopHold) => stopHold * (STOP_CLOSE[sym] === undefined ? 1 : STOP_CLOSE[sym]);
+
 // ---- a word, as keyframes ----
 function buildWord(chain, opts){
   // Everything this used to reach out of scope for is now an argument. It closed over N (the
@@ -528,7 +545,10 @@ function buildWord(chain, opts){
   const base  = sym => baseFor(sym, vart);
   const shape = sym => articulate(base(sym), n);
   const isStop=c=>STOP_KEYS.includes(c), isAp=c=>APPROX.includes(c);
-  const stops=chain.filter(isStop).length;
+  // The stops no longer cost the same, so the time they take out of the word has to be summed
+  // rather than counted. Total word length is still exactly D — pool absorbs the difference —
+  // which is the same invariant 8.1 holds and the reason no other gate band moves.
+  const stopTime=chain.filter(isStop).reduce((a,c)=>a+closureFor(c,stopHold),0);
   // transitions into a consonant are fast; a slow approach to /l/ just sounds like /w/
   const glideFor=(i)=> (i>0 && isPause(chain[i-1])) ? 0
                      : (i>0 && (isStop(chain[i])||isAp(chain[i]))) ? glide*0.45 : glide;
@@ -555,7 +575,7 @@ function buildWord(chain, opts){
   });
   const wsum=vw.reduce((a,b)=>a+b,0)||1;
   const held=chain.filter(c=>!isStop(c)&&!isPause(c)).length;
-  let pool=Math.max(0.12*Math.max(held,1), D-stops*stopHold-glides);
+  let pool=Math.max(0.12*Math.max(held,1), D-stopTime-glides);
   const keys=[], art=[], seg=[]; let t=0, k=0;
   chain.forEach((sym,i)=>{
     if(isPause(sym)){
@@ -579,7 +599,7 @@ function buildWord(chain, opts){
     const A=base(sym);
     const b=branchFor(sym), nz=nasalFor(sym), vl=voicelessFor(sym),
           fr=fricFor(sym), as=aspFor(sym);
-    const dur=isStop(sym) ? stopHold : pool*vw[k++]/wsum;
+    const dur=isStop(sym) ? closureFor(sym,stopHold) : pool*vw[k++]/wsum;
     if(i>0) t+=glideFor(i);
     seg.push({sym, a:t, b:t+dur});
     keys.push({t,d,b,nz,vl,fr,as}); art.push({t,A});
@@ -613,6 +633,7 @@ const HOLLER = {
   restingDiam, hump, articulate, baseFor, shapeFor, openedShape, buildWord,
   VDUR, CODA_VOICED, CODA_SONORANT, CODA_OPEN, CODA_VOICELESS,
   UNSTRESSED, FINAL_LENGTH, POLY_SHORT, APPROX_W, codaFactor, polyShorten,
+  STOP_CLOSE, closureFor,
   branchFor, nasalFor, voicelessFor, fricFor, aspFor, isPause, isDiph
 };
 

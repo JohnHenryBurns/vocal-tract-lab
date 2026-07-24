@@ -320,7 +320,13 @@ check("duration follows the segments, not a flat share", () => {
   const A = held(["b","æ","d","ə"], D), B = held(["b","æ","t","ə"], D);
   near((A.seg[0].b-A.seg[0].a)/(B.seg[0].b-B.seg[0].a), 1.199, 0.05, "bad/bat vowel ratio");
   //    ...and the word is the same length either way. The rhythm moves, the rate does not.
-  if (A.W.end !== B.W.end) bad.push(`coda changed word length ${A.W.end} vs ${B.W.end}`);
+  //    Compared with a tolerance rather than ===. It was exact until 8.2 gave voiced and
+  //    voiceless stops different closures: the two chains now sum the same total along
+  //    different arithmetic paths and land 2e-16 apart. Asserting bit-equality on a float
+  //    sum was over-strict, and the thing worth asserting is that the word did not change
+  //    length — not that two additions happened in the same order.
+  if (Math.abs(A.W.end - B.W.end) > 1e-9)
+    bad.push(`coda changed word length ${A.W.end} vs ${B.W.end}`);
 
   // 3. Stress. banana is the case the speller's exception list exists for, so this also
   //    fails loudly if that lookup regresses.
@@ -399,6 +405,52 @@ report("no fricative strays into another's band", () => {
 // ── words behave ───────────────────────────────────────────────────────────
 const WORDS = [["g","o","ɑ","l"], ["b","ʊ","l","d","ɔ","g"], ["m","æ","k","s","ɪ","m","ə","s"],
                ["d","æ","d"], ["s","o","l","ɑ","n","ə"]];
+
+// ── Phase 8.2: stop closures ───────────────────────────────────────────────
+check("stops hold for as long as their voicing allows", () => {
+  const P = H.P, bad = [];
+  // 1. A voiced closure cannot be held — oral pressure meets subglottal and the folds stop —
+  //    so it is short where a voiceless one is not. Asserted as a ratio so it follows the
+  //    voice's own stopHold instead of pinning the gate to one absolute millisecond value.
+  const seg = ch => { const o = {}; P.buildWord(ch, { D: 1.0, n: 44 }).seg
+                        .forEach((s, i) => o[s.sym + "#" + i] = s.b - s.a); return o; };
+  const a = seg(["b","æ","d"]), b = seg(["p","æ","t"]);
+  const vd = a["b#0"], vl = b["p#0"];
+  if (Math.abs(vl/vd - 1.5) > 0.02) bad.push(`voiceless/voiced closure ${(vl/vd).toFixed(2)} want 1.50`);
+  if (Math.abs(a["b#0"] - a["d#2"]) > 1e-12) bad.push("two voiced closures differ");
+
+  // 2. Same invariant 8.1 holds: the split moves, the word length does not. If this ever
+  //    fails, every band elsewhere in the gate is about to move for no stated reason.
+  const ends = [["b","æ","d"],["p","æ","t"],["b","æ","b"],["b","ʊ","l","d","ɔ","g"]]
+                 .map(ch => P.buildWord(ch, { D: 1.0, n: 44 }).end);
+  if (Math.max(...ends) - Math.min(...ends) > 1e-12)
+    bad.push(`word length moved with the stops: ${ends.map(e=>e.toFixed(4)).join(" ")}`);
+
+  // 3. English word-final stops are usually UNRELEASED, and this engine already does that —
+  //    the tract never reopens at word end, so no burst fires. It arrived by accident rather
+  //    than by decision and nothing was holding it in place, which is what this is for. The
+  //    medial half of the pair matters as much: without it the check would still pass if
+  //    bursts stopped working altogether.
+  //    Both words are in WORDS, so these renders are already in the cache.
+  const burst = (ch, sym, idx) => {
+    const { buf, seg: sg } = H.say(ch);
+    const st = sg.filter(s => s.sym === sym)[idx], vw = sg.find(s => P.VOWEL_KEYS.includes(s.sym));
+    const pk = (x, y) => { let m = 0;
+      for (let i = Math.floor(x*H.SR); i < Math.min(buf.length, Math.floor(y*H.SR)); i++)
+        m = Math.max(m, Math.abs(buf[i])); return m; };
+    return pk(st.b, st.b + 0.06) / Math.max(1e-9, pk(vw.a, vw.b));
+  };
+  const medial = burst(["b","ʊ","l","d","ɔ","g"], "d", 0);
+  const final  = burst(["b","ʊ","l","d","ɔ","g"], "g", 0);
+  const final2 = burst(["d","æ","d"], "d", 1);
+  if (!(medial > 0.25)) bad.push(`medial /d/ did not release (${(medial*100).toFixed(0)}%)`);
+  if (final  > 0.10) bad.push(`final /g/ released (${(final*100).toFixed(0)}%)`);
+  if (final2 > 0.10) bad.push(`final /d/ released (${(final2*100).toFixed(0)}%)`);
+
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : `closures 60/90ms, word length fixed, finals unreleased (${(final*100).toFixed(0)}% vs medial ${(medial*100).toFixed(0)}%)` };
+});
 
 check("no word clicks", () => {
   // A stop release is a transient, but an outlier far above the signal's own motion is a
