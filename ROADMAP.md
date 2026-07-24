@@ -677,7 +677,7 @@ depends on*. 8.0 has no audible effect on its own and three later steps are bloc
 | **8.1** | duration weights | 8.0 | **large** |
 | **8.1b** | make `D` a rate rather than an absolute length | 8.1 | medium |
 | **8.2** | stop closure duration, unreleased finals | — | medium |  ✅
-| **8.3** | per-segment amplitude | 8.0 | medium |
+| **8.3** | per-segment amplitude | 8.0 | medium |  ✅
 | **8.4** | F0: semitones, accent alignment, declination, perturbation | 8.0 | **large** |
 | **8.5** | pause policy | — | medium |
 | **8.6** | vowel reduction | 8.0 | medium |
@@ -767,12 +767,37 @@ Place of articulation also moves closure duration — labials longest, velars sh
 effect is smaller, the literature less consistent, and nothing in the bench would catch it going
 the wrong way. Not done rather than done badly.
 
-### 8.3 Per-segment amplitude
+### 8.3 Per-segment amplitude  ✅ built
 
-`vAmp` is one smoothed scalar, so every vowel sounds at the same level. Open vowels are
-intrinsically 4–6 dB louder than close ones, and unstressed syllables are quieter. Constant
-segmental amplitude reads as monotone even while the pitch is moving — which means some of
-what has been heard as a pitch problem may not be one.
+This entry listed two things. **One of them was already done, by the tube.**
+
+*Open vowels are 4–6 dB louder than close ones* — measured, before writing a line of 8.3:
+
+    ɑ 0.0   ɪ -0.7   ɛ -1.0   æ -1.5   ʌ -2.1   o -2.9
+    ɔ -3.6   ɝ -3.7   i -4.0   ʊ -4.1   u -5.6
+
+A span of **5.6 dB**, with /ɑ/ loudest and /u/ quietest — the real ordering, in the real range.
+Nothing in the code says so. A wide mouth radiates more efficiently than a rounded one, the lip
+section carries that, and the intrinsic loudness of a vowel falls out of its shape. Adding the
+per-vowel gain table this entry implied would have double-counted geometry the model already
+has, in a project whose stated claim is that it contains no such tables. Pinned as a **report**
+measurement instead, which is exactly what the report tier is for: it is worth watching and it
+is not something to block on.
+
+*Unstressed syllables are quieter* — that one was real. Nothing in the amplitude path had ever
+been told which syllable carries the stress, and three syllables of *banana* measured within
+0.9 dB of each other. Every keyframe now carries a level, 1 for stressed and 0.65 for not
+(−3.7 dB, mid-range of the published 3–6). It rides beside `fr` and `as`, and it applies to the
+frication as well as the voicing — an unstressed syllable is quieter because less air is moving,
+and the same air makes the hiss, so voicing it alone would make an unstressed /s/ the loudest
+thing in the word.
+
+The two effects interact rather than adding, which is correct and worth expecting: *together*
+spreads 8.5 dB because its stressed /ɛ/ is intrinsically loud, while *computer* spreads only 2.0
+because its stressed /u/ is intrinsically the quietest vowel there is. Real speech does the same.
+
+The default path is unchanged and gated as such: supply no stress — a chain tapped in by hand,
+anything that never went through the speller — and every level stays 1.
 
 ### 8.4 F0
 
