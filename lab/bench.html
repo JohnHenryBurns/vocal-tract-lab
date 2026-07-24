@@ -158,7 +158,7 @@ async function findSource(){
       const r = await fetch(u, {cache:'no-store'});
       if(!r.ok) continue;
       const t = await r.text();
-      if(/root\.VTL/.test(t)) return {text:t, from:u};
+      if(/root\.HOLLER\s*=/.test(t)) return {text:t, from:u};
     }catch(e){ /* CORS, 404, offline — try the next one */ }
   }
   return null;
@@ -221,11 +221,11 @@ const PAIRS = [
 
 /* ── load and boot ───────────────────────────────────────── */
 async function boot(src){
-  // Evaluate the shared phoneme layer. It is a classic script that assigns window.VTL, so
+  // Evaluate the shared phoneme layer. It is a classic script that assigns window.HOLLER, so
   // running its text is all that is required — no parsing, no reconstruction, no scope faking.
   new Function(src)();
-  const P = window.VTL;
-  if(!P) throw new Error('phonemes.js did not define VTL');
+  const P = window.HOLLER;
+  if(!P) throw new Error('phonemes.js did not define HOLLER');
   const VOICES = P.VOICES;
 
   // The engine sits beside the phoneme layer, whatever origin that came from.
@@ -487,7 +487,7 @@ addEventListener('keydown',e=>{
 /* ── summary ─────────────────────────────────────────────── */
 function render(){
   const L=[];
-  L.push(`VTL BENCH · ${new Date().toISOString().slice(0,16).replace('T',' ')} · voice=${VOICE.name} · sect=${Math.round(VOICE.sect||N)} · ctx=${ctxMode()}`);
+  L.push(`HOLLER BENCH · ${new Date().toISOString().slice(0,16).replace('T',' ')} · voice=${VOICE.name} · sect=${Math.round(VOICE.sect||N)} · ctx=${ctxMode()}`);
   const sk=Object.keys(R.sweep);
   if(sk.length){
     const done = CONS.filter(c=>R.sweep[c] && R.sweep[c].heard);
@@ -582,7 +582,7 @@ document.getElementById('wav').onclick = async ()=>{
     const total=chunks.reduce((a,b)=>a+b.length+gap,0);
     const all=new Float32Array(total); let o=0;
     chunks.forEach(ch=>{ all.set(ch,o); o+=ch.length+gap; });
-    dl(wavOf(all,SR), `vtl-${VOICE.name}-${ctxMode()}.wav`);
+    dl(wavOf(all,SR), `hollerbox-${VOICE.name}-${ctxMode()}.wav`);
     document.getElementById('out').textContent += `\n\nWAV order: ${names.join(' ')}  (${ctxMode()}, 400 ms gaps)`;
   }catch(e){ alert('render failed: '+e.message); }
   btn.textContent='Render all → WAV'; btn.disabled=false;
@@ -602,7 +602,7 @@ function dl(blob,name){ const a=document.createElement('a'); a.href=URL.createOb
 document.getElementById('file').onchange = async e => {
   const f = e.target.files[0]; if(!f) return;
   const t = await f.text();
-  if(!/root\.VTL/.test(t)){ document.getElementById('boot').textContent = "that is not the phoneme layer — pick engine/phonemes.js"; return; }
+  if(!/root\.HOLLER\s*=/.test(t)){ document.getElementById('boot').textContent = "that is not the phoneme layer — pick engine/phonemes.js"; return; }
   ENGSRC = f.name;
   boot(t).catch(err=>{ document.getElementById('boot').textContent='boot failed: '+err.message; console.error(err); });
 };

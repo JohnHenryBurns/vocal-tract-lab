@@ -724,17 +724,17 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 // ─────────────────────────────────────────────────────────────────────────────
 // The phoneme layer lives in engine/phonemes.js and is aliased here, so every reference
 // below still resolves and this file's scoping is unchanged.
-const ART = VTL.ART;
+const ART = HOLLER.ART;
 
 // ---- the tract, shaped by things a person has ----
-const restingDiam = VTL.restingDiam;
-const hump = VTL.hump;
+const restingDiam = HOLLER.restingDiam;
+const hump = HOLLER.hump;
 // jaw opens the mouth, the tongue body is wide and smooth, the tip is small and sharp,
 // and the lips close the tube. No phoneme can ask for two constrictions at once.
-const articulate = VTL.articulate;
+const articulate = HOLLER.articulate;
 // stop consonants are the same move at three places along the tract
-const STOPS = VTL.STOPS;
-const VELAR = VTL.VELAR;
+const STOPS = HOLLER.STOPS;
+const VELAR = HOLLER.VELAR;
 const ENGINE_URL = new URL('engine/tract-worklet.js', document.baseURI).href;
 
 
@@ -889,9 +889,9 @@ sSect.addEventListener('input',()=>{
 });
 
 // ── phoneme palette, built from the solved inventory ──
-const VOWEL_KEYS = VTL.VOWEL_KEYS;
-const STOP_KEYS = VTL.STOP_KEYS;
-const CONS_KEYS = VTL.CONS_KEYS;
+const VOWEL_KEYS = HOLLER.VOWEL_KEYS;
+const STOP_KEYS = HOLLER.STOP_KEYS;
+const CONS_KEYS = HOLLER.CONS_KEYS;
 let chain = ['g','o','l'];             // one gliding vowel — the opening does the rest
 
 function makeKey(sym, host){
@@ -913,15 +913,15 @@ function makeKey(sym, host){
 // are fronted, which is a dialect feature, not a tract-length one. A voice may now carry its
 // own measured postures and fall back to the shared ones for anything it does not override.
 function voiceArt(){ const V=VOICES[voiceName]; return (V && V.art) || null; }
-function baseFor(sym){ return VTL.baseFor(sym, voiceArt()); }
-function shapeFor(sym){ return VTL.shapeFor(sym, N, voiceArt()); }
+function baseFor(sym){ return HOLLER.baseFor(sym, voiceArt()); }
+function shapeFor(sym){ return HOLLER.shapeFor(sym, N, voiceArt()); }
 // Hold a shout and your jaw drops — the vowel opens as it goes. That is what makes a long
 // /o/ become "goooaaa" without a second vowel target, and it is why "g o ɑ l" was heard as
 // three separate segments: it WAS three separate segments.
-function openedShape(sym, amt){ return VTL.openedShape(sym, amt, N, voiceArt()); }
-const BRANCHED = VTL.BRANCHED;
-const NASAL = VTL.NASAL;
-const VOICELESS = VTL.VOICELESS;
+function openedShape(sym, amt){ return HOLLER.openedShape(sym, amt, N, voiceArt()); }
+const BRANCHED = HOLLER.BRANCHED;
+const NASAL = HOLLER.NASAL;
+const VOICELESS = HOLLER.VOICELESS;
 // relative strengths: sibilants loudest, labiodentals weak — as in real speech
 // A dental fricative has no obstacle downstream, so it is weak and flat — the same reason
 // /f/ is weak. Sibilants are loud because the jet strikes the teeth.
@@ -939,10 +939,10 @@ const VOICELESS = VTL.VOICELESS;
 // the vowel and /z/ at 0.5x, keeping /s/ the loudest fricative, which is correct.
 // This does NOT explain /ʃ ʒ h/, which measure 0.4-0.8x and still read as hiss. That is a
 // different fault and gain will not fix it.
-const FRICATIVE = VTL.FRICATIVE;
-const ASPIRATE = VTL.ASPIRATE;
-const branchFor=VTL.branchFor, nasalFor=VTL.nasalFor, voicelessFor=VTL.voicelessFor,
-      fricFor=VTL.fricFor, aspFor=VTL.aspFor;
+const FRICATIVE = HOLLER.FRICATIVE;
+const ASPIRATE = HOLLER.ASPIRATE;
+const branchFor=HOLLER.branchFor, nasalFor=HOLLER.nasalFor, voicelessFor=HOLLER.voicelessFor,
+      fricFor=HOLLER.fricFor, aspFor=HOLLER.aspFor;
 function applyPhoneme(sym){
   const A = baseFor(sym);
   heldSym = sym;
@@ -1000,23 +1000,23 @@ function openSheet(name){
 // irregular enough that no rule set gets names right; correcting one costs a tap and is
 // remembered, which for a family's worth of names beats any general converter.
 // The speller lives in engine/spelling.js; aliased here so the app reads unchanged.
-const G2P_RULES = VTLSpell.G2P_RULES;
-const PAUSE = VTLSpell.PAUSE;
-function g2p(phrase){ return VTLSpell.g2p(phrase); }
-const WEAK_FIRST = VTLSpell.WEAK_FIRST;
-function g2pWord(word){ return VTLSpell.g2pWord(word); }
+const G2P_RULES = HOLLER_SPELL.G2P_RULES;
+const PAUSE = HOLLER_SPELL.PAUSE;
+function g2p(phrase){ return HOLLER_SPELL.g2p(phrase); }
+const WEAK_FIRST = HOLLER_SPELL.WEAK_FIRST;
+function g2pWord(word){ return HOLLER_SPELL.g2pWord(word); }
 // Names are exactly where letter-to-sound rules fail, so the ones that matter ship with the
 // app. These work on every device; anything you correct yourself is stored on top of them.
-const BUILTIN_DICT = VTLSpell.BUILTIN_DICT;
+const BUILTIN_DICT = HOLLER_SPELL.BUILTIN_DICT;
 // The personal dictionary is this browser's state, so the module is told where to keep it
 // rather than reaching for a global it cannot have in Node.
-VTLSpell.useStorage(typeof localStorage!=="undefined" ? localStorage : null);
-function loadDict(){ return VTLSpell.loadDict(); }
-function saveWord(word,ph){ return VTLSpell.saveWord(word,ph); }
+HOLLER_SPELL.useStorage(typeof localStorage!=="undefined" ? localStorage : null);
+function loadDict(){ return HOLLER_SPELL.loadDict(); }
+function saveWord(word,ph){ return HOLLER_SPELL.saveWord(word,ph); }
 
 // ── the voice: everything a tournament is allowed to vary ─────────────────
 // Word-independent by design. A voice tuned on "goal" speaks "bulldog" the same way.
-const VOICE_SPEC = VTL.VOICE_SPEC;
+const VOICE_SPEC = HOLLER.VOICE_SPEC;
 const defaultVoice=()=>Object.fromEntries(VOICE_SPEC.map(p=>[p.k,p.d]));
 let champion=defaultVoice(), challenger=null, round=1, step=1.0;
 
@@ -1304,7 +1304,7 @@ document.getElementById('rememberBtn').addEventListener('click', ()=>{
 // pitch with the first vowel stretched — not merely a longer, louder version of speech.
 // A voice is source + expression + the length of the tube it resonates in.
 // sections 44 = 17.5 cm (adult male). Fewer sections = shorter tract = every formant rises.
-const VOICES = VTL.VOICES;
+const VOICES = HOLLER.VOICES;
 
 // Timing and length now live IN the voice vector, so everything a voice is travels in a seed.
 function applyDelivery(){
@@ -1371,16 +1371,16 @@ const GOAL_WORD=['g','o','l'];   // one gliding vowel, not two — the opening d
 // ── one player for any word ─────────────────────────────────────────────
 // Stops get a short seal + release. Whatever time is left is shared among the
 // sustainable sounds, weighted by Drawl so the first one can be stretched.
-const APPROX = VTL.APPROX;
+const APPROX = HOLLER.APPROX;
 const isPause=sym=>sym===' ';
 // A diphthong is ONE vowel gesture that moves, not two vowels in a row. Same mechanism as
 // the shouted vowel that opens as it is held — generalised to any pair.
-const DIPH = VTL.DIPH;
+const DIPH = HOLLER.DIPH;
 const isDiph=sym=>!!DIPH[sym];
 // Delegates to the shared layer. The app's call sites are unchanged; what used to be
 // closed-over state (N, and the voice's own postures) is passed explicitly.
 function buildWord(chain, D, drawl, glide, stopHold, open){
-  return VTL.buildWord(chain, {D, drawl, glide, stopHold, open, n:N, art:voiceArt()});
+  return HOLLER.buildWord(chain, {D, drawl, glide, stopHold, open, n:N, art:voiceArt()});
 }
 async function playWord(){
   if(!chain.length) return;

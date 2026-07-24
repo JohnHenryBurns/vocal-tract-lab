@@ -12,7 +12,7 @@
 // can only run where that global exists.
 //
 //   browser   <script src="engine/spelling.js"></script>
-//             VTLSpell.useStorage(localStorage)     // opt in to the personal dictionary
+//             HOLLER_SPELL.useStorage(localStorage)     // opt in to the personal dictionary
 //   node      const S = require("./engine/spelling.js")
 //             // no storage: BUILTIN_DICT only, which is what the gate wants
 // ─────────────────────────────────────────────────────────────────────────────
@@ -209,8 +209,8 @@ function saveWord(word,ph){
        STORE.setItem('hollerbox.dict',JSON.stringify(d)); }catch(e){}
 }
 
-root.VTLSpell = { G2P_RULES, BUILTIN_DICT, PAUSE, WEAK_FIRST,
+root.HOLLER_SPELL = { G2P_RULES, BUILTIN_DICT, PAUSE, WEAK_FIRST,
                   g2p, g2pWord, loadDict, saveWord, useStorage };
-if (typeof module !== 'undefined' && module.exports) module.exports = root.VTLSpell;
+if (typeof module !== 'undefined' && module.exports) module.exports = root.HOLLER_SPELL;
 
 })(typeof window !== 'undefined' ? window : globalThis);

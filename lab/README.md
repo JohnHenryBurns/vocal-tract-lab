@@ -36,8 +36,8 @@ The per-voice checks run **john** and **man** by default — the two being tuned
 is slow and most of them are nobody's target.
 
     node lab/check.js                    # john + man
-    VTL_VOICES=woman,child node lab/check.js
-    VTL_ALL=1 node lab/check.js          # all ten, before a release
+    HOLLER_VOICES=woman,child node lab/check.js
+    HOLLER_ALL=1 node lab/check.js          # all ten, before a release
 
 ## The gate
 
@@ -55,11 +55,11 @@ running on registration, so a subset can be selected by substring:
     node lab/check.js --list             # the 22 names, instantly
     node lab/check.js stops              # just the stop checks — ~5s, not ~90
     node lab/check.js fricative,sibilant # comma or space separated
-    VTL_ONLY=nasal node lab/check.js     # same thing via the environment
+    HOLLER_ONLY=nasal node lab/check.js     # same thing via the environment
 
-    VTL_JOBS=4 node lab/check.js         # spread over cores (defaults to the core count)
-    VTL_JOBS=1 node lab/check.js         # force sequential
-    VTL_BAIL=1  node lab/check.js        # stop at the first failure
+    HOLLER_JOBS=4 node lab/check.js         # spread over cores (defaults to the core count)
+    HOLLER_JOBS=1 node lab/check.js         # force sequential
+    HOLLER_BAIL=1  node lab/check.js        # stop at the first failure
 
 Results print **as they finish** rather than after all twenty-two, so a run can be watched and
 abandoned. A filtered run ends in a yellow verdict that says explicitly that it was a subset —

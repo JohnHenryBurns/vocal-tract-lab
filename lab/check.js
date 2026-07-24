@@ -5,11 +5,11 @@
 const H = require("./harness.js");
 
 // Which voices the per-voice checks exercise. Ten presets is slow and most of them are
-// nobody's target; john and man are the two being tuned. VTL_ALL=1 runs the full set
+// nobody's target; john and man are the two being tuned. HOLLER_ALL=1 runs the full set
 // before a release, when a preset silently breaking actually matters.
-const VOICES_UNDER_TEST = process.env.VTL_ALL
+const VOICES_UNDER_TEST = process.env.HOLLER_ALL
   ? null
-  : (process.env.VTL_VOICES || "john,man").split(",").map(s => s.trim());
+  : (process.env.HOLLER_VOICES || "john,man").split(",").map(s => s.trim());
 
 // Checks REGISTER here; they do not run on registration. Running them at registration time
 // meant the gate was all-or-nothing: no way to run the three stop checks while working on
@@ -522,7 +522,7 @@ check("every voice speaks at its own tract length", () => {
   }
   return { ok: bad.length === 0,
            note: bad.length ? bad.join("  ")
-               : `${names.join("+")} — keyframes match the tract, quietest /${quietName}/ ${quietest.toFixed(4)}${VOICES_UNDER_TEST ? "  (VTL_ALL=1 for all " + Object.keys(V).length + ")" : ""}` };
+               : `${names.join("+")} — keyframes match the tract, quietest /${quietName}/ ${quietest.toFixed(4)}${VOICES_UNDER_TEST ? "  (HOLLER_ALL=1 for all " + Object.keys(V).length + ")" : ""}` };
 });
 
 check("voiceless stops are aspirated", () => {
@@ -575,7 +575,7 @@ check("voiceless stops are aspirated", () => {
 // The gate gates correctness. It should not gate iteration. Three things follow:
 //   a subset can be run while working   node lab/check.js stops
 //   results appear as they finish       (they used to print only after all 22)
-//   independent checks use idle cores   VTL_JOBS=n, defaults to the core count
+//   independent checks use idle cores   HOLLER_JOBS=n, defaults to the core count
 // The FULL gate is still what ships:  ./lab/ship.sh runs it with no filter, and a filtered
 // run says so loudly in its verdict so a partial pass can never be mistaken for a green gate.
 const os = require("os");
@@ -596,7 +596,7 @@ if (!isMainThread && workerData && workerData.idx) {
   for (const i of workerData.idx) parentPort.postMessage([runOne(i)]);
 } else {
   const args  = process.argv.slice(2).filter(a => a !== "--list");
-  const query = (process.env.VTL_ONLY || args.join(" ")).trim().toLowerCase();
+  const query = (process.env.HOLLER_ONLY || args.join(" ")).trim().toLowerCase();
   const terms = query ? query.split(/[,\s]+/).filter(Boolean) : [];
   const idx = REG.map((_, i) => i)
                  .filter(i => !terms.length || terms.some(t => REG[i].name.toLowerCase().includes(t)));
@@ -610,9 +610,9 @@ if (!isMainThread && workerData && workerData.idx) {
     process.exit(2);
   }
 
-  const bail = !!process.env.VTL_BAIL;
+  const bail = !!process.env.HOLLER_BAIL;
   const jobs = Math.max(1, Math.min(
-    parseInt(process.env.VTL_JOBS || "", 10) || os.cpus().length, idx.length));
+    parseInt(process.env.HOLLER_JOBS || "", 10) || os.cpus().length, idx.length));
   const t0 = Date.now();
   const done = [];
 
@@ -638,7 +638,7 @@ if (!isMainThread && workerData && workerData.idx) {
   if (jobs === 1 || bail) {
     for (const i of idx) {
       const r = runOne(i); done.push(r); line(r);
-      if (!r.ok && bail) { console.log("\n🔴 stopped at first failure (VTL_BAIL)\n"); process.exit(1); }
+      if (!r.ok && bail) { console.log("\n🔴 stopped at first failure (HOLLER_BAIL)\n"); process.exit(1); }
     }
     verdict();
   } else {

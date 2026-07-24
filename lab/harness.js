@@ -3,17 +3,17 @@
 const fs = require("fs");
 const path = require("path");
 
-const PAGE = process.env.VTL_PAGE || path.join(__dirname, "..", "index.html");
+const PAGE = process.env.HOLLER_PAGE || path.join(__dirname, "..", "index.html");
 const SR = 44100;
 
 function loadPage() {
   const html = fs.readFileSync(PAGE, "utf8");
   // The engine is a file now. Read it; do not re-derive it.
   let worklet = fs.readFileSync(path.join(__dirname, "..", "engine", "tract-worklet.js"), "utf8");
-  // A hook for sweeping a constant without editing the page:  VTL_PATCH="a=>b"
-  if (process.env.VTL_PATCH) {
-    const [find, repl] = process.env.VTL_PATCH.split("=>");
-    if (!worklet.includes(find)) throw new Error("VTL_PATCH found nothing: " + find);
+  // A hook for sweeping a constant without editing the page:  HOLLER_PATCH="a=>b"
+  if (process.env.HOLLER_PATCH) {
+    const [find, repl] = process.env.HOLLER_PATCH.split("=>");
+    if (!worklet.includes(find)) throw new Error("HOLLER_PATCH found nothing: " + find);
     worklet = worklet.split(find).join(repl);
   }
   // The phoneme layer is a file too. This used to be fifteen regular expressions pulling ART,

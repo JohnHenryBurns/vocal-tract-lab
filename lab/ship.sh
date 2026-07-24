@@ -26,7 +26,7 @@ git add -A
 git -c user.email=claude@anthropic.com -c user.name=Claude commit -qm "$1"
 git push -q origin main
 sleep 5
-curl -s -H "Authorization: Bearer $VTL_TOKEN" -H "Accept: application/vnd.github.raw" \
+curl -s -H "Authorization: Bearer $HOLLER_TOKEN" -H "Accept: application/vnd.github.raw" \
   "https://api.github.com/repos/JohnHenryBurns/hollerbox/contents/index.html?ref=main" > /tmp/remote.html
 diff -q /tmp/remote.html index.html
 echo "  REMOTE == LOCAL"

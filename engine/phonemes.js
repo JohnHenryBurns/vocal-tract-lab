@@ -12,7 +12,7 @@
 // It is a classic script on purpose. index.html's top-level scoping does not change: the page
 // loads this first and aliases what it needs, so every existing reference still resolves.
 //
-//   browser   <script src="engine/phonemes.js"></script>   then use VTL.*
+//   browser   <script src="engine/phonemes.js"></script>   then use HOLLER.*
 //   node      const P = require("./engine/phonemes.js")
 //
 // Nothing here touches the DOM, the AudioContext, or any module-level mutable state. Given the
@@ -514,7 +514,7 @@ function buildWord(chain, opts){
   return {keys, art, seg, end:t+0.22};
 }
 
-const VTL = {
+const HOLLER = {
   ART, STOPS, VELAR, DIPH, APPROX, STOP_KEYS, VOWEL_KEYS, CONS_KEYS,
   BRANCHED, NASAL, VOICELESS, FRICATIVE, ASPIRATE,
   VOICE_SPEC, VOICES, defaultVoice,
@@ -522,7 +522,7 @@ const VTL = {
   branchFor, nasalFor, voicelessFor, fricFor, aspFor, isPause, isDiph
 };
 
-root.VTL = VTL;
-if (typeof module !== 'undefined' && module.exports) module.exports = VTL;
+root.HOLLER = HOLLER;
+if (typeof module !== 'undefined' && module.exports) module.exports = HOLLER;
 
 })(typeof window !== 'undefined' ? window : globalThis);
