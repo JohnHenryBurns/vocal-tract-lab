@@ -579,6 +579,68 @@ check("every prosody knob is swept, seeded and does something", () => {
                : `${KNOBS.length} knobs live, defaults identical, ${SPEC.length*2}-char seed round-trips` };
 });
 
+// ── Phase 8.4: the pitch contour ───────────────────────────────────────────
+check("pitch moves in semitones and accents land on stressed syllables", () => {
+  const P = H.P, S = require(__dirname + "/../engine/spelling.js"), bad = [];
+
+  // 1. ONE COPY. This lived in four places — index.html twice, the harness and the bench — and
+  //    the harness's own near-copy of buildWord is the precedent for why that matters: a gate
+  //    with a slightly different copy tests the wrong thing. Structural, so it stays one.
+  const fs = require("fs");
+  for (const f of ["index.html", "lab/harness.js", "lab/bench.html"]) {
+    const t = fs.readFileSync(__dirname + "/../" + f, "utf8");
+    if (/\[\s*end\s*\*\s*0\.55\s*,/.test(t)) bad.push(`${f} builds its own contour again`);
+  }
+
+  // 2. SEMITONES. Driven through the real processor, not the helper, because the engine does
+  //    its own interpolation and that is the copy that was wrong. A fall from 200 to 100 has
+  //    its perceptual midpoint at the geometric mean, 141.4 — linear-in-Hz gives 150.
+  const n = 44, p = H.makeProcessor(n);
+  p.port.onmessage({ data: { type: "voice", v: P.defaultVoice() } });
+  const keys = [{ t: 0, d: Array.from(P.articulate(P.ART["ɑ"], n)), b: 0, nz: 0, vl: 0, fr: 0, as: 0 },
+                { t: 1, d: Array.from(P.articulate(P.ART["ɑ"], n)), b: 0, nz: 0, vl: 0, fr: 0, as: 0 }];
+  p.port.onmessage({ data: { type: "goal", seq: { keys, f0: [[0,200],[1,100]], end: 1 } } });
+  const out = [new Float32Array(128)];
+  for (let i = 0; i < Math.floor(0.5 * H.SR / 128); i++) p.process([], [out]);
+  const mid = p.f0;
+  if (Math.abs(mid - 141.4) > 3) bad.push(`midpoint of a 200->100 fall is ${mid.toFixed(1)} Hz, want ~141 (150 = still linear in Hz)`);
+
+  // 3. Accents land on stressed NUCLEI and nowhere else. `stress` marks every phone of a
+  //    stressed syllable, so accenting all of them would put three excursions on one syllable
+  //    and read as a wobble rather than an accent.
+  const v = P.defaultVoice(), r = S.g2p("banana and a tomato");
+  const W = P.buildWord(r.ph, { D: 1.6, n: 44, stress: r.stress, pros: v });
+  const base = P.buildF0(W.end, v);
+  const acc  = P.buildF0(W.end, v, { stress: r.stress, seg: W.seg });
+  const nuclei = W.seg.filter((s, i) => r.stress[i] && s.sym !== " " &&
+                   (P.VDUR[s.sym] !== undefined || P.DIPH[s.sym] !== undefined));
+  if (acc.length <= base.length) bad.push("accents added no points");
+  for (const sg of nuclei) {
+    const mid2 = (sg.a + sg.b) / 2;
+    const here = acc.find(x => Math.abs(x[0] - mid2) < 1e-9);
+    const flat = base.find(x => Math.abs(x[0] - mid2) < 1e-9);
+    if (!here) { bad.push(`no accent on stressed /${sg.sym}/`); continue; }
+    if (flat) bad.push("baseline already had a point there — cannot tell them apart");
+  }
+  // Every added point must sit inside a stressed nucleus. One outside means an accent landed
+  // on a consonant or an unstressed syllable.
+  const times = new Set(base.map(x => x[0]));
+  for (const [t] of acc) {
+    if (times.has(t)) continue;
+    if (!nuclei.some(sg => t >= sg.a - 1e-9 && t <= sg.b + 1e-9))
+      bad.push(`accent point at ${t.toFixed(3)}s is not in a stressed nucleus`);
+  }
+
+  // 4. acc=0 gives the baseline back exactly. Every prosody knob is a bisection tool; this
+  //    one has to be able to turn Phase 8.4's accents off without touching code.
+  const off = P.buildF0(W.end, { ...v, acc: 0 }, { stress: r.stress, seg: W.seg });
+  if (JSON.stringify(off) !== JSON.stringify(base)) bad.push("acc=0 does not return the baseline");
+
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : `one copy, 200->100 midpoint ${mid.toFixed(0)} Hz, ${nuclei.length} accents on nuclei, acc=0 flat` };
+});
+
 check("no word clicks", () => {
   // A stop release is a transient, but an outlier far above the signal's own motion is a
   // click. The white-noise burst once measured 13.5x.

@@ -394,6 +394,7 @@ const VOICE_SPEC=[
   {k:'poly', lo:0,      hi:0.3,     d:0.12},   // shortening per extra syllable
   {k:'stopVc',lo:1,     hi:2,       d:1.5},    // voiceless/voiced closure ratio
   {k:'apw',  lo:0.15,   hi:0.7,     d:0.34},   // approximant weight against a reference vowel
+  {k:'acc',  lo:0,      hi:8,       d:3},      // accent excursion on a stressed syllable, semitones
 ];
 const VOICES = {
   // Measured from a real goal cry: the pitch falls the whole way (158 -> 93 Hz) and the
@@ -692,6 +693,68 @@ function buildWord(chain, opts){
   return {keys, art, seg, end:t+0.22};
 }
 
+// ─── PHASE 8.4: THE PITCH CONTOUR ────────────────────────────────────────────
+// This lived in FOUR places — index.html twice, the harness and the bench — as the same six
+// lines copied out. That is the shape of mistake this project has already paid for once, when
+// the harness kept its own near-copy of buildWord and the comment beside it admitted that a
+// gate with its own slightly different copy is exactly how you end up testing the wrong thing.
+// One copy, before changing anything about it.
+//
+// SEMITONES, NOT HERTZ. The contour was interpolated linearly in Hz, and pitch is not heard
+// that way: a fall from 200 to 100 spends half its time above 150, but the ear puts the
+// midpoint at 141. Every fall in every voice has therefore been the wrong SHAPE — too slow at
+// the top, too fast at the bottom — while hitting all the right endpoints, which is why it
+// never showed up as a wrong note. Interpolating in log frequency and converting back is the
+// whole fix.
+const lerpHz = (a, b, u) => a * Math.pow(b/a, u);      // linear in semitones
+
+function buildF0(end, v, opts){
+  const o = opts || {};
+  const stress = o.stress || null;   // parallel to chain
+  const seg    = o.seg || null;      // buildWord emits exactly one seg per chain symbol, in order
+  const a = v.f0a, b = v.f0b, c = v.f0c;
+  // The shape that was already here: rise to a peak, hold, fall away. It is a good goal cry —
+  // it was measured from one — and it is kept as the BASELINE the whole utterance sits on.
+  // What it never was is a sentence, because its peak lands at a fixed fraction of the word
+  // regardless of which syllable is stressed.
+  const pts = [[0,a],[Math.min(0.12,end*0.1),b],[end*0.55,b],
+               [end*0.82,(b+c)/2],[end,c],[end+0.2,c*0.92]];
+  const semis = (v.acc === undefined ? 3 : v.acc);
+  if(!stress || !seg || semis <= 0.01) return pts;
+
+  // ---- accents, on the syllables that carry them ----
+  // Only on the NUCLEUS. `stress` marks every phone of a stressed syllable, so accenting all
+  // of them would put three excursions on one syllable and read as a wobble.
+  const isNuc = sym => VDUR[sym] !== undefined || DIPH[sym] !== undefined;
+  const marks = [];
+  seg.forEach((sg, i) => { if(sg.sym !== ' ' && isNuc(sg.sym) && stress[i]) marks.push(sg); });
+  if(!marks.length) return pts;
+
+  // Read the baseline where the accent falls, then push up from it. Excursions are
+  // MULTIPLICATIVE because pitch is: three semitones is three semitones wherever the baseline
+  // happens to be, which is what stops a late accent vanishing into the declination.
+  const at = t => {
+    if(t <= pts[0][0]) return pts[0][1];
+    for(let k=1;k<pts.length;k++) if(t <= pts[k][0]){
+      const [t0,v0]=pts[k-1],[t1,v1]=pts[k];
+      return t1===t0 ? v1 : lerpHz(v0, v1, (t-t0)/(t1-t0));
+    }
+    return pts[pts.length-1][1];
+  };
+  const out = pts.slice();
+  const k = Math.pow(2, semis/12);
+  for(const sg of marks){
+    const mid = (sg.a + sg.b)/2;
+    // A shoulder either side, so an accent is a gesture and not a corner. Anchored to the
+    // baseline so the pitch comes back down to where the declination says it should be.
+    out.push([sg.a, at(sg.a)]);
+    out.push([mid,  at(mid)*k]);
+    out.push([sg.b, at(sg.b)]);
+  }
+  out.sort((x,y)=>x[0]-y[0]);
+  return out;
+}
+
 const HOLLER = {
   ART, STOPS, VELAR, DIPH, APPROX, STOP_KEYS, VOWEL_KEYS, CONS_KEYS,
   BRANCHED, NASAL, VOICELESS, FRICATIVE, ASPIRATE,
@@ -699,7 +762,7 @@ const HOLLER = {
   restingDiam, hump, articulate, baseFor, shapeFor, openedShape, buildWord,
   VDUR, CODA_VOICED, CODA_SONORANT, CODA_OPEN, CODA_VOICELESS,
   UNSTRESSED, FINAL_LENGTH, POLY_SHORT, APPROX_W, codaFactor, polyShorten,
-  STOP_CLOSE, closureFor, UNSTRESSED_LEVEL,
+  STOP_CLOSE, closureFor, UNSTRESSED_LEVEL, buildF0, lerpHz,
   branchFor, nasalFor, voicelessFor, fricFor, aspFor, isPause, isDiph
 };
 

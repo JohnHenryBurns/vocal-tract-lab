@@ -1075,8 +1075,7 @@ async function speakWith(v){
   const D=+sDur.value;
   const W=buildWord(chain, D, v.drawl, v.glide, v.stopT, v.open||0, v);
   const {keys,end}=W;
-  const f0=[[0,v.f0a],[Math.min(0.12,end*0.1),v.f0b],[end*0.55,v.f0b],
-            [end*0.82,(v.f0b+v.f0c)/2],[end,v.f0c],[end+0.2,v.f0c*0.92]];
+  const f0=HOLLER.buildF0(end, v, {stress:chainStress, seg:W.seg});
   node.port.postMessage({type:'goal', seq:{keys, f0, end}});
   artTrack={t0:performance.now(), keys:W.art, end};
   playSeg={t0:performance.now(), seg:W.seg};         // the word follows the same clock   // the picture follows the same plan
@@ -1404,8 +1403,7 @@ async function playWord(){
   // The voice owns the pitch. These were hardcoded, so every preset — man, child, Barry —
   // spoke at the announcer's 208-248 Hz and none of them sounded like themselves.
   const v=champion;
-  const f0=[[0,v.f0a],[Math.min(0.12,end*0.1),v.f0b],[end*0.55,v.f0b],
-            [end*0.82,(v.f0b+v.f0c)/2],[end,v.f0c],[end+0.2,v.f0c*0.92]];
+  const f0=HOLLER.buildF0(end, v, {stress:chainStress, seg:W.seg});
   node.port.postMessage({type:'goal', seq:{keys, f0, end}});
   artTrack={t0:performance.now(), keys:W.art, end};
   playSeg={t0:performance.now(), seg:W.seg};         // the word follows the same clock   // the picture follows the same plan

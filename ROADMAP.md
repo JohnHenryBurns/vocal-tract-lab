@@ -678,7 +678,7 @@ depends on*. 8.0 has no audible effect on its own and three later steps are bloc
 | **8.1b** | make `D` a rate rather than an absolute length | 8.1 | medium |
 | **8.2** | stop closure duration, unreleased finals | — | medium |  ✅
 | **8.3** | per-segment amplitude | 8.0 | medium |  ✅
-| **8.4** | F0: semitones, accent alignment, declination, perturbation | 8.0 | **large** |
+| **8.4** | F0: semitones, accent alignment, declination, perturbation | 8.0 | **large** |  ◐
 | **8.5** | pause policy | — | medium |
 | **8.6** | vowel reduction | 8.0 | medium |
 | **8.7** | allophony: flapping, dark /l/, nasal assimilation | 8.0 | medium |
@@ -799,16 +799,36 @@ because its stressed /u/ is intrinsically the quietest vowel there is. Real spee
 The default path is unchanged and gated as such: supply no stress — a chain tapped in by hand,
 anything that never went through the speller — and every level stays 1.
 
-### 8.4 F0
+### 8.4 F0  ◐ 1, 3 and one copy built; 2 and 4 to come
 
 Four changes, smallest first:
 
-1. **Interpolate in semitones, not Hz.** Lines 1072–73 interpolate linearly in Hz, so a fall
-   has the wrong perceptual shape. One `Math.log2`, and it should be taken alone and listened
-   to, because it changes every existing voice.
+0. **One copy first.**  ✅ The contour was built in FOUR places — `index.html` twice, the
+   harness and the bench — as the same six lines copied out. That is the mistake this project
+   already paid for once, when the harness kept its own near-copy of `buildWord` and the
+   comment beside it admitted a gate with a slightly different copy is how you end up testing
+   the wrong thing. `buildF0` in `phonemes.js`, and a structural gate assertion that no other
+   file grows one back.
+1. **Interpolate in semitones, not Hz.**  ✅ It was linear in Hz, so a fall from 200 to 100
+   spent half its time above 150 where the ear puts the midpoint at 141. Every fall in every
+   voice was the wrong SHAPE — too slow at the top, too fast at the bottom — while still
+   hitting all the right endpoints, which is exactly why it never showed up as a wrong note.
+   Gated by driving the real processor, since the engine does its own interpolation and that
+   was the copy that mattered.
 2. **Consonant perturbation.** A 10–20 Hz dip after voiced obstruents, a rise after voiceless,
    over the first ~50 ms of the vowel. Small, cheap, and ears catch its absence.
-3. **Accent alignment.** Excursions belong on stressed syllables, not at `end*0.55`.
+3. **Accent alignment.**  ✅ Excursions now sit on the stressed syllables rather than at
+   `end*0.55`. The old arch is kept as the BASELINE — it is a good goal cry, it was measured
+   from one — and accents ride on top of it. They are **multiplicative**, because pitch is:
+   three semitones is three semitones wherever the baseline happens to be, which is what stops
+   a late accent vanishing into the declination. Only on the NUCLEUS: `stress` marks every
+   phone of a stressed syllable, and accenting all of them puts three excursions on one
+   syllable and reads as a wobble. Depth is `acc` in `VOICE_SPEC`, default 3 semitones, and
+   `acc=0` returns the baseline exactly — gated, because every prosody knob is a bisection tool.
+
+   **Known gap, from the first run:** the speller marks every monosyllable as stressed, so the
+   article *a* in "banana and a tomato" takes an accent. Real phrases destress function words.
+   That is phrase-level stress and it wants its own step; it is not an accent-placement bug.
 4. **Declination and reset.** A falling baseline across the phrase, reset at boundaries, with
    the terminal contour chosen by sentence type.
 
