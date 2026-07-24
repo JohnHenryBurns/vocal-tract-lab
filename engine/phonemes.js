@@ -435,6 +435,84 @@ function openedShape(sym, amt, n, art){
   return articulate(A, n);
 }
 
+// ─── PHASE 8.1: HOW LONG EACH SOUND IS HELD ──────────────────────────────────
+// Every held segment used to get weight 1, so "bad" and "bat" divided the word identically
+// and every syllable of "banana" got a third of it. Five effects, all measured, none of them
+// DSP.
+//
+// IMPORTANT — what this does NOT do. The weights are normalised against their own sum and
+// spent out of `pool`, so they redistribute the word's duration WITHOUT changing it. `D` is
+// still the caller's absolute word length, which means an isolated monosyllable cannot get
+// longer: "bad" alone has one held segment, and one weight over itself is 1 whatever the
+// weight is. The lengthening is real and measurable the moment there is something to be long
+// RELATIVE TO — inside a polysyllable, or across a phrase ("bad bat"), which is where the
+// comparison lives in connected speech anyway.
+//
+// Making an isolated word's absolute length follow from its segments means turning `D` from a
+// duration into a RATE. That is a much wider change — the F0 contour is built from `end`, the
+// duration slider changes meaning, and every gate band that measures a word moves — so it is
+// its own step. Filed as 8.1b.
+
+// Peterson & Lehiste (1960), JASA 32(6):693-703, measured English vowel and diphthong
+// durations. Normalised so that a lax vowel is about 1. Tense vowels and diphthongs run
+// notably longer than lax ones, and schwa is shorter than anything.
+const VDUR = {
+  i:1.20, 'ɪ':0.90, 'ɛ':0.95, 'æ':1.15, 'ɑ':1.25, 'ɔ':1.40,
+  'ʊ':0.95, u:1.20, 'ʌ':0.95, 'ɝ':1.30, 'ə':0.65, o:1.30,
+  'aɪ':1.40, 'aʊ':1.50, 'ɔɪ':1.55, 'eɪ':1.30, 'oʊ':1.30,
+};
+// House & Fairbanks (1953); Peterson & Lehiste (1960). A vowel before a VOICED consonant runs
+// about half again as long as the same vowel before a voiceless one — the difference between
+// "bad" and "bat", and the largest allophonic duration cue English has. Sonorants sit between,
+// and a vowel with nothing closing the syllable is long.
+const CODA_VOICED = 1.50, CODA_SONORANT = 1.30, CODA_OPEN = 1.40, CODA_VOICELESS = 1.00;
+const UNSTRESSED  = 0.60;    // an unstressed syllable runs a bit over half a stressed one
+const FINAL_LENGTH= 1.25;    // the last syllable before a boundary stretches
+const POLY_SHORT  = 0.12;    // each extra syllable shortens the ones around it
+
+const VOICED_OBS    = {b:1,d:1,g:1,v:1,'ð':1,z:1,'ʒ':1};
+const VOICELESS_OBS = {p:1,t:1,k:1,f:1,'θ':1,s:1,'ʃ':1,h:1};
+
+// What closes this vowel's syllable. Conditioned on the NEXT SEGMENT rather than on syllable
+// affiliation, which is exact for a monosyllable — the canonical bad/bat case — and slightly
+// over-applies across a syllable boundary, where the consonant is really the next syllable's
+// onset. Making it syllable-aware means passing the syllabification down from the speller and
+// it is not obviously worth the coupling; noted rather than done.
+function codaFactor(chain, i){
+  if(i+1 >= chain.length || chain[i+1] === ' ') return CODA_OPEN;   // word or phrase final
+  const nx = chain[i+1];
+  if(VDUR[nx] !== undefined)  return CODA_OPEN;                     // a vowel: open syllable
+  if(VOICED_OBS[nx])          return CODA_VOICED;
+  if(VOICELESS_OBS[nx])       return CODA_VOICELESS;
+  return CODA_SONORANT;
+}
+
+// A word's syllables shorten as it gets longer. Within a single word this cancels — it scales
+// every weight by the same number and they are normalised — so it only does anything across a
+// phrase, which is exactly where it belongs: it stops a long word from eating a short one's time.
+function polyShorten(chain){
+  const f = new Array(chain.length).fill(1);
+  let a = 0;
+  for(let b = 0; b <= chain.length; b++){
+    if(b === chain.length || chain[b] === ' '){
+      let nv = 0;
+      for(let i = a; i < b; i++) if(VDUR[chain[i]] !== undefined) nv++;
+      const s = 1/(1 + POLY_SHORT*Math.max(0, nv-1));
+      for(let i = a; i < b; i++) f[i] = s;
+      a = b + 1;
+    }
+  }
+  return f;
+}
+
+// The approximants keep their flat weight, but that weight was calibrated when a vowel
+// weighed 1 and a vowel now weighs about 1.5. Left at a bare 0.34 the /l/ of "goal" lost a
+// third of its length purely as an accounting side effect — 204 ms to 134 ms — which is not a
+// duration decision, it is a units mistake. Hold the ratio instead: a reference vowel is a lax
+// one closed by a sonorant, which is what the 0.34 was measured against.
+const APPROX_REF = 1.15 * CODA_SONORANT;      // ≈ 1.495
+const APPROX_W   = 0.34 * APPROX_REF;
+
 // ---- a word, as keyframes ----
 function buildWord(chain, opts){
   // Everything this used to reach out of scope for is now an argument. It closed over N (the
@@ -457,9 +535,23 @@ function buildWord(chain, opts){
   let glides=0; for(let i=1;i<chain.length;i++) glides+=glideFor(i);
   const vw=[];                            // weights over everything that is held
   let first=true;
-  chain.forEach(c=>{ if(isStop(c)||isPause(c)) return;
-    if(isAp(c)) vw.push(0.34);            // a lateral is a beat, not a vowel
-    else { vw.push(first ? 1+drawl*2.6 : 1); first=false; }
+  // Phase 8.1. Where every weight used to be 1, five measured effects now set it. The
+  // approximants are deliberately left at their flat 0.34: /l/ carries the goal cry and its
+  // formants are gated, so moving its duration is a change to make on purpose with the bench
+  // watching, not a side effect of a timing step. Filed with 8.7, where dark /l/ lives.
+  const stress = o.stress || null;         // parallel to chain, or null for "all stressed"
+  const poly   = polyShorten(chain);
+  let lastHeld = -1;
+  chain.forEach((c,i)=>{ if(!isStop(c)&&!isPause(c)) lastHeld=i; });
+  chain.forEach((c,i)=>{ if(isStop(c)||isPause(c)) return;
+    if(isAp(c)){ vw.push(APPROX_W); return; }   // a lateral is a beat, not a vowel
+    let w = (VDUR[c]===undefined ? 1 : VDUR[c])   // intrinsic length
+          * codaFactor(chain,i)                    // what closes the syllable
+          * poly[i];                               // how long the word is
+    if(stress && stress[i]===0) w *= UNSTRESSED;
+    if(i===lastHeld)            w *= FINAL_LENGTH;
+    if(first){ w *= 1+drawl*2.6; first=false; }    // the drawl, unchanged
+    vw.push(w);
   });
   const wsum=vw.reduce((a,b)=>a+b,0)||1;
   const held=chain.filter(c=>!isStop(c)&&!isPause(c)).length;
@@ -519,6 +611,8 @@ const HOLLER = {
   BRANCHED, NASAL, VOICELESS, FRICATIVE, ASPIRATE,
   VOICE_SPEC, VOICES, defaultVoice,
   restingDiam, hump, articulate, baseFor, shapeFor, openedShape, buildWord,
+  VDUR, CODA_VOICED, CODA_SONORANT, CODA_OPEN, CODA_VOICELESS,
+  UNSTRESSED, FINAL_LENGTH, POLY_SHORT, APPROX_W, codaFactor, polyShorten,
   branchFor, nasalFor, voicelessFor, fricFor, aspFor, isPause, isDiph
 };
 

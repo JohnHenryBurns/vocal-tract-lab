@@ -224,6 +224,120 @@ check("nothing the speller produces gets silently dropped", () => {
                             : `${words.length} words, nothing unspeakable` };
 });
 
+// ── Phase 8.0: the stress channel ──────────────────────────────────────────
+check("the speller marks exactly one stressed syllable", () => {
+  // This channel is the prerequisite for four later steps and it makes NO SOUND, so nothing
+  // else in the gate can see it go wrong. Without a check it could rot silently for months
+  // and then be discovered as a duration bug, which is the expensive way round.
+  const S = require(__dirname + "/../engine/spelling.js");
+  const bad = [];
+  // Three separate claims, because they fail for different reasons and a merged assertion
+  // would not say which.
+  //
+  // 1. The channel stays parallel to the phones. If these ever drift out of step, every
+  //    consumer indexes the wrong syllable and the symptom is a timing bug nowhere near here.
+  //    The multi-word path is included because it is where the lengths are assembled by hand.
+  for (const w of ["goal", "computer", "hey sexy lady", "the quick brown fox", "hmm"]) {
+    const r = S.g2p(w);
+    if (r.stress.length !== r.ph.length) bad.push(`${w}: ${r.ph.length}ph/${r.stress.length}st`);
+  }
+  // 2. One primary per word, and every word gets one. Zero means a word spoken flat; two
+  //    means the syllable walk double-counted, which is what an off-by-one in the coda
+  //    length would look like.
+  for (const w of ["goal","atlas","computer","possibility","banana","strengths","hmm"]) {
+    const r = S.g2pWord(w);
+    const n = r.syl.filter(s => s.stress === 1).length;
+    const want = r.syl.length ? 1 : 0;         // a vowelless word has no syllable to stress
+    if (n !== want) bad.push(`${w}: ${n} primary of ${r.syl.length}`);
+  }
+  // 3. Known answers. Chosen because each one broke a different draft of the rules: atlas and
+  //    better both took stress from the loose WEAK_FIRST prefix, kitchen tests that the
+  //    two-symbol affricate /tʃ/ is a legal onset, atlas that /tl/ is not, possibility the
+  //    antepenultimate suffix, and banana that the exception list is consulted at all.
+  const WANT = { goal:[1,0], atlas:[2,0], better:[2,0], kitchen:[2,0], water:[2,0],
+                 computer:[3,1], together:[3,1], about:[2,1], banana:[3,1],
+                 possibility:[5,2], maximus:[3,0], street:[1,0] };
+  for (const [w, [nsyl, pri]] of Object.entries(WANT)) {
+    const r = S.g2pWord(w);
+    if (r.syl.length !== nsyl || r.primary !== pri)
+      bad.push(`${w}: ${r.syl.length}syl@${r.primary} want ${nsyl}@${pri}`);
+  }
+  // The greedy "augh" rule that made daughter into "daffter". Not a stress fact, but it was
+  // found by reading this word's syllables and it belongs with the case that caught it.
+  for (const [w, want] of [["daughter","d.ɔ.t.ɝ"], ["taught","t.ɔ.t"], ["laugh","l.æ.f"],
+                           ["laughter","l.æ.f.t.ɝ"], ["slaughter","s.l.ɔ.t.ɝ"]]) {
+    const got = S.g2pWord(w).ph.join(".");
+    if (got !== want) bad.push(`${w}: ${got} want ${want}`);
+  }
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+                            : "parallel, one primary each, 12 known patterns" };
+});
+
+// ── Phase 8.1: the duration weights ────────────────────────────────────────
+check("duration follows the segments, not a flat share", () => {
+  const P = H.P, D = 1.0, n = 44;
+  const S = require(__dirname + "/../engine/spelling.js");
+  const held = (chain, dur, stress) => {
+    const W = P.buildWord(chain, { D: dur, n, stress });
+    return { W, seg: W.seg.filter(s => s.sym !== " " && !P.STOP_KEYS.includes(s.sym)) };
+  };
+  const bad = [];
+  const near = (got, want, tol, what) => {
+    if (Math.abs(got - want)/want > tol) bad.push(`${what} ${got.toFixed(3)} want ~${want}`);
+  };
+
+  // 1. The rules point the right way, at unit level, before any of it is composed.
+  //    Exact equality — this cannot be flaky and it localises a wrong table instantly.
+  const cf = P.codaFactor;
+  if (cf(["æ","d"],0) !== P.CODA_VOICED)    bad.push("coda /d/ not voiced");
+  if (cf(["æ","t"],0) !== P.CODA_VOICELESS) bad.push("coda /t/ not voiceless");
+  if (cf(["æ","n"],0) !== P.CODA_SONORANT)  bad.push("coda /n/ not sonorant");
+  if (cf(["æ","ɑ"],0) !== P.CODA_OPEN)      bad.push("vowel after vowel not open");
+  if (cf(["æ"],0)     !== P.CODA_OPEN)      bad.push("word-final not open");
+  if (cf(["æ"," ","d"],0) !== P.CODA_OPEN)  bad.push("word boundary not open");
+
+  // 2. Voiced-coda lengthening, on a controlled pair: only the coda differs, and the vowel
+  //    is non-final in BOTH so final lengthening cannot confound it. The measured ratio is
+  //    1.20 rather than the table's 1.50 because the weights are normalised against their
+  //    own sum — lengthening the vowel takes time from the schwa. That compression is the
+  //    documented consequence of D being an absolute duration; see 8.1b.
+  const A = held(["b","æ","d","ə"], D), B = held(["b","æ","t","ə"], D);
+  near((A.seg[0].b-A.seg[0].a)/(B.seg[0].b-B.seg[0].a), 1.199, 0.05, "bad/bat vowel ratio");
+  //    ...and the word is the same length either way. The rhythm moves, the rate does not.
+  if (A.W.end !== B.W.end) bad.push(`coda changed word length ${A.W.end} vs ${B.W.end}`);
+
+  // 3. Stress. banana is the case the speller's exception list exists for, so this also
+  //    fails loudly if that lookup regresses.
+  const ban = S.g2p("banana"), N = held(ban.ph, D, ban.stress);
+  const v = N.seg.map(s => s.b - s.a);
+  if (!(v[2]/Math.min(v[0], v[4]) > 1.8))
+    bad.push(`banana stressed/unstressed ${(v[2]/Math.min(v[0],v[4])).toFixed(2)} want >1.8`);
+  //    Stress redistributes; it does not lengthen the word.
+  if (Math.abs(N.W.end - held(ban.ph, D, null).W.end) > 1e-12)
+    bad.push("stress changed word length");
+
+  // 4. RATE INVARIANCE. The point of normalising: change the tempo and every held segment
+  //    keeps its share. Stops are excluded because stopHold is a fixed absolute time and
+  //    always was, so a stop's share genuinely does move with D.
+  const s1 = held(ban.ph, 0.8, ban.stress).seg.map(s => s.b - s.a);
+  const s2 = held(ban.ph, 1.9, ban.stress).seg.map(s => s.b - s.a);
+  let drift = 0;
+  for (let i = 0; i < s1.length; i++) for (let j = 0; j < s1.length; j++)
+    drift = Math.max(drift, Math.abs((s1[i]/s1[j]) - (s2[i]/s2[j]))/(s1[i]/s1[j]));
+  if (drift > 1e-9) bad.push(`ratios drift with D by ${drift.toExponential(1)}`);
+
+  // 5. The approximants must not drift as a side effect of rescaling the vowels. The first
+  //    draft left /l/ at a bare 0.34 while a vowel went from 1 to about 1.5, and the /l/ of
+  //    "goal" quietly lost a third of its length — 204 ms to 134 ms. Nobody asked for that.
+  const G = held(["g","o","l"], D), tot = G.seg.reduce((a,s) => a + (s.b-s.a), 0);
+  near((G.seg[1].b-G.seg[1].a)/tot, 0.231, 0.06, "goal /l/ share");
+
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : "coda 1.20x, stress 2.9x, rate-invariant to 1e-16, /l/ held at 23%" };
+});
+
 check("no fricative strays into another's band", () => {
   // /ð/ in "mother" came out as a static sh. Not a bug in the sound — it was in the WRONG
   // BAND. An automatic fit chasing a spectral target had moved the dental constriction back
@@ -533,7 +647,20 @@ check("voiceless stops are aspirated", () => {
   // d and k as t, all three. Measured on the OUTPUT by periodicity, because an energy
   // threshold is tripped instantly by a loud broadband burst and reports zero every time.
   const V = H.P.VOICES.john.v, n = Math.round(V.sect);
-  const lowband = (buf, i, L = 512) => {          // the voice bar, 60-350 Hz
+  // WINDOW LENGTH. This probe used L=512, which at 44.1 kHz is 11.6 ms — about ONE pitch
+  // period of John's 95 Hz voice. A window that short measures where the glottal pulse
+  // happens to fall inside it, not how much voice bar there is: swept across a single steady
+  // vowel it returns anywhere from 4.9 to 31, a 6x swing, and it did that identically before
+  // and after the change that exposed it. So `ref` below, sampled at one arbitrary instant,
+  // was a coin flip, and the check passed or failed on where the midpoint happened to land.
+  //
+  // This is the third time the rule in ROADMAP's "On flaky checks" has been needed and the
+  // first time the random process was not noise but the pulse train itself. Measured ripple
+  // across a steady vowel by window length: 512 -> 6.2x, 1024 -> 1.29x, 1536 -> 1.05x,
+  // 2048 -> 1.05x, 3072 -> 1.25x (it rises again as the window outgrows the steady part).
+  // 1536 is 35 ms, 3.3 periods, and it is flat.
+  const L_WIN = 1536;
+  const lowband = (buf, i, L = L_WIN) => {        // the voice bar, 60-350 Hz
     let s = 0;
     for (let f = 60; f <= 350; f += 25) {
       let r = 0, m = 0;
@@ -543,26 +670,41 @@ check("voiceless stops are aspirated", () => {
       }
       s += r*r + m*m;
     }
-    return s;
+    return s/(L*L);                               // normalised, so the window length is free
   };
   const vot = {};
   for (const c of ["b","p","d","t","g","k"]) {
     const { buf, seg } = H.say(["ɑ", c, "ɑ"], { D: 0.9, voice: V, n });
     const s = seg.find(x => x.sym === c), v2 = seg[2];
-    const ref = lowband(buf, Math.floor((v2.a + v2.b)/2*H.SR));
+    // MEDIAN over the steady part of the vowel, not one sample of it. Taking a single
+    // instant is what made this flaky; taking the middle of a sorted set is immune both to
+    // where the pulse lands and to how long the vowel happens to be.
+    const r = [];
+    for (let t = v2.a + 0.05; t < v2.b - 0.06; t += 0.01) r.push(lowband(buf, Math.floor(t*H.SR)));
+    r.sort((a, b) => a - b);
+    const ref = r[r.length >> 1];
     const from = Math.floor(s.b*H.SR), step = Math.floor(H.SR*0.005);
     // The bar must be SUSTAINED. A single-frame threshold is tripped by the burst itself,
     // which is loud and broadband, and duly reported 0 ms for every stop in the inventory.
     let run = 0, on = from + Math.floor(H.SR*0.25);
     for (let i = from; i < from + Math.floor(H.SR*0.25); i += step) {
-      if (lowband(buf, i) > ref*0.30) { if (++run >= 4) { on = i - 3*step; break; } }
+      if (lowband(buf, i) > ref*0.45) { if (++run >= 4) { on = i - 3*step; break; } }
       else run = 0;
     }
     vot[c] = (on - from)/H.SR*1000;
   }
-  // Calibrated against a build with the VOT line deleted, not guessed. This one reads
-  // 10-15 ms voiced against 75-105 voiceless; with VOT removed every stop falls into the
-  // voiced band. The 35/50 split sits in the empty gap between the two clusters.
+  // Recalibrated against the same ablation the original used — HOLLER_PATCH deleting the VOT
+  // line — because fixing the window changed what `ref` is worth and therefore what fraction
+  // of it means "voiced again". At 0.45:
+  //
+  //     VOT present   voiced b10 d0-10 g0-10   voiceless p65 t70-75 k95
+  //     VOT ablated   voiced b10 d0    g0      voiceless p35 t35    k35
+  //
+  // The voiceless cluster collapses to 35 ms when the line is removed, which is the empty gap
+  // the original bands were drawn around — so THE BANDS DO NOT MOVE. 35/50 still separates,
+  // now with 25 ms of margin below and 15 above instead of passing by luck. Five consecutive
+  // runs agree, per the flaky-check rule, and they agree with the duration weighting both on
+  // and off — which is how it was established that Phase 8.1 does not touch VOT.
   const bad = [];
   for (const c of ["b","d","g"]) if (vot[c] > 35) bad.push(`${c} ${vot[c].toFixed(0)}ms (voiced, want <35)`);
   for (const c of ["p","t","k"]) if (vot[c] < 50) bad.push(`${c} ${vot[c].toFixed(0)}ms (voiceless, want >50)`);

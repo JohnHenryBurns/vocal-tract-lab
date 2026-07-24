@@ -29,6 +29,14 @@ const G2P_RULES = [
   [/^tion/,      ['ʃ','ə','n']],
   [/^sion/,      ['ʃ','ə','n']],
   [/^ought/,     ['ɔ','t']],
+  // "augh" is two different vowels and NOTHING in the spelling says which: "daughter" is
+  // /dɔtɝ/ and "laughter" is /læftɝ/. The rule used to be /æf/ unconditionally, so daughter
+  // came out d-æ-f-t-ɝ and "taught" came out "taft". Before a /t/ the majority is /ɔ/ —
+  // taught, caught, naught, fraught, naughty, slaughter, onslaught, daughter — so that is
+  // the rule, and the /æf/ side of it is a closed set of five words that goes in the
+  // dictionary where lexical facts belong. Longest pattern first, so this must precede
+  // the bare "augh" that still serves "laugh" and "laughing".
+  [/^aught/,     ['ɔ','t']],
   [/^augh/,      ['æ','f']],
   [/^igh/,       ['aɪ']],
   [/^tch/,       ['t','ʃ']],
@@ -92,19 +100,150 @@ const G2P_RULES = [
   [/^w/, ['w']], [/^z/, ['z']],
 ];
 
+// ─── PHASE 8.0: SYLLABLES AND STRESS ─────────────────────────────────────────
+// Nothing below changes a single sound. It adds a channel.
+//
+// Duration, per-segment amplitude, accent placement and vowel reduction all need to know
+// which syllable is stressed, and none of them can be built until something says so. This
+// says so. It is ADDED to the return value rather than replacing it: `{ph, from}` is
+// untouched, `syl` and `stress` are new keys, so every existing consumer keeps working
+// without being edited. That is deliberate — a step that both adds a channel and changes the
+// existing one cannot be bisected when it goes wrong.
+
+const NUCLEI = new Set(['i','ɪ','ɛ','æ','ʌ','ɑ','ɔ','ʊ','u','ɝ','ə','o',
+                        'aɪ','aʊ','ɔɪ','eɪ','oʊ']);
+
+// Which consonant clusters English allows at the START of a syllable. This is the whole of
+// the maximum-onset principle: given a run of consonants between two vowels, as many as can
+// legally begin a syllable go to the RIGHT one, and the remainder is the left one's coda.
+// So "atlas" splits æt·ləs, because /tl/ cannot start an English syllable, while "better"
+// splits bɛ·tɝ, because /t/ can.
+function legalOnset(c){
+  if(c.length===0) return true;
+  if(c.length===1) return c[0]!=='ŋ';              // /ŋ/ never begins a syllable
+  if(c.length===2){
+    const a=c[0], b=c[1];
+    // This inventory spells the affricates as two symbols, so /tʃ/ arrives here as t+ʃ.
+    // Without these two lines "kitchen" would split kɪtʃ·ən instead of kɪ·tʃən.
+    if(a==='t'&&b==='ʃ') return true;
+    if(a==='d'&&b==='ʒ') return true;
+    if(a==='s'&&'ptkfmnlwj'.includes(b)) return true;
+    if('pbtdkgfvθʃ'.includes(a)&&b==='r') return true;
+    if('pbkgfs'.includes(a)&&b==='l') return true;
+    if('ptkbdgmnfvhs'.includes(a)&&b==='j') return true;   // the /j/ of music, few, cute
+    if('tdkgsθ'.includes(a)&&b==='w') return true;
+    return false;
+  }
+  // Three is the English maximum and it is always s + voiceless stop + liquid or glide:
+  // splash, spring, street, scream, square.
+  if(c.length===3) return c[0]==='s' && 'ptk'.includes(c[1]) && legalOnset(c.slice(1));
+  return false;
+}
+
+// Split a phone string into syllables. Returns [] for a word with no vowel in it, which is a
+// real case ("hmm", "shh") and must not throw.
+function syllabify(ph){
+  const nuc=[];
+  for(let i=0;i<ph.length;i++) if(NUCLEI.has(ph[i])) nuc.push(i);
+  if(!nuc.length) return [];
+  const syl=[];
+  for(let s=0;s<nuc.length;s++){
+    const here=nuc[s];
+    const on = s===0 ? ph.slice(0,here)                    // whatever begins the word
+                     : null;                               // filled in by the split below
+    syl.push({on:on||[], nuc:ph[here], cod:[], i:here});
+  }
+  for(let s=0;s<nuc.length;s++){
+    const here=nuc[s];
+    if(s===nuc.length-1){ syl[s].cod=ph.slice(here+1); break; }   // the rest of the word
+    const run=ph.slice(here+1, nuc[s+1]);
+    // Longest legal onset wins — that is the maximal onset principle, stated directly.
+    let k=Math.min(3,run.length);
+    while(k>0 && !legalOnset(run.slice(run.length-k))) k--;
+    syl[s].cod   = run.slice(0, run.length-k);
+    syl[s+1].on  = run.slice(run.length-k);
+  }
+  return syl;
+}
+
+// ---- where the stress goes ----
+// English stress is lexical: it is a property of the word, not derivable from it. What IS
+// derivable is the large patterned subset, because a handful of suffixes reliably pull stress
+// to a fixed distance from the end of the word regardless of what the rest of it is.
+const STRESS_FINAL   = /(ee|eer|ese|ette|esque|oon)$/;              // employee, cartoon
+const STRESS_ANTEPEN = /(ity|ify|ical|logy|graphy|ometer|itive|ible|ular)$/;  // possiBILity
+const STRESS_PENULT  = /(tion|sion|ic|ial|ian|ious|eous|uous|cial|tial)$/;    // creAtion
+// The heuristic will be wrong, and where it is wrong the honest fix is a list rather than a
+// cleverer rule. A real system carries stress in the lexicon; this is the small end of that.
+// WEAK_FIRST is NOT reused here, deliberately, and the smoke test is why. It matches "a" in
+// *atlas* and "be" in *better*, so driving stress from it gives at-LAS and be-TTER. It is too
+// loose because it only requires three more letters, and it is too loose in the SAME way for
+// its original job — "better" already spells to b-ə-t-ɝ today, which is a pre-existing bug
+// filed under Open faults, not one to fix inside a step that promises to change no sounds.
+//
+// The regularity it is missing: an unstressed first syllable is open, so the prefix is
+// followed by a consonant and then a VOWEL. a-bout, a-gain, a-rena, be-cause, to-gether,
+// com-puter. Where the next two letters are two consonants, the first syllable is closed and
+// therefore stressed: at-las, ap-ple, ac-tor, an-gry, bet-ter, red-dish. One lookahead.
+//
+// The Latin prefixes end in a consonant themselves, so they satisfy this unchanged, and they
+// are left out of the alternation anyway: "at" and "ac" would let the regex backtrack out of
+// a blocked "a" and match after all, which is how atlas slipped through the first version.
+const WEAK_STRESS = /^(a|be|de|re|to|pro|com|con|sub|sur|per)(?=[^aeiouy][aeiouy])/;
+const STRESS_DICT = {
+  banana:1, potato:1, tomato:1, hello:1, guitar:1, about:1, machine:1,
+  police:1, hotel:1, umbrella:1, spaghetti:1, vanilla:1, gorilla:1,
+  tornado:1, volcano:1, piano:1, arena:1, agenda:1, solana:1, orion:1,
+};
+function stressIndex(word, nsyl){
+  if(nsyl<=1) return 0;
+  const w=String(word||'').toLowerCase().replace(/[^a-z]/g,'');
+  if(STRESS_DICT[w]!==undefined) return Math.min(STRESS_DICT[w], nsyl-1);
+  const clamp=i=>Math.max(0,Math.min(nsyl-1,i));
+  if(STRESS_FINAL.test(w))   return clamp(nsyl-1);
+  // Antepenultimate before penultimate: "logical" ends in -ical, and testing -ic first would
+  // never fire on it, but the ordering costs nothing and the reverse would be a silent trap.
+  if(STRESS_ANTEPEN.test(w)) return clamp(nsyl-3);
+  if(STRESS_PENULT.test(w))  return clamp(nsyl-2);
+  if(WEAK_STRESS.test(w))    return clamp(1);
+  return 0;                                    // English defaults to initial stress
+}
+
+// One entry per phone, carrying the stress level of the syllable it belongs to.
+// Parallel to `ph` so a consumer can index straight across without re-deriving anything.
+// 1 = primary, 0 = unstressed. Secondary stress is not modelled yet.
+function markStress(word, ph){
+  const syl=syllabify(ph);
+  const stress=new Array(ph.length).fill(0);
+  if(!syl.length) return {syl, stress, primary:-1};
+  const primary=stressIndex(word, syl.length);
+  syl.forEach((s,i)=>{ s.stress = i===primary?1:0; });
+  // Walk the phones back onto their syllables. Every phone belongs to exactly one, because
+  // syllabify partitions the string — onsets, nuclei and codas together cover it with no gap.
+  let at=0;
+  syl.forEach(s=>{
+    const len=s.on.length+1+s.cod.length;
+    for(let i=at;i<at+len && i<ph.length;i++) stress[i]=s.stress;
+    at+=len;
+  });
+  return {syl, stress, primary};
+}
+
 const PAUSE=' ';                    // a word boundary in the sound chain
 function g2p(phrase){
   // A space is a word boundary. Each word is looked up on its own, then joined by a pause.
   const words=String(phrase||'').trim().split(/\s+/).filter(Boolean);
   if(words.length>1){
-    const out=[]; let from='rules';
+    const out=[], st=[], syl=[]; let from='rules';
     words.forEach((w,i)=>{
       const r=g2pWord(w);
       if(r.from==='remembered'||r.from==='built in') from=r.from;
-      if(i) out.push(PAUSE);
+      if(i){ out.push(PAUSE); st.push(0); }      // a boundary belongs to no syllable
       out.push(...r.ph);
+      st.push(...r.stress);
+      syl.push(...r.syl);
     });
-    return {ph:out, from: words.length+' words'};
+    return {ph:out, from: words.length+' words', stress:st, syl};
   }
   return g2pWord(words[0]||'');
 }
@@ -112,10 +251,18 @@ function g2p(phrase){
 // first syllable is highly patterned: a-bout, a-gain, be-cause, com-puter, to-gether. Catching
 // those prefixes fixes most of it without needing a stress model.
 const WEAK_FIRST=/^(a|be|com|con|de|re|to|pro|per|sur|sup|suc|o[bcf]|ac|ad|al|as|at|ef|em|en|ex|im|in|ob|oc|op|pre|sub)(?=[a-z]{3,})/;
+// Attach the syllable and stress channel to a speller result. One place, so the dictionary
+// path and the rules path cannot drift — which is the same mistake buildWord's near-copy in
+// the harness was, and it is worth not making twice.
+function withStress(word, res){
+  const m=markStress(word, res.ph);
+  return {...res, syl:m.syl, stress:m.stress, primary:m.primary};
+}
 function g2pWord(word){
   let w=String(word||'').toLowerCase().replace(/[^a-z]/g,'');
+  const spelling=w;                    // w is consumed by the rule loop below; stress needs it
   const dict=loadDict();
-  if(dict[w]) return {ph:dict[w].slice(), from: BUILTIN_DICT[w]?'built in':'remembered'};
+  if(dict[w]) return withStress(spelling, {ph:dict[w].slice(), from: BUILTIN_DICT[w]?'built in':'remembered'});
   const out=[];
   let guard=0;
   // reduce the vowel of a weak first syllable before the rules see it
@@ -152,7 +299,7 @@ function g2pWord(word){
   // collapse doubled consonants, which English spells but does not say
   const clean=[];
   for(const ph of out) if(!(clean.length && clean[clean.length-1]===ph && !'iɪɛæʌɑɔʊuɝəo'.includes(ph))) clean.push(ph);
-  return {ph:clean, from:'rules'};
+  return withStress(spelling, {ph:clean, from:'rules'});
 }
 
 const BUILTIN_DICT = {
@@ -160,6 +307,9 @@ const BUILTIN_DICT = {
   // voiced ones are almost all function words — a short list covers most of the language.
   // The words English simply does not spell phonetically. Rules reach about 60%; the rest
   // is memorised, by people as much as by programs.
+  // "augh" is /ɔ/ by rule; these are the words where it is not. See the aught rule above.
+  laughter:['l','æ','f','t','ɝ'], laughed:['l','æ','f','t'], draught:['d','r','æ','f','t'],
+  draughts:['d','r','æ','f','t','s'], laughs:['l','æ','f','s'],
   hello:['h','ə','l','oʊ'], hi:['h','aɪ'], hey:['h','eɪ'],
   because:['b','ɪ','k','ɔ','z'], again:['ə','g','ɛ','n'], any:['ɛ','n','i'],
   many:['m','ɛ','n','i'], said:['s','ɛ','d'], says:['s','ɛ','z'],
@@ -210,6 +360,7 @@ function saveWord(word,ph){
 }
 
 root.HOLLER_SPELL = { G2P_RULES, BUILTIN_DICT, PAUSE, WEAK_FIRST,
+                  NUCLEI, STRESS_DICT, WEAK_STRESS, legalOnset, syllabify, stressIndex, markStress,
                   g2p, g2pWord, loadDict, saveWord, useStorage };
 if (typeof module !== 'undefined' && module.exports) module.exports = root.HOLLER_SPELL;
 
