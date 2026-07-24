@@ -908,6 +908,79 @@ vary two or three.
 
 ---
 
+## What the ear said
+
+A listening pass over the twelve bench phrases, John's voice, defaults. Recorded because the
+notes decompose into far fewer causes than complaints, and because "it sounds robotic" is not
+actionable until you know which eight phrases said it.
+
+**"Robotic", on eight of twelve.** The dominant note by a wide margin. Two known causes, both
+unbuilt: pitch contributes *nothing* to stress — `eff` is a fixed arch across the utterance —
+and every articulator comes to a dead stop at every keyframe, because `u*u*(3-2u)` has zero
+derivative at both ends. That is 8.4 and Phase 9, in that order, which is where they already sat.
+
+**"payter peeper", "lah-zee".**  ✅ fixed — a list, not a rule. See Open faults.
+
+**The lateral is an approximant, and it should be a contact.**  See below; this turned out to be
+the most interesting thing in the notes.
+
+**Pops at word boundaries**, reported in three phrases. Measured: the loudest transient in each
+is only 3-4× the signal's own motion, where a stop burst is 174%. So these are *not* broadband
+clicks and the existing click check is right not to fire. The lead is that `vl` and `sil` are
+**step functions** — `this.voiceless=(u<0.5?a.vl:b.vl)` flips at the keyframe midpoint rather
+than interpolating, and `if(this.silNow) flow=0` is a hard gate. `vAmp` smooths at about 5.7 ms,
+which is fast enough to be heard as a click. That would put pops exactly where they were
+reported: word boundaries, and either side of /f/ and /s/. Cheap to test, not yet tested.
+
+**/dʒ/ heard as a noisy "sh"**, twice. It is spelled `d`+`ʒ` and nothing binds a stop release to
+a following fricative, so no affricate ever forms — two separate sounds in a row.
+
+**/h/ too quiet and the final /oʊ/ of "hello" does not trail off**, twice.
+
+**"world" as "murd", "brown" unintelligible.** Both are liquid clusters. Same family as the
+lateral finding, probably the same cause.
+
+**"the m of *mother* is lost, the m of *my* is fine."** Word-initial nasal after a vowel across a
+boundary. Suspected to be the same pause handling as the pops — 8.5.
+
+---
+
+## The lateral has no contact  ❌ not started
+
+Observed by ear, from outside the project: *when a person says /l/ their tongue flicks against
+the teeth.* It does, and the model has no such thing. Measured, narrowest diameter in the tract:
+
+| | min diameter | position |
+|---|---|---|
+| /d/ /t/ /n/ | **0.020 — sealed** | 81% of the way to the lips |
+| **/l/** | **0.477** | 84% |
+| /w/ | 0.430 | 95% |
+
+**The model's /l/ is less constricted than its /w/.** A real /l/ is a *complete* midline closure
+at the alveolar ridge — the same place /d/, /t/ and /n/ seal — with the sides of the tongue
+lowered so the air escapes laterally. Here the midline stays open at approximant width and the
+side branch is a decoration on top of it rather than the only path the air has.
+
+That single fact explains a lot at once. It is why the lateral "slurs"; it is why *world* comes
+out as *murd* when its /l/ is wider than its /w/; and it is why there is no flick, because there
+is no contact to break. The check that says "the lateral is not a /w/" passes on the static
+transfer function with the branch open, and is measuring the branch rather than the articulation.
+
+**What the fix has to be.** The topology, not the numbers. Today's branches are dead-end pockets
+that tap in and reflect — right for the pocket that gives /l/ its zero, wrong for the channel
+that carries the flow. A lateral wants the main tube SEALED at the tip and a **shunt** that
+leaves the tube before the seal and rejoins it after: a branch with two junctions rather than
+one. The closed pocket stays, for the zero. Then the release is a genuine seal-and-break, which
+is the flick, and it comes free from the same machinery the stops already use.
+
+This also gives dark /l/ somewhere to live (8.7): light and dark differ in the tongue *body*
+while both make the same tip contact, which is not expressible while the tip is an approximant.
+
+Not small. It is the first branch topology change since the nasal tract, and the gate band for
+the lateral will move because the thing being measured will have changed. Its own branch.
+
+---
+
 ## Phase 9 — interpolate in articulatory space  ❌ not started
 
 `buildWord` already emits an `art` array of six-parameter postures alongside the 44-element
@@ -1163,6 +1236,18 @@ to `ph`, so the first time that filter removes something while 8.1 is live, ever
 after it is off by one and the symptom will be a duration bug with no obvious cause. **8.1
 must filter both arrays in lockstep, or not filter at all.** Written down now because this is
 exactly the class of bug that costs a weekend.
+
+**Open stressed syllables take the long vowel, and it is not a rule.**  ✅ handled as a list.
+*peter* wants /i/, *piper* /aɪ/, *lazy* /eɪ/ — a stressed syllable with no coda takes the long
+vowel, which is the same mapping magic-e encodes. Tested before writing the rule:
+
+    long   peter piper lazy baby table tiger paper later final open robot
+    short  city river seven model lemon cabin robin solid second busy many banana
+
+Identical shape, opposite answers, nothing in the letters to separate them. The rule would have
+fixed eleven and broken twelve, and the twelve are right today because "short" is what the plain
+letter rules already give. So it is a list of thirty. **Both halves are gated** — the short
+column is asserted unchanged, so a later attempt at the tempting rule fails loudly.
 
 **Three speller faults the phrase list turned up, all left unfixed on purpose.**
 
