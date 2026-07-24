@@ -511,6 +511,71 @@ report("open vowels carry more than close ones, from the tube alone", () => {
            order.map(([s,v]) => s + (v-top).toFixed(1)).join(" ") };
 });
 
+// ── the prosody knobs are reachable ────────────────────────────────────────
+check("every prosody knob is swept, seeded and does something", () => {
+  const P = H.P, S = require(__dirname + "/../engine/spelling.js");
+  const bad = [], r = S.g2p("banana and a tomato"), D = 1.6;
+  const durs = pros => P.buildWord(r.ph, { D, n: 44, stress: r.stress, pros })
+                        .seg.filter(s => s.sym !== " ").map(s => s.b - s.a);
+  // Split by what they move. wklev is a LEVEL knob and changes no duration at all, so putting
+  // it through the duration loop would demand it do something it is not for. Caught by this
+  // check on its first run, which is the argument for writing it this way.
+  const DUR_KNOBS = ["vlen","coda","wkdur","fnl","poly","stopVc","apw"];
+  const LEV_KNOBS = ["wklev"];
+  const KNOBS = [...DUR_KNOBS, ...LEV_KNOBS];
+
+  // 1. Passing the published defaults must be BIT-IDENTICAL to passing nothing. This is the
+  //    whole claim of the refactor — it exposed the constants, it did not retune them — and
+  //    if it ever stops being true, every band tuned before today was tuned against
+  //    something else. Exact, not tolerant: the scaling form was chosen so unity is exact.
+  const none = P.buildWord(r.ph, { D, n: 44, stress: r.stress });
+  const dflt = P.buildWord(r.ph, { D, n: 44, stress: r.stress, pros: P.defaultVoice() });
+  if (JSON.stringify(none.seg) !== JSON.stringify(dflt.seg) ||
+      JSON.stringify(none.keys.map(k => [k.t, k.lv])) !== JSON.stringify(dflt.keys.map(k => [k.t, k.lv])))
+    bad.push("defaults are not identical to no-pros");
+
+  // 2. Each one is in VOICE_SPEC — otherwise it cannot be swept, seeded or set per voice,
+  //    which is the entire point — and each one actually moves the output when turned to the
+  //    end of its range. A knob that is wired but inert is worse than one that is missing.
+  const spec = Object.fromEntries(P.VOICE_SPEC.map(p => [p.k, p]));
+  const base = durs(P.defaultVoice());
+  for (const k of LEV_KNOBS) if (!spec[k]) bad.push(`${k} not in VOICE_SPEC`);
+  for (const k of DUR_KNOBS) {
+    if (!spec[k]) { bad.push(`${k} not in VOICE_SPEC`); continue; }
+    const moved = durs({ ...P.defaultVoice(), [k]: spec[k].lo }).some((v, i) => v !== base[i])
+               || durs({ ...P.defaultVoice(), [k]: spec[k].hi }).some((v, i) => v !== base[i]);
+    if (!moved) bad.push(`${k} changes nothing across its range`);
+  }
+  // wklev moves level, not duration, so it is checked on the keyframes instead.
+  const lv = p => P.buildWord(r.ph, { D, n: 44, stress: r.stress, pros: p }).keys.map(k => k.lv);
+  if (JSON.stringify(lv({ ...P.defaultVoice(), wklev: 1 })) === JSON.stringify(lv(P.defaultVoice())))
+    bad.push("wklev changes nothing");
+
+  // 3. The seed carries them. Same codec index.html uses; a knob outside the seed is a knob
+  //    that vanishes the moment a good voice is copied out and pasted back.
+  const SPEC = P.VOICE_SPEC;
+  const enc = v => SPEC.map(p => Math.max(0, Math.min(1295,
+      Math.round((v[p.k]-p.lo)/(p.hi-p.lo)*1295))).toString(36).padStart(2,"0")).join("");
+  const dec = s => { const v = P.defaultVoice();
+      for (let i = 0; i < Math.min(SPEC.length, s.length/2); i++)
+        v[SPEC[i].k] = SPEC[i].lo + (parseInt(s.substr(i*2,2),36)/1295)*(SPEC[i].hi-SPEC[i].lo);
+      return v; };
+  const tuned = { ...P.defaultVoice(), vlen:0.4, coda:1.7, wkdur:0.45, wklev:0.8,
+                  fnl:1.5, poly:0.25, stopVc:1.8, apw:0.6 };
+  const back = dec(enc(tuned));
+  for (const k of KNOBS)
+    if (Math.abs(back[k]-tuned[k])/(spec[k].hi-spec[k].lo) > 1/1295)
+      bad.push(`${k} does not survive the seed`);
+  // Appended rather than inserted, so a seed written before the prosody knobs existed still
+  // loads and the new ones take their published values.
+  const older = dec(enc(P.defaultVoice()).slice(0, 36));
+  for (const k of KNOBS) if (older[k] !== spec[k].d) bad.push(`old seed broke ${k}`);
+
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : `${KNOBS.length} knobs live, defaults identical, ${SPEC.length*2}-char seed round-trips` };
+});
+
 check("no word clicks", () => {
   // A stop release is a transient, but an outlier far above the signal's own motion is a
   // click. The white-noise burst once measured 13.5x.

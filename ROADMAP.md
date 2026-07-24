@@ -851,6 +851,63 @@ rather than on top of it.
 
 ---
 
+## The prosody knobs are in the voice  ✅ built
+
+Everything 8.1 to 8.3 introduced was a module constant in `phonemes.js`, which meant the one
+part of the model that most needs an ear could not be swept, could not be seeded, and could not
+differ between voices. Phase 1's thesis is that the first job is making evaluation cheap; this
+is that, applied to a layer which did not exist when Phase 1 was written.
+
+Eight entries appended to `VOICE_SPEC`:
+
+| | | default |
+|---|---|---|
+| `vlen` | how much intrinsic vowel length varies | 1 |
+| `coda` | how strongly a coda lengthens the vowel | 1 |
+| `wkdur` | unstressed syllable duration | 0.60 |
+| `wklev` | unstressed syllable level | 0.65 |
+| `fnl` | final lengthening | 1.25 |
+| `poly` | shortening per extra syllable | 0.12 |
+| `stopVc` | voiceless/voiced closure ratio | 1.5 |
+| `apw` | approximant weight against a reference vowel | 0.34 |
+
+**Scalars over the published tables, not the tables themselves.** Twelve vowel durations as
+twelve knobs is a search space nobody can walk, and the question an ear asks is not "what should
+/ɔ/ be" but "is the vowel-length effect too strong". So 1 means the measured values and 0 means
+the effect is off — which makes each of these a **bisection tool** as well as a tuning knob:
+turn one to 0 and that part of Phase 8 is gone, continuously, without touching code.
+
+`stopVc` splits around a mean of 1 rather than scaling one side, so changing the ratio moves the
+voiced/voiceless split without moving how much time stops take altogether. Otherwise it would
+quietly have been a speaking-rate knob as well.
+
+They arrive at `buildWord` as one `pros` object rather than eight arguments, so 8.4's knobs can
+join without touching a call site again — and a voice *is* that object, since every key is in
+`VOICE_SPEC`.
+
+Appended rather than inserted, so every seed written before today still loads with the new knobs
+at their published values. The seed is now 52 characters.
+
+**Gated on the thing that matters:** passing the defaults is bit-identical to passing nothing.
+This exposed the constants, it did not retune them, and if that ever stops being true then every
+band tuned before today was tuned against something else. Exact rather than tolerant — the
+scaling form was chosen so that unity is exact in floating point, which was checked before it
+was relied on.
+
+### When to sweep
+
+Not yet. Perceived stress is carried jointly by duration, level and pitch, and pitch currently
+contributes nothing — `eff` is a fixed arch across the utterance that ignores stress entirely.
+Dial `wkdur` and `wklev` by ear now and they will be over-dialled, because the ear compensates
+for the missing third cue; then 8.4 lands and everything is too much, with no way to tell which
+of the three is wrong. Sweep after **8.4's accent-alignment step** specifically — semitone
+interpolation and consonant perturbation do not create the confound, accent alignment does.
+
+Note that eight more knobs is a much larger space than the tournament was built for. Fix most,
+vary two or three.
+
+---
+
 ## Phase 9 — interpolate in articulatory space  ❌ not started
 
 `buildWord` already emits an `art` array of six-parameter postures alongside the 44-element
