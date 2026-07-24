@@ -672,6 +672,7 @@ function buildWord(chain, opts){
   const wkdur = P_('wkdur', UNSTRESSED), wklev = P_('wklev', UNSTRESSED_LEVEL);
   const fnl = P_('fnl', FINAL_LENGTH), stopVc = P_('stopVc', 1.5);
   const apw = P_('apw', 0.34) * APPROX_REF;
+  const gcap = P_('gcap', 0.5);
   const base  = sym => baseFor(sym, vart);
   const shape = sym => articulate(base(sym), n);
   const isStop=c=>STOP_KEYS.includes(c), isAp=c=>APPROX.includes(c);
@@ -680,9 +681,14 @@ function buildWord(chain, opts){
   // which is the same invariant 8.1 holds and the reason no other gate band moves.
   const stopTime=chain.filter(isStop).reduce((a,c)=>a+closureFor(c,stopHold,stopVc),0);
   // transitions into a consonant are fast; a slow approach to /l/ just sounds like /w/
-  const glideFor=(i)=> (i>0 && isPause(chain[i-1])) ? 0
+  const rawGlide=(i)=> (i>0 && isPause(chain[i-1])) ? 0
                      : (i>0 && (isStop(chain[i])||isAp(chain[i]))) ? glide*0.45 : glide;
-  let glides=0; for(let i=1;i<chain.length;i++) glides+=glideFor(i);
+  // A glide may not outlast what it joins. This needs the durations, and the durations need the
+  // total glide time, so it is done in two passes: size everything with the uncapped glide,
+  // then cap against those durations and size again. One iteration is enough — the second pass
+  // only ever RETURNS time to the pool, so durations grow and the caps would only loosen.
+  let glideOf=(i)=>rawGlide(i);
+  const glideFor=(i)=>glideOf(i);
   const vw=[];                            // weights over everything that is held
   let first=true;
   // Phase 8.1. Where every weight used to be 1, five measured effects now set it. The
@@ -706,7 +712,26 @@ function buildWord(chain, opts){
   });
   const wsum=vw.reduce((a,b)=>a+b,0)||1;
   const held=chain.filter(c=>!isStop(c)&&!isPause(c)).length;
-  let pool=Math.max(0.12*Math.max(held,1), D-stopTime-glides);
+  const sizeUp=()=>{
+    let g=0; for(let i=1;i<chain.length;i++) g+=glideFor(i);
+    const p=Math.max(0.12*Math.max(held,1), D-stopTime-g);
+    const out=[]; let k2=0;
+    chain.forEach((sym,i)=>{ out[i]= isPause(sym) ? 0
+      : isStop(sym) ? closureFor(sym,stopHold,stopVc) : p*vw[k2++]/wsum; });
+    return {pool:p, durs:out};
+  };
+  let sized=sizeUp();
+  if(gcap < 3){
+    const d0=sized.durs;
+    glideOf=(i)=>{
+      const raw=rawGlide(i);
+      if(i<1) return raw;
+      const near=Math.min(d0[i-1]||raw, d0[i]||raw);
+      return Math.min(raw, near*gcap);
+    };
+    sized=sizeUp();
+  }
+  let pool=sized.pool;
   const keys=[], art=[], seg=[]; let t=0, k=0;
   chain.forEach((sym,i)=>{
     if(isPause(sym)){

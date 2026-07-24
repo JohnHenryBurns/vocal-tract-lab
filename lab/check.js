@@ -333,7 +333,11 @@ check("duration follows the segments, not a flat share", () => {
   //    own sum — lengthening the vowel takes time from the schwa. That compression is the
   //    documented consequence of D being an absolute duration; see 8.1b.
   const A = held(["b","æ","d","ə"], D), B = held(["b","æ","t","ə"], D);
-  near((A.seg[0].b-A.seg[0].a)/(B.seg[0].b-B.seg[0].a), 1.199, 0.05, "bad/bat vowel ratio");
+  //    1.285, not the 1.199 measured before the glide cap. That band moved for a stated
+  //    reason and in the right direction: capping the glide returns time to the pool, so less
+  //    of the 1.50 in the table is compressed away by the normalisation, and the measured
+  //    ratio moves TOWARD the truth rather than away from it.
+  near((A.seg[0].b-A.seg[0].a)/(B.seg[0].b-B.seg[0].a), 1.285, 0.05, "bad/bat vowel ratio");
   //    ...and the word is the same length either way. The rhythm moves, the rate does not.
   //    Compared with a tolerance rather than ===. It was exact until 8.2 gave voiced and
   //    voiceless stops different closures: the two chains now sum the same total along
@@ -362,6 +366,29 @@ check("duration follows the segments, not a flat share", () => {
   for (let i = 0; i < s1.length; i++) for (let j = 0; j < s1.length; j++)
     drift = Math.max(drift, Math.abs((s1[i]/s1[j]) - (s2[i]/s2[j]))/(s1[i]/s1[j]));
   if (drift > 1e-9) bad.push(`ratios drift with D by ${drift.toExponential(1)}`);
+
+  // 4b. NO SEGMENT MAY BE SHORTER THAN THE GLIDE INTO IT. `glide` is an absolute time that
+  //     never scaled with what it joined; 8.1 made unstressed segments short and walked into
+  //     it, leaving the tract still travelling toward a target when it was told to leave for
+  //     the next one. That is what slur is, and it is why Phase 8 was not a net improvement
+  //     until this was capped. Measured inside words only — a pause is silence, not transit,
+  //     and counting it was what made the first version of this metric read the same in every
+  //     condition.
+  {
+    const rr = S.g2p("banana and a tomato");
+    const WW = P.buildWord(rr.ph, { D: 2.0, n: 40, stress: rr.stress, pros: v,
+                                    glide: v.glide, stopHold: v.stopT, drawl: v.drawl });
+    let starved = 0, arr = [];
+    for (let i = 1; i < WW.seg.length; i++) {
+      if (WW.seg[i].sym === " " || WW.seg[i-1].sym === " ") continue;
+      const dd = WW.seg[i].b - WW.seg[i].a, gg = WW.seg[i].a - WW.seg[i-1].b;
+      arr.push(Math.max(0, 1 - gg/dd));
+      if (gg >= dd) starved++;
+    }
+    const mean = arr.reduce((x,y) => x+y, 0)/arr.length;
+    if (starved) bad.push(`${starved} segments never reach their target`);
+    if (mean < 0.5) bad.push(`only ${(mean*100).toFixed(0)}% of segment time is spent at target`);
+  }
 
   // 5. The approximants must not drift as a side effect of rescaling the vowels. The first
   //    draft left /l/ at a bare 0.34 while a vowel went from 1 to about 1.5, and the /l/ of
@@ -643,12 +670,25 @@ check("pitch moves in semitones and accents land on stressed syllables", () => {
     const W2 = P.buildWord(ch, { D: 0.8, n: 44, stress: [1,1,1], pros: v });
     const f  = P.buildF0(W2.end, v, { stress: [1,1,1], seg: W2.seg });
     const vw = W2.seg[1];
+    const b2 = P.buildF0(W2.end, v);
+    const rd = (pts, t) => { if (t <= pts[0][0]) return pts[0][1];
+      for (let k = 1; k < pts.length; k++) if (t <= pts[k][0]) {
+        const [t0,v0] = pts[k-1], [t1,v1] = pts[k];
+        return t1 === t0 ? v1 : v0*Math.pow(v1/v0, (t-t0)/(t1-t0)); }
+      return pts[pts.length-1][1]; };
     return { on: f.find(x => Math.abs(x[0]-vw.a) < 1e-9)[1],
+             lift: 12*Math.log2(rd(f, vw.a)/rd(b2, vw.a)),
              peak: Math.max(...f.filter(x => x[0] >= vw.a && x[0] <= vw.b).map(x => x[1])) };
   };
+  //    Each chain against ITS OWN baseline, not against each other. Comparing the two onsets
+  //    directly was confounded: 8.2 gave /t/ and /d/ different closure durations, so the vowel
+  //    starts at a different time in each and the baseline is rising there — the check was
+  //    measuring perturbation plus baseline drift and happened to land near 1.9 anyway. The
+  //    glide cap moved the onsets further apart and the confound surfaced as a failure.
   const vl = onset(["t","ɑ","t"]), vd = onset(["d","ɑ","d"]);
-  const st = 12*Math.log2(vl.on/vd.on);
-  if (Math.abs(st - 1.9) > 0.2) bad.push(`perturbation ${st.toFixed(2)} st, want ~1.9`);
+  const st = vl.lift - vd.lift;
+  if (Math.abs(vl.lift - 1.2) > 0.05) bad.push(`after /t/ lifted ${vl.lift.toFixed(2)} st, want 1.2`);
+  if (Math.abs(vd.lift + 0.7) > 0.05) bad.push(`after /d/ lifted ${vd.lift.toFixed(2)} st, want -0.7`);
   // It must DECAY. If it did not, it would be an accent rather than microprosody, and the two
   // syllables would not reach the same peak.
   if (Math.abs(vl.peak - vd.peak) > 0.5) bad.push("perturbation does not decay before the accent");

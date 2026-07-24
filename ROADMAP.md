@@ -1075,6 +1075,59 @@ the lateral will move because the thing being measured will have changed. Its ow
 
 ---
 
+## Phase 8 was not a net improvement, and why  ✅ diagnosed and fixed
+
+Reported after a full listening pass: consonants better, roboticism reduced — and **more slur
+and more pops**, enough that the phase was a net loss. Both turned out to have one cause, and it
+was not in Phase 8 at all.
+
+`glide` is an **absolute** 85 ms. It has never scaled with the segments it connects. 8.1 shortened
+unstressed syllables to 0.60, which put several of them *below* 85 ms — and a segment shorter than
+the glide into it is one the tract is still travelling toward when it is told to leave for the
+next one. It never arrives. That is what slur is, and it lands on exactly the unstressed
+syllables where it was heard.
+
+Measured on "banana and a tomato", counting transitions inside words only:
+
+| | at target | never arrive | transients |
+|---|---|---|---|
+| Phase 8 off | 42% | 0 / 12 | 111 |
+| Phase 8 on | 36% | **3** | **154** |
+| on, glide 45 ms | 69% | 0 | 122 |
+| on, `gcap` 0.5 | 60% | 0 | — |
+
+The transient count going *up* with Phase 8 and back *down* with a shorter glide is the same
+story from the other side: with segments below the glide the articulators never stop moving, and
+a moving boundary in a waveguide does work on the wave.
+
+**The fix is `gcap`:** a transition may not exceed that fraction of the shorter segment it joins,
+default 0.5. Not a globally shorter glide — a long vowel still gets its full 85 ms; only the
+short ones get proportionally short transitions. It needs the durations and the durations need
+the glide total, so it is two passes; one iteration suffices, because the second pass only ever
+returns time to the pool, so durations grow and the caps only loosen.
+
+Word length is still exactly `D` wherever the pool floor is not active, verified across four
+values of `D`.
+
+### Two measurement lessons, both mine
+
+**The first two metrics I ran were artifacts.** The arrival metric counted the silence at word
+boundaries as transit, so every condition read identically and the effect was invisible. And I
+measured pops as a *maximum*, when the report was "more pops" — a count. Corrected, the count
+went 111 → 154 with Phase 8 on, which is what was heard. That is the fifth and sixth time in this
+project that a confident measurement has been the thing at fault.
+
+**A gate check was confounded, and the fix exposed it.** The consonant-perturbation check
+compared the vowel onset of /tɑt/ against /dɑd/ — but 8.2 gave those stops different closure
+durations, so the vowel starts at a different time in each and the baseline is rising there. It
+had been measuring perturbation *plus* baseline drift, and landing near the right answer by luck.
+Measured against each chain's own baseline it is exactly 1.20 and −0.70 semitones, in every
+condition. The `bad/bat` band did move for real — 1.199 → 1.285 — because returning time to the
+pool means less of the table's 1.50 is compressed away by normalisation. It moved **toward** the
+truth, and the band was rebased with that written down.
+
+---
+
 ## Phase 9 — interpolate in articulatory space  ❌ not started
 
 `buildWord` already emits an `art` array of six-parameter postures alongside the 44-element
