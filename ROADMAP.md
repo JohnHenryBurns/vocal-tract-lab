@@ -534,6 +534,23 @@ and you can watch it happen.
 
 ---
 
+## On flaky checks
+
+Twice now a check has passed and failed at random, and both times the cause was the same:
+**measuring a noise source once**. Frication is intermittent by design — the jet sheds eddies —
+so a single render of /ʃ/ can report anywhere from 42% to 77% of its energy above 3 kHz. A
+threshold anywhere in that range is a coin flip.
+
+The second time it slipped through and deployed, because the gate's own run happened to pass
+while a verification run failed. A flaky gate is worse than a failing one: it launders a
+problem into a green tick.
+
+The rule: **any check measuring a random process averages, over windows long enough to see
+several cycles of whatever makes it random.** Five consecutive runs must agree before it counts
+as stable.
+
+---
+
 ## The harness
 
 `node lab/check.js` — one command, one verdict, exit 0 means shippable. It drives the

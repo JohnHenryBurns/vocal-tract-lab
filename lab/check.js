@@ -91,13 +91,19 @@ check("nasals produce a murmur", () => {
 check("sibilants are shaped at every tract length", () => {
   // A short tract puts /s/ higher — correctly. Testing only 44 sections missed whether the
   // shorter voices (woman, child, helium) still produce a sibilant rather than a hiss.
+  // Frication is intermittent by design — a real jet sheds eddies — so a single render's
+  // band share swings by tens of points. Measured once, this check passes or fails at random,
+  // which it did. Average, and use enough window to see several eddies.
   const bad = [];
   for (const n of [19, 31, 37, 44, 48]) {   // every length a shipping voice uses
-    const x = H.sustain("s", { n, seconds: 1.3 });
-    const sp = H.spectrum(x, { lo: 500, hi: 11000, step: 250, hops: 16 });
-    const p = H.peakOf(sp);
-    const low = H.bandShare(sp, 500, 2500);
-    if (p.f < 3200 || low > 20) bad.push(`${n}:${p.f}Hz/${low.toFixed(0)}%`);
+    let pk = 0, low = 0;
+    for (let i = 0; i < 3; i++) {
+      const sp = H.spectrum(H.sustain("s", { n, seconds: 1.8 }),
+                            { lo: 500, hi: 11000, step: 250, hops: 22 });
+      pk += H.peakOf(sp).f; low += H.bandShare(sp, 500, 2500);
+    }
+    pk /= 3; low /= 3;
+    if (pk < 3200 || low > 20) bad.push(`${n}:${pk.toFixed(0)}Hz/${low.toFixed(0)}%`);
   }
   return { ok: bad.length === 0,
            note: bad.length ? "weak at " + bad.join(" ") : "sibilant from 19 to 52 sections" };
@@ -116,12 +122,13 @@ check("sibilant shape at the default length", () => {
   // fitting /ʃ/ honestly made the gate fail.
   for (const [sym, lo, hi, minHigh] of [["s", 3500, 6000, 80], ["ʃ", 1000, 4000, 35]]) {
     let pk = 0, high = 0;
-    for (let i = 0; i < 3; i++) {                 // averaged: it is a noise source
-      const sp = H.spectrum(H.sustain(sym, { seconds: 1.1 }),
-                            { lo: 400, hi: 9000, step: 200, hops: 10 });
+    const K = 4;                                  // /ʃ/ swings 42-77% between single renders
+    for (let i = 0; i < K; i++) {
+      const sp = H.spectrum(H.sustain(sym, { seconds: 1.8 }),
+                            { lo: 400, hi: 9000, step: 200, hops: 22 });
       pk += H.peakOf(sp).f; high += H.bandShare(sp, 3000, 9000);
     }
-    pk /= 3; high /= 3;
+    pk /= K; high /= K;
     if (pk < lo || pk > hi || high < minHigh) ok = false;
     notes.push(`${sym} ${pk.toFixed(0)}Hz ${high.toFixed(0)}% high`);
   }
