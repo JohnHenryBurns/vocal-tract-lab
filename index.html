@@ -1366,8 +1366,25 @@ class TractProcessor extends AudioWorkletProcessor {
           // A sibilant is a jet striking the teeth while the short cavity in front of the
           // constriction rings. Four sections cannot ring on their own, so the resonance is
           // made explicit and tuned to that cavity: /s/ high, /ʃ/ lower, from geometry.
-          const frontM=Math.max(0.004,(n-1-mi)*(350/(sampleRate*2)));
-          const fc=Math.max(1800,Math.min(7600, 350/(4*frontM)));
+          // How much cavity is actually in FRONT of the constriction? A sibilant has a few
+          // centimetres of it and an obstacle to strike, which is why it is loud and peaked.
+          // A labiodental or dental is made at the lips and teeth — there is nothing in
+          // front to ring, so its spectrum is diffuse and low, not a resonance pushed to the
+          // ceiling. Treating those as sibilants put /f/ at 6 kHz where a real one sits
+          // near 2.4, and /θ/ at 6 kHz against a real 1.75.
+          const frontSec = (n-1) - mi;
+          // Graded over five sections, a short tract read as cavity-less and its sibilants
+          // went broadband — but a child has a perfectly good /s/. The real distinction is
+          // binary-ish: is there enough tube in front to propagate a wave, or is the
+          // constriction essentially at the lips? Sharp transition, not a ramp.
+          const cavity = Math.max(0, Math.min(1, (frontSec - 2.5) / 1.5));
+          const frontM=Math.max(0.004, frontSec*(350/(sampleRate*2)));
+          const fGeom=Math.max(1500, Math.min(7600, 350/(4*frontM)));
+          // Three sections is not a resonator, so it does not get to claim a 7 kHz
+          // resonance. Where there is no cavity the sound is diffuse and mid-frequency —
+          // blend toward that rather than trusting a quarter-wave formula on a cavity too
+          // short for the formula to mean anything.
+          const fc=cavity*fGeom + (1-cavity)*2200;
           if(Math.abs(fc-(this.fcLast||0))>40){
             // End correction: radiation loading makes the cavity acoustically longer than it
             // is geometrically, which lowers the resonance. And a real sibilant is a broad
@@ -1388,17 +1405,38 @@ class TractProcessor extends AudioWorkletProcessor {
           const raw=(Math.random()*2-1)*this.turb;
           const y=raw*this.fg + this.fb1*(this.fy1||0) + this.fb2*(this.fy2||0);
           this.fy2=this.fy1||0; this.fy1=y;
-          let sig = y*0.92 + raw*0.035;
+          // A fricative is broadband noise with a resonance ON TOP of it, not a resonator
+          // fed by noise. Resonator-only rolls off above the peak, so /ʃ/ lost the long
+          // high tail that a real one has — 28% of its energy above 3 kHz against 57%.
+          // Resonance only where a cavity exists; broadband where it does not.
+          // Mix broadband against resonance by how much cavity there is — but normalise, or
+          // a cavity-less fricative simply gets three times the raw noise and comes out
+          // three times too loud.
+          // I briefly tilted the source down for cavity-less fricatives, reasoning that slow
+          // channel turbulence must be low-frequency. The recording says otherwise: /f/ has
+          // 65% of its energy above 3 kHz and /ð/ 63%. They are not LOW, they are BROAD —
+          // a low peak with a long tail. Flat source, low corner, little resonance.
+          const rawT = raw;
+          const wRaw = 0.34 + 0.30*(1-cavity);
+          const wRes = 0.80*cavity;
+          const norm = 0.62/Math.max(0.30, wRaw + wRes*0.55);
+          let sig = (rawT*wRaw + y*wRes) * norm;
           // A sibilant has almost nothing below its peak. Without a steep low cut the tract's
           // own low resonances amplify the noise floor, and the result reads as broadband
           // static rather than as an /s/. Two poles of high-pass at about 2.8 kHz.
-          // Tried tracking this to the sibilant peak; it raised the level and leaked into the
-          // stop-release measurement. A fixed corner is both simpler and better behaved.
-          const ha=0.671;
+          // The low cut has to track the sound. A fixed 2.8 kHz corner makes every fricative
+          // a sibilant by force: it cannot produce a /ʃ/ at 2.2 kHz or a /θ/ at 1.8 kHz,
+          // because it removes exactly the band those live in. Corner follows the front
+          // cavity, and the gain is normalised so moving it does not change the level —
+          // which is what went wrong the first time this was tried.
+          // with no front cavity there is no reason to cut the low end hard either
+          const hc=Math.max(500, Math.min(3200, fc*0.52*(0.35+0.65*cavity)));
+          const ha=Math.exp(-2*Math.PI*hc/sampleRate);
+          const hgain=0.671/Math.max(0.10, ha);
           this.fh1 = ha*((this.fh1||0) + sig - (this.fhx||0));       this.fhx = sig;
           this.fh2 = ha*((this.fh2||0) + this.fh1 - (this.fhy||0));  this.fhy = this.fh1;
           const at=Math.min(n-2, mi+1);
-          this.R[at] += this.fh2 * jet * this.fric * breath * 0.95;
+          this.R[at] += this.fh2 * hgain * jet * this.fric * breath * 0.95;
         }
       }
       this.prevClose=cl;
@@ -2184,10 +2222,10 @@ const VOICES = {
   announcer:{ label:'Goal announcer', note:'Pressed and drawn out, pitch falling the whole way. Measured from a real cry.',
     v:{ rd:0.48, press:0.85, jit:1.4, brth:0.055, drawl:0.62, open:0.06, per:0.62,
         sect:44, f0a:196, f0b:188, f0c:118 } },
-  john:{ art:{"i": {"jaw": 0.092, "bodyPos": 0.637, "bodyHi": 0.67, "tipPos": 0.88, "tipHi": 0.25, "lip": 0.65}, "ɪ": {"jaw": 0.785, "bodyPos": 0.602, "bodyHi": 0.924, "tipPos": 0.807, "tipHi": 0.131, "lip": 1}, "ɛ": {"jaw": 0.782, "bodyPos": 0.638, "bodyHi": 0.792, "tipPos": 0.904, "tipHi": 0.086, "lip": 0.966}, "æ": {"jaw": 0.825, "bodyPos": 0.823, "bodyHi": 0.381, "tipPos": 0.742, "tipHi": 0.07, "lip": 0.879}, "ɑ": {"jaw": 0.7, "bodyPos": 0.301, "bodyHi": 0.409, "tipPos": 0.817, "tipHi": 0.059, "lip": 0.589}, "ɔ": {"jaw": 0.33, "bodyPos": 0.336, "bodyHi": 0.482, "tipPos": 0.84, "tipHi": 0.019, "lip": 0.438}, "ʊ": {"jaw": 0.94, "bodyPos": 0.514, "bodyHi": 0.039, "tipPos": 0.84, "tipHi": 0.081, "lip": 0.282}, "u": {"jaw": 0.951, "bodyPos": 0.702, "bodyHi": 0.286, "tipPos": 0.84, "tipHi": 0.037, "lip": 0.178}, "ʌ": {"jaw": 0.33, "bodyPos": 0.223, "bodyHi": 0.308, "tipPos": 0.731, "tipHi": 0.294, "lip": 0.346}, "ɝ": {"jaw": 0.749, "bodyPos": 0.529, "bodyHi": 0.721, "tipPos": 0.79, "tipHi": 0.215, "lip": 0.378}, "ə": {"jaw": 0.891, "bodyPos": 0.55, "bodyHi": 0.406, "tipPos": 0.936, "tipHi": 0.198, "lip": 0.414}}, label:'John', note:'Measured: a 15.9 cm tract from F3, modal voice, pitch around 93 Hz.',
+  john:{ art:{"i": {"jaw": 0.092, "bodyPos": 0.637, "bodyHi": 0.67, "tipPos": 0.88, "tipHi": 0.25, "lip": 0.65}, "ɪ": {"jaw": 0.785, "bodyPos": 0.602, "bodyHi": 0.924, "tipPos": 0.807, "tipHi": 0.131, "lip": 1}, "ɛ": {"jaw": 0.782, "bodyPos": 0.638, "bodyHi": 0.792, "tipPos": 0.904, "tipHi": 0.086, "lip": 0.966}, "æ": {"jaw": 0.825, "bodyPos": 0.823, "bodyHi": 0.381, "tipPos": 0.742, "tipHi": 0.07, "lip": 0.879}, "ɑ": {"jaw": 0.7, "bodyPos": 0.301, "bodyHi": 0.409, "tipPos": 0.817, "tipHi": 0.059, "lip": 0.589}, "ɔ": {"jaw": 0.33, "bodyPos": 0.336, "bodyHi": 0.482, "tipPos": 0.84, "tipHi": 0.019, "lip": 0.438}, "ʊ": {"jaw": 0.94, "bodyPos": 0.514, "bodyHi": 0.039, "tipPos": 0.84, "tipHi": 0.081, "lip": 0.282}, "u": {"jaw": 0.951, "bodyPos": 0.702, "bodyHi": 0.286, "tipPos": 0.84, "tipHi": 0.037, "lip": 0.178}, "ʌ": {"jaw": 0.33, "bodyPos": 0.223, "bodyHi": 0.308, "tipPos": 0.731, "tipHi": 0.294, "lip": 0.346}, "ɝ": {"jaw": 0.749, "bodyPos": 0.529, "bodyHi": 0.721, "tipPos": 0.79, "tipHi": 0.215, "lip": 0.378}, "ə": {"jaw": 0.891, "bodyPos": 0.55, "bodyHi": 0.406, "tipPos": 0.936, "tipHi": 0.198, "lip": 0.414}, "l": {"jaw": 0.428, "bodyPos": 0.52, "bodyHi": 0.43, "tipPos": 0.7, "tipHi": 0.191, "lip": 1}, "r": {"jaw": 0.617, "bodyPos": 0.708, "bodyHi": 0.147, "tipPos": 0.79, "tipHi": 0.435, "lip": 0.405}, "w": {"jaw": 0.718, "bodyPos": 0.85, "bodyHi": 0.584, "tipPos": 0.84, "tipHi": 0.39, "lip": 0.154}, "j": {"jaw": 0, "bodyPos": 0.677, "bodyHi": 0.603, "tipPos": 0.813, "tipHi": 0.2, "lip": 0.65}, "m": {"jaw": 0.349, "bodyPos": 0.15, "bodyHi": 0.441, "tipPos": 0.85, "tipHi": 0.22, "lip": 0.121}, "n": {"jaw": 0.28, "bodyPos": 0.55, "bodyHi": 0.03, "tipPos": 0.81, "tipHi": 0.78, "lip": 0.545}, "ŋ": {"jaw": 0.347, "bodyPos": 0.592, "bodyHi": 0.78, "tipPos": 0.85, "tipHi": 0, "lip": 0.737}, "s": {"jaw": 0.45, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.85, "tipHi": 0.85, "lip": 0.975}, "z": {"jaw": 0.45, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.85, "tipHi": 0.85, "lip": 1}, "ʃ": {"jaw": 0.35, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.8, "tipHi": 0.75, "lip": 0.577}, "ʒ": {"jaw": 0.35, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.8, "tipHi": 0.8, "lip": 0.627}, "f": {"jaw": 0.3, "bodyPos": 0.35, "bodyHi": 0.15, "tipPos": 0.68, "tipHi": 0.1, "lip": 0.088}, "v": {"jaw": 0.15, "bodyPos": 0.35, "bodyHi": 0.15, "tipPos": 0.84, "tipHi": 0, "lip": 0.088}, "θ": {"jaw": 0.18, "bodyPos": 0.5, "bodyHi": 0.2, "tipPos": 0.96, "tipHi": 0.79, "lip": 0.759}, "ð": {"jaw": 0.355, "bodyPos": 0.5, "bodyHi": 0.2, "tipPos": 0.945, "tipHi": 0.79, "lip": 0.984}}, label:'John', note:'Measured: a 15.9 cm tract from F3, modal voice, pitch around 93 Hz.',
     v:{ rd:1.26, press:0.18, jit:1.0, brth:0.075, drawl:0.08, open:0.05, per:0.13,
         sect:40, f0a:88, f0b:99, f0c:78 } },
-  johncry:{ art:{"i": {"jaw": 0.092, "bodyPos": 0.637, "bodyHi": 0.67, "tipPos": 0.88, "tipHi": 0.25, "lip": 0.65}, "ɪ": {"jaw": 0.785, "bodyPos": 0.602, "bodyHi": 0.924, "tipPos": 0.807, "tipHi": 0.131, "lip": 1}, "ɛ": {"jaw": 0.782, "bodyPos": 0.638, "bodyHi": 0.792, "tipPos": 0.904, "tipHi": 0.086, "lip": 0.966}, "æ": {"jaw": 0.825, "bodyPos": 0.823, "bodyHi": 0.381, "tipPos": 0.742, "tipHi": 0.07, "lip": 0.879}, "ɑ": {"jaw": 0.7, "bodyPos": 0.301, "bodyHi": 0.409, "tipPos": 0.817, "tipHi": 0.059, "lip": 0.589}, "ɔ": {"jaw": 0.33, "bodyPos": 0.336, "bodyHi": 0.482, "tipPos": 0.84, "tipHi": 0.019, "lip": 0.438}, "ʊ": {"jaw": 0.94, "bodyPos": 0.514, "bodyHi": 0.039, "tipPos": 0.84, "tipHi": 0.081, "lip": 0.282}, "u": {"jaw": 0.951, "bodyPos": 0.702, "bodyHi": 0.286, "tipPos": 0.84, "tipHi": 0.037, "lip": 0.178}, "ʌ": {"jaw": 0.33, "bodyPos": 0.223, "bodyHi": 0.308, "tipPos": 0.731, "tipHi": 0.294, "lip": 0.346}, "ɝ": {"jaw": 0.749, "bodyPos": 0.529, "bodyHi": 0.721, "tipPos": 0.79, "tipHi": 0.215, "lip": 0.378}, "ə": {"jaw": 0.891, "bodyPos": 0.55, "bodyHi": 0.406, "tipPos": 0.936, "tipHi": 0.198, "lip": 0.414}}, label:'John shouting', note:'His own goal cry, measured: pitch falling 158 to 93 Hz over 2.9 seconds.',
+  johncry:{ art:{"i": {"jaw": 0.092, "bodyPos": 0.637, "bodyHi": 0.67, "tipPos": 0.88, "tipHi": 0.25, "lip": 0.65}, "ɪ": {"jaw": 0.785, "bodyPos": 0.602, "bodyHi": 0.924, "tipPos": 0.807, "tipHi": 0.131, "lip": 1}, "ɛ": {"jaw": 0.782, "bodyPos": 0.638, "bodyHi": 0.792, "tipPos": 0.904, "tipHi": 0.086, "lip": 0.966}, "æ": {"jaw": 0.825, "bodyPos": 0.823, "bodyHi": 0.381, "tipPos": 0.742, "tipHi": 0.07, "lip": 0.879}, "ɑ": {"jaw": 0.7, "bodyPos": 0.301, "bodyHi": 0.409, "tipPos": 0.817, "tipHi": 0.059, "lip": 0.589}, "ɔ": {"jaw": 0.33, "bodyPos": 0.336, "bodyHi": 0.482, "tipPos": 0.84, "tipHi": 0.019, "lip": 0.438}, "ʊ": {"jaw": 0.94, "bodyPos": 0.514, "bodyHi": 0.039, "tipPos": 0.84, "tipHi": 0.081, "lip": 0.282}, "u": {"jaw": 0.951, "bodyPos": 0.702, "bodyHi": 0.286, "tipPos": 0.84, "tipHi": 0.037, "lip": 0.178}, "ʌ": {"jaw": 0.33, "bodyPos": 0.223, "bodyHi": 0.308, "tipPos": 0.731, "tipHi": 0.294, "lip": 0.346}, "ɝ": {"jaw": 0.749, "bodyPos": 0.529, "bodyHi": 0.721, "tipPos": 0.79, "tipHi": 0.215, "lip": 0.378}, "ə": {"jaw": 0.891, "bodyPos": 0.55, "bodyHi": 0.406, "tipPos": 0.936, "tipHi": 0.198, "lip": 0.414}, "l": {"jaw": 0.428, "bodyPos": 0.52, "bodyHi": 0.43, "tipPos": 0.7, "tipHi": 0.191, "lip": 1}, "r": {"jaw": 0.617, "bodyPos": 0.708, "bodyHi": 0.147, "tipPos": 0.79, "tipHi": 0.435, "lip": 0.405}, "w": {"jaw": 0.718, "bodyPos": 0.85, "bodyHi": 0.584, "tipPos": 0.84, "tipHi": 0.39, "lip": 0.154}, "j": {"jaw": 0, "bodyPos": 0.677, "bodyHi": 0.603, "tipPos": 0.813, "tipHi": 0.2, "lip": 0.65}, "m": {"jaw": 0.349, "bodyPos": 0.15, "bodyHi": 0.441, "tipPos": 0.85, "tipHi": 0.22, "lip": 0.121}, "n": {"jaw": 0.28, "bodyPos": 0.55, "bodyHi": 0.03, "tipPos": 0.81, "tipHi": 0.78, "lip": 0.545}, "ŋ": {"jaw": 0.347, "bodyPos": 0.592, "bodyHi": 0.78, "tipPos": 0.85, "tipHi": 0, "lip": 0.737}, "s": {"jaw": 0.45, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.85, "tipHi": 0.85, "lip": 0.975}, "z": {"jaw": 0.45, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.85, "tipHi": 0.85, "lip": 1}, "ʃ": {"jaw": 0.35, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.8, "tipHi": 0.75, "lip": 0.577}, "ʒ": {"jaw": 0.35, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.8, "tipHi": 0.8, "lip": 0.627}, "f": {"jaw": 0.3, "bodyPos": 0.35, "bodyHi": 0.15, "tipPos": 0.68, "tipHi": 0.1, "lip": 0.088}, "v": {"jaw": 0.15, "bodyPos": 0.35, "bodyHi": 0.15, "tipPos": 0.84, "tipHi": 0, "lip": 0.088}, "θ": {"jaw": 0.18, "bodyPos": 0.5, "bodyHi": 0.2, "tipPos": 0.96, "tipHi": 0.79, "lip": 0.759}, "ð": {"jaw": 0.355, "bodyPos": 0.5, "bodyHi": 0.2, "tipPos": 0.945, "tipHi": 0.79, "lip": 0.984}}, label:'John shouting', note:'His own goal cry, measured: pitch falling 158 to 93 Hz over 2.9 seconds.',
     v:{ rd:0.55, press:0.80, jit:1.3, brth:0.065, drawl:0.60, open:0.06, per:0.62,
         sect:40, f0a:158, f0b:150, f0c:95 } },
   man:{ label:'Man', note:'A 17.5 cm tract, modal voice, ordinary timing.',

@@ -411,6 +411,49 @@ trust LPC**, and when two estimators disagree, plot the thing.
 
 ---
 
+## Consonants, measured
+
+Consonant postures were the last part of the model with no evidence behind them — described
+rather than measured, then adjusted until the acoustics looked plausible. The reference
+recording covers all of them, so they were extracted by acoustic signature rather than by
+position: a fricative is the frame with the most high-frequency energy relative to low, a
+nasal murmur is the frame with the lowest first formant.
+
+**Approximants and nasals fitted cleanly** — /r/ to 1%, /ŋ/ to 0%, /n/ and /j/ and /l/ to 4%.
+The measured nasals have first formants at 234–307 Hz where the model had 330–415; a real
+murmur is lower than I had it.
+
+**Fricatives took four attempts and a reversal.** The measurements said the whole family was
+far too bright: /ʃ/ at 4250 Hz against a real 2188, /f/ at 6050 against 2438, /θ/ at 9800
+against 1750. Three structural fixes followed, each from the same observation — that a
+sibilant has a front cavity and an obstacle to strike, and a labiodental or dental has
+neither:
+
+- the low cut has to **track the sound**, because a fixed 2.8 kHz corner cannot produce a
+  fricative that peaks at 2.2 kHz — it removes exactly the band that sound lives in;
+- a fricative is **broadband noise with a resonance on top**, not a resonator fed by noise,
+  which is why /ʃ/ had no high tail;
+- and **no cavity means no resonance claim** — three sections is not a resonator and should
+  not be allowed a 7 kHz quarter-wave.
+
+The reversal: I also tilted the source down for cavity-less fricatives, reasoning that slow
+channel turbulence must be low-frequency. The recording disagreed — /f/ carries 65% of its
+energy above 3 kHz and /ð/ 63%. They are not low, they are **broad**: a low peak with a long
+tail. Removed.
+
+Hand-tuning oscillated between 18 and 28 points of error; a systematic fit with **averaged**
+measurements reached 6 on the sibilants and 16 on the rest. Averaging matters because a single
+render of a noise source varies by a third, so tuning against one measurement is tuning
+against the noise.
+
+**Scope, stated honestly.** The fricative fits were made at the reference speaker's tract
+length and do not transfer — installing them globally broke sibilants at other lengths. They
+are installed on that speaker's voices only. The generic inventory keeps its hand-placed
+fricatives and is still too bright; refitting it at the default length is the honest next
+step, and the gate says so in a comment rather than quietly passing.
+
+---
+
 ## Phase 7 — pushing the physics
 
 Measured against a real recording, the model is within 5–8 dB below 3 kHz and **10–17 dB
