@@ -201,12 +201,12 @@ const BUILTIN_DICT = {
 };
 function loadDict(){
   let user={};
-  try{ user=JSON.parse(STORE.getItem('vtl.dict')||'{}'); }catch(e){}
+  try{ user=JSON.parse(STORE.getItem('hollerbox.dict')||'{}'); }catch(e){}
   return {...BUILTIN_DICT, ...user};      // your corrections win
 }
 function saveWord(word,ph){
   try{ const d=loadDict(); d[String(word).toLowerCase().replace(/[^a-z]/g,'')]=ph.slice();
-       STORE.setItem('vtl.dict',JSON.stringify(d)); }catch(e){}
+       STORE.setItem('hollerbox.dict',JSON.stringify(d)); }catch(e){}
 }
 
 root.VTLSpell = { G2P_RULES, BUILTIN_DICT, PAUSE, WEAK_FIRST,

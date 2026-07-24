@@ -1167,7 +1167,7 @@ document.getElementById('loadSeed').addEventListener('click',()=>{
 const about=document.getElementById('about');
 function showAbout(v){
   about.hidden=!v;
-  if(!v){ try{ localStorage.setItem('vtl.seen','1'); }catch(e){} }
+  if(!v){ try{ localStorage.setItem('hollerbox.seen','1'); }catch(e){} }
 }
 document.getElementById('tabs').addEventListener('click',e=>{
   const b=e.target.closest('.tab'); if(!b) return;
@@ -1181,7 +1181,7 @@ document.getElementById('aboutClose').addEventListener('click',()=>showAbout(fal
 about.addEventListener('click',e=>{ if(e.target===about) showAbout(false); });
 addEventListener('keydown',e=>{ if(e.key==='Escape' && !about.hidden) showAbout(false); });
 let firstVisit=true;
-try{ firstVisit = !localStorage.getItem('vtl.seen'); }catch(e){}
+try{ firstVisit = !localStorage.getItem('hollerbox.seen'); }catch(e){}
 if(firstVisit) showAbout(true);
 // once the introduction is out of the way, land where the work happens
 const _closeAbout=showAbout;
