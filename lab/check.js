@@ -583,7 +583,20 @@ check("voiceless stops are aspirated", () => {
   // d and k as t, all three. Measured on the OUTPUT by periodicity, because an energy
   // threshold is tripped instantly by a loud broadband burst and reports zero every time.
   const V = H.P.VOICES.john.v, n = Math.round(V.sect);
-  const lowband = (buf, i, L = 512) => {          // the voice bar, 60-350 Hz
+  // WINDOW LENGTH. This probe used L=512, which at 44.1 kHz is 11.6 ms — about ONE pitch
+  // period of John's 95 Hz voice. A window that short measures where the glottal pulse
+  // happens to fall inside it, not how much voice bar there is: swept across a single steady
+  // vowel it returns anywhere from 4.9 to 31, a 6x swing, and it did that identically before
+  // and after the change that exposed it. So `ref` below, sampled at one arbitrary instant,
+  // was a coin flip, and the check passed or failed on where the midpoint happened to land.
+  //
+  // This is the third time the rule in ROADMAP's "On flaky checks" has been needed and the
+  // first time the random process was not noise but the pulse train itself. Measured ripple
+  // across a steady vowel by window length: 512 -> 6.2x, 1024 -> 1.29x, 1536 -> 1.05x,
+  // 2048 -> 1.05x, 3072 -> 1.25x (it rises again as the window outgrows the steady part).
+  // 1536 is 35 ms, 3.3 periods, and it is flat.
+  const L_WIN = 1536;
+  const lowband = (buf, i, L = L_WIN) => {        // the voice bar, 60-350 Hz
     let s = 0;
     for (let f = 60; f <= 350; f += 25) {
       let r = 0, m = 0;
@@ -593,26 +606,41 @@ check("voiceless stops are aspirated", () => {
       }
       s += r*r + m*m;
     }
-    return s;
+    return s/(L*L);                               // normalised, so the window length is free
   };
   const vot = {};
   for (const c of ["b","p","d","t","g","k"]) {
     const { buf, seg } = H.say(["ɑ", c, "ɑ"], { D: 0.9, voice: V, n });
     const s = seg.find(x => x.sym === c), v2 = seg[2];
-    const ref = lowband(buf, Math.floor((v2.a + v2.b)/2*H.SR));
+    // MEDIAN over the steady part of the vowel, not one sample of it. Taking a single
+    // instant is what made this flaky; taking the middle of a sorted set is immune both to
+    // where the pulse lands and to how long the vowel happens to be.
+    const r = [];
+    for (let t = v2.a + 0.05; t < v2.b - 0.06; t += 0.01) r.push(lowband(buf, Math.floor(t*H.SR)));
+    r.sort((a, b) => a - b);
+    const ref = r[r.length >> 1];
     const from = Math.floor(s.b*H.SR), step = Math.floor(H.SR*0.005);
     // The bar must be SUSTAINED. A single-frame threshold is tripped by the burst itself,
     // which is loud and broadband, and duly reported 0 ms for every stop in the inventory.
     let run = 0, on = from + Math.floor(H.SR*0.25);
     for (let i = from; i < from + Math.floor(H.SR*0.25); i += step) {
-      if (lowband(buf, i) > ref*0.30) { if (++run >= 4) { on = i - 3*step; break; } }
+      if (lowband(buf, i) > ref*0.45) { if (++run >= 4) { on = i - 3*step; break; } }
       else run = 0;
     }
     vot[c] = (on - from)/H.SR*1000;
   }
-  // Calibrated against a build with the VOT line deleted, not guessed. This one reads
-  // 10-15 ms voiced against 75-105 voiceless; with VOT removed every stop falls into the
-  // voiced band. The 35/50 split sits in the empty gap between the two clusters.
+  // Recalibrated against the same ablation the original used — HOLLER_PATCH deleting the VOT
+  // line — because fixing the window changed what `ref` is worth and therefore what fraction
+  // of it means "voiced again". At 0.45:
+  //
+  //     VOT present   voiced b10 d0-10 g0-10   voiceless p65 t70-75 k95
+  //     VOT ablated   voiced b10 d0    g0      voiceless p35 t35    k35
+  //
+  // The voiceless cluster collapses to 35 ms when the line is removed, which is the empty gap
+  // the original bands were drawn around — so THE BANDS DO NOT MOVE. 35/50 still separates,
+  // now with 25 ms of margin below and 15 above instead of passing by luck. Five consecutive
+  // runs agree, per the flaky-check rule, and they agree with the duration weighting both on
+  // and off — which is how it was established that Phase 8.1 does not touch VOT.
   const bad = [];
   for (const c of ["b","d","g"]) if (vot[c] > 35) bad.push(`${c} ${vot[c].toFixed(0)}ms (voiced, want <35)`);
   for (const c of ["p","t","k"]) if (vot[c] < 50) bad.push(`${c} ${vot[c].toFixed(0)}ms (voiceless, want >50)`);
