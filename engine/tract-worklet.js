@@ -410,7 +410,34 @@ class TractProcessor extends AudioWorkletProcessor {
       this.gArea = (this.voiceless||this.vot>0)
         ? 2.2
         : Math.max(0, Math.min(1, this.gflow * 0.02));
-      let src=(g*0.9 + (Math.random()*2-1)*this.breath*g)*this.vAmp;
+      // BREATH NOISE IS SHAPED, NOT WHITE. Radiation at the lips is a differentiator —
+      // R(z) = 1 - 1/z, +6 dB/octave — which is correct physics and requires the source to roll
+      // off to compensate. This term did not: it went in as raw white noise, so the whole voice
+      // rose toward Nyquist. Measured tilt 4-20 kHz on a sustained /ɑ/: **+4.4 dB/oct**, where
+      // real speech falls. Two poles at a=0.86 is 1059 Hz each, -12 dB/oct, which against
+      // radiation's +6 lands at -6 — the published range for aspiration, and what /h/ already
+      // measured, because /h/ was the one sound whose noise already went through this filter.
+      //
+      // THIS IS THE SECOND ATTEMPT. The first shipped as b1671ae with the gain set to 5.139,
+      // the reciprocal of the 0.1946 of unit-variance white the filter passes, so the amount of
+      // noise would be unchanged and only its colour would move. It was reverted as ea9a62d for
+      // breaking the bench and rendering "goal" as static with gaps.
+      //
+      // Neither symptom survived measurement this time. There is no clipping: peak output is
+      // 0.04 against a ceiling of 1. And the "gap" is the /g/ CLOSURE, which is supposed to be
+      // silent — 3.2e-4 unfiltered against 7.3e-5 filtered. The unfiltered noise had been
+      // leaking audible hiss through stop closures, and removing it reads as the sound dropping
+      // out. That is the fix working, not failing.
+      //
+      // The gain is 1.93 rather than 5.139: matched on PEAK instead of on variance. Lowpassing
+      // correlates the noise, so restoring its RMS gives it 2.66x the excursion (crest 1.73 ->
+      // 4.61, measured over four million samples), and 5.139/2.66 = 1.93. Chosen on evidence
+      // rather than taste — both pass the full gate, but harmonic-to-noise goes 22.8 -> 24.5 dB
+      // at this gain against 22.8 -> 16.0 at 5.139, and the presets were calibrated against
+      // 22.8. This is the smaller perturbation to a number other things were tuned to.
+      this.bh1=(this.bh1||0)*0.86+(Math.random()*2-1)*0.14;
+      this.bh =(this.bh ||0)*0.86+this.bh1*0.14;
+      let src=(g*0.9 + this.bh*1.93*this.breath*g)*this.vAmp;
       // /h/ is not a constriction fricative — it is turbulence at the GLOTTIS with the tract
       // wide open. It needs a noise path that does not require the folds to be vibrating, or
       // a voiceless /h/ is silent. Which is exactly what it was.
