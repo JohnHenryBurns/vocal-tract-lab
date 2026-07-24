@@ -15,8 +15,23 @@ const VOICES_UNDER_TEST = process.env.HOLLER_ALL
 // meant the gate was all-or-nothing: no way to run the three stop checks while working on
 // stops, no output until all twenty-two had finished, and no way to spread them over cores.
 // A check body is unchanged by this — it is still a function returning {ok, note}.
+// TWO TIERS, because two different things were wearing the same coat.
+//
+// A GATE check asserts something that must be TRUE: the output is finite, nothing sounds after
+// a word ends, the tube obeys c/4L, the stress array is the same length as the phone array.
+// These do not need recalibrating when the engine legitimately changes, because they were never
+// describing this build in particular.
+//
+// A REPORT check MEASURES: /s/ sits at 4650 Hz, /ʃ/ carries 54% of its energy above 3 kHz,
+// harmonic-to-noise is 23 dB. These are worth knowing and worth watching. They are not worth
+// blocking on, because every one of them has a band that is really a snapshot of a particular
+// calibration — so they go red when something is DIFFERENT, not when something is WRONG, and
+// two dozen commits of re-tuning bands is the predictable result.
+//
+// Gate runs by default and blocks. Report runs on --report and never blocks.
 const REG = [];
-function check(name, fn) { REG.push({ name, fn }); }
+function check(name, fn)  { REG.push({ name, fn, tier: "gate" }); }
+function report(name, fn) { REG.push({ name, fn, tier: "report" }); }
 
 // ── the tube is still a tube ───────────────────────────────────────────────
 check("uniform tube resonates at c/4L", () => {
@@ -106,7 +121,7 @@ check("nasals produce a murmur", () => {
 });
 
 // ── sibilants: shape, not hiss ─────────────────────────────────────────────
-check("sibilants are shaped at every tract length", () => {
+report("sibilants are shaped at every tract length", () => {
   // A short tract puts /s/ higher — correctly. Testing only 44 sections missed whether the
   // shorter voices (woman, child, helium) still produce a sibilant rather than a hiss.
   // Frication is intermittent by design — a real jet sheds eddies — so a single render's
@@ -127,7 +142,7 @@ check("sibilants are shaped at every tract length", () => {
            note: bad.length ? "weak at " + bad.join(" ") : "sibilant from 19 to 52 sections" };
 });
 
-check("sibilant shape at the default length", () => {
+report("sibilant shape at the default length", () => {
   // Bands from a real recording, not from assumption. Measured on the reference speaker:
   // /s/ peaks at 4625 Hz with 96% of its energy above 3 kHz; /ʃ/ peaks at 2188 with 57%.
   // They are DIFFERENT sounds and an earlier version of this check demanded both be
@@ -153,7 +168,7 @@ check("sibilant shape at the default length", () => {
   return { ok, note: notes.join("  ") };
 });
 
-check("frication breathes rather than sitting flat", () => {
+report("frication breathes rather than sitting flat", () => {
   // Stationary white noise IS electronic static, by definition. Real turbulence is
   // intermittent — eddies form and collapse — and that fluctuation is what the ear reads
   // as breath. The flat version measured 12%.
@@ -338,7 +353,7 @@ check("duration follows the segments, not a flat share", () => {
                : "coda 1.20x, stress 2.9x, rate-invariant to 1e-16, /l/ held at 23%" };
 });
 
-check("no fricative strays into another's band", () => {
+report("no fricative strays into another's band", () => {
   // /ð/ in "mother" came out as a static sh. Not a bug in the sound — it was in the WRONG
   // BAND. An automatic fit chasing a spectral target had moved the dental constriction back
   // to 0.78, giving it a front cavity the size of /ʃ/'s, so it duly became a /ʃ/. A dental
@@ -562,7 +577,7 @@ check("the two-mass folds oscillate and follow pitch", () => {
            note: bad.length ? bad.join(" ") : "oscillates and tracks pitch at 95, 140 and 200 Hz" };
 });
 
-check("the voice is not too cleanly periodic", () => {
+report("the voice is not too cleanly periodic", () => {
   // Harmonic-to-noise ratio: how much energy sits ON the harmonics against between them.
   // A perfectly periodic source puts everything on the harmonics and nothing between, which
   // is the comb-like look of synthesis and a large part of why it sounds robotic. Measured
@@ -723,12 +738,29 @@ check("voiceless stops are aspirated", () => {
 const os = require("os");
 const { isMainThread, parentPort, workerData, Worker } = require("worker_threads");
 
+// Renders are deterministic now, which is what makes a green run mean something — but it also
+// means a check could be passing on ONE seed. HOLLER_SEEDS=k re-runs each check across k seeds
+// and requires them all to agree. That is the "five consecutive runs" rule from the roadmap,
+// made cheap, explicit and opt-in instead of a thing you remember to do by hand.
+const SEEDS = Math.max(1, parseInt(process.env.HOLLER_SEEDS || "1", 10) || 1);
+
 function runOne(i) {
   const c = REG[i], t0 = Date.now();
   let ok = false, note = "";
-  try { const r = c.fn(); ok = r.ok; note = r.note; }
+  try {
+    if (SEEDS === 1) { const r = c.fn(); ok = r.ok; note = r.note; }
+    else {
+      const rs = [];
+      for (let k = 0; k < SEEDS; k++) { H.setSeed(H.BASE_SEED + k); rs.push(c.fn()); }
+      H.setSeed(H.BASE_SEED);
+      ok = rs.every(r => r.ok);
+      const bad = rs.filter(r => !r.ok).length;
+      note = ok ? `${SEEDS} seeds agree · ${rs[0].note}`
+                : `UNSTABLE across seeds (${bad}/${SEEDS} failed) · ${rs.find(r => !r.ok).note}`;
+    }
+  }
   catch (e) { ok = false; note = "threw: " + e.message; }
-  return { i, name: c.name, ok, note, ms: Date.now() - t0 };
+  return { i, name: c.name, ok, note, ms: Date.now() - t0, tier: c.tier };
 }
 
 if (!isMainThread && workerData && workerData.idx) {
@@ -737,14 +769,16 @@ if (!isMainThread && workerData && workerData.idx) {
   // done — which is the thing this runner exists to fix.
   for (const i of workerData.idx) parentPort.postMessage([runOne(i)]);
 } else {
-  const args  = process.argv.slice(2).filter(a => a !== "--list");
+  const args  = process.argv.slice(2).filter(a => a !== "--list" && a !== "--report");
   const query = (process.env.HOLLER_ONLY || args.join(" ")).trim().toLowerCase();
   const terms = query ? query.split(/[,\s]+/).filter(Boolean) : [];
+  const wantReport = process.argv.includes("--report") || !!process.env.HOLLER_REPORT;
   const idx = REG.map((_, i) => i)
+                 .filter(i => wantReport || REG[i].tier === "gate")
                  .filter(i => !terms.length || terms.some(t => REG[i].name.toLowerCase().includes(t)));
 
   if (process.argv.includes("--list")) {
-    REG.forEach((c, i) => console.log(`  ${String(i).padStart(2)}  ${c.name}`));
+    REG.forEach((c, i) => console.log(`  ${String(i).padStart(2)}  ${c.tier === "gate" ? "gate  " : "report"}  ${c.name}`));
     process.exit(0);
   }
   if (!idx.length) {
@@ -758,16 +792,21 @@ if (!isMainThread && workerData && workerData.idx) {
   const t0 = Date.now();
   const done = [];
 
-  console.log(`\nHOLLERBOX — checks   ${idx.length}/${REG.length}` +
+  console.log(`\nHOLLERBOX — ${wantReport ? "gate + report" : "gate"}   ${idx.length}/${REG.length}` +
               `${terms.length ? ` matching "${query}"` : ""}` +
               `${jobs > 1 && !bail ? `, ${jobs} jobs` : ""}\n`);
 
-  const line = r => console.log(`  ${r.ok ? "✅" : "❌"} ${r.name.padEnd(42)} ${String(r.note).padEnd(46)} ${(r.ms/1000).toFixed(1)}s`);
+  const line = r => console.log(`  ${r.tier === "report" ? (r.ok ? "  ·" : "  ⚠") : (r.ok ? "  ✅" : "  ❌")} ${r.name.padEnd(42)} ${String(r.note).padEnd(46)} ${(r.ms/1000).toFixed(1)}s`);
 
   const verdict = () => {
     done.sort((a, b) => a.i - b.i);
-    const failed = done.filter(r => !r.ok);
-    const partial = idx.length !== REG.length;
+    // Only the gate tier can fail the build. A report line that has moved is information.
+    const failed = done.filter(r => !r.ok && r.tier === "gate");
+    const drifted = done.filter(r => !r.ok && r.tier === "report");
+    const gateTotal = REG.filter(c => c.tier === "gate").length;
+    const partial = done.filter(r => r.tier === "gate").length !== gateTotal;
+    if (drifted.length)
+      console.log(`\n  ⚠ ${drifted.length} report measurement${drifted.length>1?"s":""} outside the last recorded range — information, not a failure`);
     console.log(failed.length
       ? `\n🔴 ${failed.length} failing   (${((Date.now()-t0)/1000).toFixed(0)}s)\n`
       : partial

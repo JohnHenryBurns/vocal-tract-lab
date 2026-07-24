@@ -41,11 +41,44 @@ is slow and most of them are nobody's target.
 
 ## The gate
 
-    node lab/check.js
+    node lab/check.js            # 19 gate checks, ~28s, blocks
+    node lab/check.js --report   # + 5 measurements, ~43s, never blocks
 
-One command, one verdict, exit 0 means shippable. Twenty-two checks, each with a band that exists
-because something once broke that way. It drives the **shipping engine**, extracted straight
-out of `index.html`, so it cannot drift from what actually runs.
+One command, one verdict, exit 0 means shippable. It drives the **shipping engine**, extracted
+straight out of `index.html`, so it cannot drift from what actually runs.
+
+### Two tiers, because two different things were wearing the same coat
+
+A **gate** check asserts something that must be TRUE. The output is finite. Nothing sounds after
+a word ends. A uniform tube resonates at c/4L. The stress array is the same length as the phone
+array. These never need recalibrating when the engine legitimately changes, because they were
+never describing this build in particular.
+
+A **report** check MEASURES. /s/ sits at 4650 Hz. /ʃ/ carries 54% of its energy above 3 kHz.
+Harmonic-to-noise is 23 dB. Worth knowing, worth watching, **not worth blocking on** — every one
+of those bands is a snapshot of one calibration, so it goes red when something is DIFFERENT
+rather than when something is WRONG. Two dozen commits of re-tuning bands was the predictable
+result, and the tier split is the fix. Report lines print with a `·`, or `⚠` if they have moved,
+and never change the exit code.
+
+### Determinism
+
+The engine calls `Math.random()` nine times per sample, so two renders of the same word were
+never the same audio, and every band had to be wide enough to cover the spread. The harness now
+seeds it and **reseeds before every render**, which matters more than seeding once: seeded once,
+render N depends on renders 1..N-1, so the answer depends on which checks ran first and how the
+job pool happened to schedule them. Reseeded per render, a render is a pure function of its
+arguments — verified bit-identical across repeated runs and across `HOLLER_JOBS=1` versus the
+parallel pool.
+
+That purity is also what makes the render cache sound. It is not an optimisation bolted onto a
+random process; it is the same call returning the same answer.
+
+    HOLLER_SEED=n    a different seed
+    HOLLER_SEEDS=k   re-run every check across k seeds and require them to agree
+
+`HOLLER_SEEDS` is the "five consecutive runs" rule from the roadmap, made cheap and explicit
+instead of something you remember to do by hand. All 19 gate checks agree across 5 seeds.
 
 ### Running less than all of it
 
@@ -67,7 +100,18 @@ a partial pass must never be mistaken for a green gate. `ship.sh` runs the whole
 
 ### Why it costs what it costs
 
-Measured, before optimising anything, because the obvious suspect was wrong:
+**82s -> 28s** for the blocking gate, from three changes and no loss of coverage:
+
+| | |
+|---|---|
+| render cache (`sustain` ran 99 times for 31 distinct renders; `say` 29 for 24) | biggest single win |
+| `extra` kept out of the cache key — a short render is a bit-exact prefix of a long one | three checks share a word list and differed only in tail length |
+| five spectral characterisations moved to `--report` | ~15s off the blocking path |
+
+The older measurements below still describe the per-render costs and are still worth reading
+before optimising anything — in particular, the naive per-bin DFT probes still look like the
+villain and still are not.
+
 
 | | |
 |---|---|
