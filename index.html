@@ -839,35 +839,35 @@ const ART = {
   "lip": 0.737
  },
  "s": {
-  "jaw": 0.44999999999999996,
+  "jaw": 0.45,
   "bodyPos": 0.55,
   "bodyHi": 0.28,
   "tipPos": 0.85,
-  "tipHi": 0.8500000000000002,
-  "lip": 0.906
+  "tipHi": 0.85,
+  "lip": 0.931
  },
  "z": {
-  "jaw": 0.44999999999999996,
+  "jaw": 0.35,
   "bodyPos": 0.55,
   "bodyHi": 0.28,
   "tipPos": 0.85,
-  "tipHi": 0.8500000000000002,
-  "lip": 0.906
+  "tipHi": 0.85,
+  "lip": 0.975
  },
  "ʃ": {
-  "jaw": 0.44999999999999996,
+  "jaw": 0.45,
   "bodyPos": 0.55,
   "bodyHi": 0.28,
-  "tipPos": 0.86,
+  "tipPos": 0.842,
   "tipHi": 0.8,
-  "lip": 0.577
+  "lip": 0.452
  },
  "f": {
-  "jaw": 0.3,
+  "jaw": 0.4,
   "bodyPos": 0.35,
   "bodyHi": 0.15,
-  "tipPos": 0.84,
-  "tipHi": 0.0,
+  "tipPos": 0.869,
+  "tipHi": 0.1,
   "lip": 0.088
  },
  "w": {
@@ -906,23 +906,23 @@ const ART = {
   "jaw": 0.3,
   "bodyPos": 0.35,
   "bodyHi": 0.15,
-  "tipPos": 0.84,
-  "tipHi": 0.0,
+  "tipPos": 0.86,
+  "tipHi": 0,
   "lip": 0.088
  },
  "ʒ": {
-  "jaw": 0.44999999999999996,
+  "jaw": 0.45,
   "bodyPos": 0.55,
   "bodyHi": 0.28,
-  "tipPos": 0.86,
+  "tipPos": 0.862,
   "tipHi": 0.8,
-  "lip": 0.577
+  "lip": 0.677
  },
  "θ": {
-  "jaw": 0.38,
+  "jaw": 0.43,
   "bodyPos": 0.5,
   "bodyHi": 0.2,
-  "tipPos": 0.92,
+  "tipPos": 0.78,
   "tipHi": 0.79,
   "lip": 0.859
  },
@@ -930,9 +930,9 @@ const ART = {
   "jaw": 0.38,
   "bodyPos": 0.5,
   "bodyHi": 0.2,
-  "tipPos": 0.92,
-  "tipHi": 0.79,
-  "lip": 0.859
+  "tipPos": 0.78,
+  "tipHi": 0.89,
+  "lip": 0.759
  }
 };
 
@@ -1430,7 +1430,10 @@ class TractProcessor extends AudioWorkletProcessor {
           // cavity, and the gain is normalised so moving it does not change the level —
           // which is what went wrong the first time this was tried.
           // with no front cavity there is no reason to cut the low end hard either
-          const hc=Math.max(500, Math.min(3200, fc*0.52*(0.35+0.65*cavity)));
+          // With no cavity the corner was dropping very low and the lows swamped the sound.
+          // But a narrow aperture at the lips radiates high frequencies better, not worse —
+          // a real /f/ carries 65% of its energy above 3 kHz. Keep the floor up.
+          const hc=Math.max(700, Math.min(3200, fc*0.52*(0.62+0.38*cavity)));
           const ha=Math.exp(-2*Math.PI*hc/sampleRate);
           const hgain=0.671/Math.max(0.10, ha);
           this.fh1 = ha*((this.fh1||0) + sig - (this.fhx||0));       this.fhx = sig;
@@ -1661,8 +1664,9 @@ const VOICELESS={ p:1, t:1, k:1, s:1, 'ʃ':1, f:1, h:1, 'θ':1 };   // folds apa
 // A dental fricative has no obstacle downstream, so it is weak and flat — the same reason
 // /f/ is weak. Sibilants are loud because the jet strikes the teeth.
 // Geometry sets WHERE the jet blows; these set how hard. The dental jet response is steep,
-// so the constriction sits where it is reliable and the level is trimmed here instead.
-const FRICATIVE={ s:1.05, z:0.8, 'ʃ':1.0, 'ʒ':0.8, f:2.1, v:1.5, 'θ':0.88, 'ð':0.52 };
+// Fitted at the default tract length against a real recording, scaled for the
+// length difference. Not guessed.
+const FRICATIVE={ 's':1.05, 'z':0.8, 'ʃ':1, 'ʒ':0.34, 'f':0.73, 'v':0.63, 'θ':0.67, 'ð':0.58 };
 const ASPIRATE ={ h:1 };                               // turbulence at the glottis instead
 const branchFor=sym=>BRANCHED[sym]||0;
 const nasalFor =sym=>NASAL[sym]||0;

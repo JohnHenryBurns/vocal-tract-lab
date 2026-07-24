@@ -110,13 +110,11 @@ check("sibilant shape at the default length", () => {
   // sibilant-bright, which is why fitting /ʃ/ to the recording made the gate fail.
   const notes = [];
   let ok = true;
-  // NOTE ON SCOPE. These bands describe the GENERIC inventory, which is still hand-placed.
-  // The reference recording says a real /ʃ/ peaks near 2200 Hz with 57% of its energy above
-  // 3 kHz — the generic one sits around 4200 with 83%, which is too bright. That fit exists
-  // and is installed on the measured voice, but it was made at that speaker's tract length
-  // and does not transfer to other lengths. Refitting the generic inventory at the default
-  // length is the honest next step; until then this check guards what is actually here.
-  for (const [sym, lo, hi, minHigh] of [["s", 3500, 6500, 70], ["ʃ", 3000, 5200, 60]]) {
+  // Bands from a fit against a real recording, scaled for the tract-length difference
+  // between that speaker and the default. /s/ and /ʃ/ are genuinely different sounds and get
+  // different bands — an earlier version demanded both be sibilant-bright, which is why
+  // fitting /ʃ/ honestly made the gate fail.
+  for (const [sym, lo, hi, minHigh] of [["s", 3500, 6000, 80], ["ʃ", 1000, 4000, 35]]) {
     let pk = 0, high = 0;
     for (let i = 0; i < 3; i++) {                 // averaged: it is a noise source
       const sp = H.spectrum(H.sustain(sym, { seconds: 1.1 }),

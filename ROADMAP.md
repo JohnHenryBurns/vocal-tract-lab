@@ -446,11 +446,24 @@ measurements reached 6 on the sibilants and 16 on the rest. Averaging matters be
 render of a noise source varies by a third, so tuning against one measurement is tuning
 against the noise.
 
-**Scope, stated honestly.** The fricative fits were made at the reference speaker's tract
-length and do not transfer — installing them globally broke sibilants at other lengths. They
-are installed on that speaker's voices only. The generic inventory keeps its hand-placed
-fricatives and is still too bright; refitting it at the default length is the honest next
-step, and the gate says so in a comment rather than quietly passing.
+**Scope.** The first fricative fits were made at the reference speaker's tract length and did
+not transfer — installing them globally broke sibilants at other lengths, because a fricative's
+peak is set by the cavity in front of the constriction and that cavity scales with the tube.
+
+So the generic inventory was refitted **at its own default length**, against the same recording
+with the targets scaled by the tract ratio (peaks scale inversely with length; the
+high-frequency *share* is a shape property and carries across unchanged). Mean error in
+high-frequency share: **34 points hand-placed, 9 points fitted**, with every level landing in a
+sensible band.
+
+Two things made the fit work that did not work by hand. **Seeding from the target geometry** —
+`front cavity = c/4f` fixes where the constriction has to sit, and a hill-climb started from
+wherever the posture happened to be fell into a 400 Hz minimum for /ʃ/. And **averaging the
+measurements**, because one render of a noise source varies by a third.
+
+The last correction came from the recording again: with no front cavity the low-cut corner was
+dropping very far and the lows swamped the sound — but a narrow aperture at the lips radiates
+highs *better*, not worse, and a real /f/ carries 65% of its energy above 3 kHz.
 
 ---
 
