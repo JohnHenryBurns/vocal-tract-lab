@@ -213,7 +213,7 @@ async function boot(html){
        if(DIPH[sym]){ const f=DIPH[sym][0]; return (own&&own[f])||ART[f]; }
        return ART[sym]||ART['ə']; }
      function shapeFor(sym){ return articulate(baseFor(sym), getN()); }
-     ${src.replace(/\barticulate\(A2,N\)/g, 'articulate(A2,getN())')}`);
+     ${src.replace(/\barticulate\((A2|A),\s*N\)/g, (m,a)=>'articulate('+a+',getN())')}`);
 
   const fns = scope(ART,DIPH,APPROX,STOP_KEYS,BRANCHED,NASAL,VOICELESS,FRICATIVE,ASPIRATE,
                     ()=>N, ()=>VOICE && VOICE.art);
@@ -241,17 +241,34 @@ function setVoice(k){
 async function audioUp(){
   if(node) return;
   ctx = new (window.AudioContext||window.webkitAudioContext)();
-  N = Math.max(24, Math.round(ctx.sampleRate*2*0.175/350));
+  const fromRate = Math.round(ctx.sampleRate*2*0.175/350);
+  N = Math.max(14, Math.min(72, Math.round(VOICE.sect || fromRate)));
   const url = URL.createObjectURL(new Blob([ENG.worklet],{type:'application/javascript'}));
   await ctx.audioWorklet.addModule(url);
   node = new AudioWorkletNode(ctx,'tract',{processorOptions:{n:N}});
+  workletN = N;
   const g = ctx.createGain(); g.gain.value = 0.9;
   node.connect(g); g.connect(ctx.destination);
 }
 
+/* The worklet only changes tract length on a {type:'tract'} message — a 'voice'
+   message does NOT resize it (applyDelivery in the app posts both). Mutating N
+   without telling the processor leaves the tail of every keyframe undefined, and
+   the whole voice comes out NaN. Silence, not a crash. Route every N change here. */
+let workletN = 0;
+function syncTract(){
+  const want = Math.max(14, Math.min(72, Math.round(VOICE.sect || N)));
+  if(want === workletN) { N = want; return; }
+  N = want;
+  if(node){
+    node.port.postMessage({type:'tract', n:N, diam:ENG.articulate(
+      (VOICE.art && VOICE.art['ə']) || ENG.ART['ə'], N)});
+    workletN = N;
+  }
+}
+
 /* ── one token → the same keyframes the app builds ───────── */
 function planFor(chain){
-  if(VOICE.sect) N = Math.round(VOICE.sect);
   const D = Math.max(0.45, chain.length*(VOICE.per||0.17));
   const W = ENG.buildWord(chain, D, VOICE.drawl, VOICE.glide, VOICE.stopT, VOICE.open||0);
   const end = W.end;
@@ -265,6 +282,7 @@ function chainFor(c, mode){
 async function speak(chain){
   await audioUp();
   if(ctx.state==='suspended') await ctx.resume();
+  syncTract();
   const v = {...VOICE}; delete v.art; delete v.name;
   node.port.postMessage({type:'voice', v});
   node.port.postMessage({type:'goal', seq:planFor(chain)});
@@ -414,7 +432,7 @@ document.getElementById('wav').onclick = async ()=>{
     const SR=44100, gap=Math.round(0.4*SR), chunks=[], names=[];
     for(const c of CONS){
       const chain=chainFor(c,ctxMode());
-      if(VOICE.sect) N=Math.round(VOICE.sect);
+      N = Math.max(14, Math.min(72, Math.round(VOICE.sect || N)));
       const p=planFor(chain);
       const oc=new OfflineAudioContext(1, Math.ceil((p.end+0.6)*SR), SR);
       const url=URL.createObjectURL(new Blob([ENG.worklet],{type:'application/javascript'}));
