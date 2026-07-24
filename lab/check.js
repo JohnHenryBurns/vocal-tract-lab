@@ -279,8 +279,20 @@ check("the speller marks exactly one stressed syllable", () => {
   }
   // The greedy "augh" rule that made daughter into "daffter". Not a stress fact, but it was
   // found by reading this word's syllables and it belongs with the case that caught it.
+  // Whole-word shapes the letter rules cannot see, because they only ever match a SUFFIX.
+  // "my" was /mi/ and "she" was a bare /ʃ/ with no vowel at all — five of the hundred
+  // commonest words in English were silent consonants. The negative cases matter as much:
+  // "happy" must keep its /i/ and "style" must keep its own vowel rather than borrowing one.
+  // And the final -s rule must fire after a voiced consonant and nowhere else.
   for (const [w, want] of [["daughter","d.ɔ.t.ɝ"], ["taught","t.ɔ.t"], ["laugh","l.æ.f"],
-                           ["laughter","l.æ.f.t.ɝ"], ["slaughter","s.l.ɔ.t.ɝ"]]) {
+                           ["laughter","l.æ.f.t.ɝ"], ["slaughter","s.l.ɔ.t.ɝ"],
+                           ["my","m.aɪ"], ["why","w.aɪ"], ["sky","s.k.aɪ"],
+                           ["happy","h.æ.p.i"], ["city","s.ɪ.t.i"],
+                           ["be","b.i"], ["she","ʃ.i"], ["we","w.i"], ["me","m.i"],
+                           ["I","aɪ"], ["a","ə"],
+                           ["sells","s.ɛ.l.z"], ["dogs","d.ɑ.g.z"],
+                           ["cats","k.æ.t.s"], ["bus","b.ʌ.s"], ["glass","g.l.æ.s"],
+                           ["horse","h.ɔ.r.s"]]) {
     const got = S.g2pWord(w).ph.join(".");
     if (got !== want) bad.push(`${w}: ${got} want ${want}`);
   }
