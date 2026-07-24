@@ -453,6 +453,40 @@ check("the voice is not too cleanly periodic", () => {
   return { ok: v < 30, note: `${v.toFixed(1)} dB (a real recording measures 2-5 on this; 38 was ours)` };
 });
 
+check("every voice speaks at its own tract length", () => {
+  // The worklet changes tract length ONLY on a {type:'tract'} message — a 'voice' message
+  // does not resize it. Build keyframes at one length, run the processor at another, and the
+  // tail of every diameter array reads undefined: the output goes NaN, which plays as
+  // SILENCE rather than throwing. lab/bench.html shipped exactly this and looked merely
+  // unresponsive — nothing in the console, every control apparently dead. harness.js has
+  // carried a comment warning about it since the day it cost an afternoon.
+  const V = H.P.VOICES, word = ["ɑ","g","ɑ","l"], bad = [];
+  let quietest = Infinity, quietName = "";
+  for (const name of Object.keys(V)) {
+    const voice = { ...V[name].v };
+    const n = Math.round(voice.sect || 44);
+    const { keys } = H.plan(word, 0.9, voice, n);
+    const wrong = keys.filter(k => k.d.length !== n).length;
+    if (wrong) { bad.push(`${name}: ${wrong} keyframes ≠ ${n} sections`); continue; }
+    const { buf } = H.say(word, { voice, n });
+    let pk = 0, nan = 0;
+    for (let i = 0; i < buf.length; i++) {
+      if (!Number.isFinite(buf[i])) { nan++; break; }
+      const a = Math.abs(buf[i]); if (a > pk) pk = a;
+    }
+    // Calibrated, not guessed: forcing keyframes of 40 into a 44-section processor gives
+    // 67072 NaN samples and a peak of exactly 0, while the quietest healthy
+    // preset peaks between 0.055 and 0.08 depending on where the jitter lands. 1e-3 has
+    // ~55x headroom either way, so this one does not need averaging to be stable.
+    if (nan) bad.push(`${name}: NaN`);
+    else if (pk < 1e-3) bad.push(`${name}: silent (${pk.toExponential(1)})`);
+    if (pk < quietest) { quietest = pk; quietName = name; }
+  }
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : `${Object.keys(V).length} voices at 14-52 sections, keyframes match, quietest /${quietName}/ ${quietest.toFixed(4)}` };
+});
+
 // ── report ─────────────────────────────────────────────────────────────────
 console.log("\nVOCAL TRACT LAB — checks\n");
 let failed = 0;

@@ -23,12 +23,13 @@ function loadPage() {
     html.match(/function articulate\(A,n\)\{[\s\S]*?\n\}/)[0] + "\nreturn articulate;")();
   const main = html.match(/<script>([\s\S]*)<\/script>/g).pop();
   const VOICE_SPEC = new Function(main.match(/const VOICE_SPEC=\[[\s\S]*?\];/)[0] + "; return VOICE_SPEC;")();
+  const VOICES = new Function(main.match(/const VOICES = \{[\s\S]*?\n\};/)[0] + "; return VOICES;")();
   const defaultVoice = () => Object.fromEntries(VOICE_SPEC.map(p => [p.k, p.d]));
   // phoneme classes, read from the page so they cannot drift from it
   const grab = (name) => new Function("return " + main.match(new RegExp("const " + name + "\\s*=\\s*(\\{[^}]*\\})"))[1])();
   const arr  = (name) => new Function("return " + main.match(new RegExp("const " + name + "\\s*=\\s*(\\[[^\\]]*\\])"))[1])();
   const DIPH = new Function("return " + main.match(/const DIPH\s*=\s*(\{[^}]*\})/)[1])();
-  return { html, worklet, ART, articulate, VOICE_SPEC, defaultVoice, DIPH,
+  return { html, worklet, ART, articulate, VOICE_SPEC, VOICES, defaultVoice, DIPH,
            STOP_KEYS: arr("STOP_KEYS"), APPROX: arr("APPROX"),
            NASAL: grab("NASAL"), VOICELESS: grab("VOICELESS"), FRICATIVE: grab("FRICATIVE"), ASPIRATE: grab("ASPIRATE"),
            BRANCHED: grab("BRANCHED") };

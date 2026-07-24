@@ -6,7 +6,7 @@ Everything that is not the app. Nothing here ships; it exists to keep the app ho
 
     node lab/check.js
 
-One command, one verdict, exit 0 means shippable. Twenty checks, each with a band that exists
+One command, one verdict, exit 0 means shippable. Twenty-one checks, each with a band that exists
 because something once broke that way. It drives the **shipping engine**, extracted straight
 out of `index.html`, so it cannot drift from what actually runs.
 
@@ -19,7 +19,7 @@ broken build reached production through a masked exit code.
 
 | file | what it is |
 |---|---|
-| `check.js` | the gate. Twenty checks with calibrated bands |
+| `check.js` | the gate. Twenty-one checks with calibrated bands |
 | `harness.js` | drives the shipping engine — extracts the worklet and the phoneme tables from `index.html` at run time |
 | `tract.js` | a standalone Kelly–Lochbaum tract, **mirrors the worklet**. Used for transfer-function work where running the whole engine is overkill |
 | `ship.sh` | the deploy gate |
