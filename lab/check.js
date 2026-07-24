@@ -390,6 +390,38 @@ check("the two-mass folds oscillate and follow pitch", () => {
            note: bad.length ? bad.join(" ") : "oscillates and tracks pitch at 95, 140 and 200 Hz" };
 });
 
+check("the voice is not too cleanly periodic", () => {
+  // Harmonic-to-noise ratio: how much energy sits ON the harmonics against between them.
+  // A perfectly periodic source puts everything on the harmonics and nothing between, which
+  // is the comb-like look of synthesis and a large part of why it sounds robotic. Measured
+  // at 38 dB against a real recording's 2-5 dB on the same measure; published healthy voices
+  // sit around 15-25. Aspiration is what fills the gaps.
+  const hnr = (sig, f0) => {
+    let N = 1; while (N*2 <= sig.length) N *= 2; N = Math.min(N, 16384);
+    const st = Math.floor((sig.length - N)/2);
+    const re = new Float64Array(N/2+1), im = new Float64Array(N/2+1);
+    for (let k = 0; k <= N/2; k++) {
+      let a = 0, b = 0;
+      for (let i = 0; i < N; i++) {
+        const w = 0.5 - 0.5*Math.cos(2*Math.PI*i/N), th = 2*Math.PI*k*i/N;
+        a += sig[st+i]*w*Math.cos(th); b -= sig[st+i]*w*Math.sin(th);
+      }
+      re[k] = a; im[k] = b;
+    }
+    const S = k => re[k]*re[k] + im[k]*im[k], bin = f => Math.round(f/H.SR*N);
+    let h = 0, nz = 0;
+    for (let k = 1; k*f0 < 5000; k++) {
+      const c = k*f0;
+      for (let b = bin(c-f0*0.18); b <= bin(c+f0*0.18); b++) if (b > 0 && b <= N/2) h += S(b);
+      for (let b = bin(c+f0*0.28); b <= bin(c+f0*0.72); b++) if (b > 0 && b <= N/2) nz += S(b);
+    }
+    return 10*Math.log10(h/Math.max(nz, 1e-12));
+  };
+  const x = H.sustain("ɑ", { n: 44, seconds: 1.2, f0: 100 });
+  const v = hnr(x.subarray(Math.floor(x.length*0.4)), 100);
+  return { ok: v < 30, note: `${v.toFixed(1)} dB (a real recording measures 2-5 on this; 38 was ours)` };
+});
+
 // ── report ─────────────────────────────────────────────────────────────────
 console.log("\nVOCAL TRACT LAB — checks\n");
 let failed = 0;

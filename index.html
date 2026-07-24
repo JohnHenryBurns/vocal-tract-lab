@@ -2000,7 +2000,7 @@ const VOICE_SPEC=[
   {k:'jit',  lo:0,      hi:3,       d:1},       // vocal-fold irregularity
   {k:'damp', lo:0.9985, hi:0.99985, d:0.9995},  // tract losses -> formant bandwidth
   {k:'lipR', lo:-0.95,  hi:-0.62,   d:-0.85},   // radiation at the lips
-  {k:'brth', lo:0,      hi:0.12,    d:0.02},    // aspiration
+  {k:'brth', lo:0,      hi:0.34,    d:0.18},   // aspiration — the noise BETWEEN harmonics,    // aspiration
   {k:'f0a',  lo:80,     hi:330,     d:208},     // pitch: onset  (must reach a man at 110
   {k:'f0b',  lo:90,     hi:380,     d:250},     //        peak     and a child at 310)
   {k:'f0c',  lo:70,     hi:300,     d:190},     //        fall
@@ -2306,31 +2306,31 @@ const VOICES = {
   // vowel does NOT open. I had modelled it as an arc with the jaw dropping; the recording
   // says otherwise, so the recording wins.
   announcer:{ label:'Goal announcer', note:'Pressed and drawn out, pitch falling the whole way. Measured from a real cry.',
-    v:{ rd:0.48, press:0.85, jit:1.4, brth:0.055, drawl:0.62, open:0.06, per:0.62,
+    v:{ rd:0.48, press:0.85, jit:1.4, brth:0.20, drawl:0.62, open:0.06, per:0.62,
         sect:44, f0a:196, f0b:188, f0c:118 } },
   john:{ art:{"i": {"jaw": 0.092, "bodyPos": 0.637, "bodyHi": 0.67, "tipPos": 0.88, "tipHi": 0.25, "lip": 0.65}, "ɪ": {"jaw": 0.785, "bodyPos": 0.602, "bodyHi": 0.924, "tipPos": 0.807, "tipHi": 0.131, "lip": 1}, "ɛ": {"jaw": 0.782, "bodyPos": 0.638, "bodyHi": 0.792, "tipPos": 0.904, "tipHi": 0.086, "lip": 0.966}, "æ": {"jaw": 0.825, "bodyPos": 0.823, "bodyHi": 0.381, "tipPos": 0.742, "tipHi": 0.07, "lip": 0.879}, "ɑ": {"jaw": 0.7, "bodyPos": 0.301, "bodyHi": 0.409, "tipPos": 0.817, "tipHi": 0.059, "lip": 0.589}, "ɔ": {"jaw": 0.33, "bodyPos": 0.336, "bodyHi": 0.482, "tipPos": 0.84, "tipHi": 0.019, "lip": 0.438}, "ʊ": {"jaw": 0.94, "bodyPos": 0.514, "bodyHi": 0.039, "tipPos": 0.84, "tipHi": 0.081, "lip": 0.282}, "u": {"jaw": 0.951, "bodyPos": 0.702, "bodyHi": 0.286, "tipPos": 0.84, "tipHi": 0.037, "lip": 0.178}, "ʌ": {"jaw": 0.33, "bodyPos": 0.223, "bodyHi": 0.308, "tipPos": 0.731, "tipHi": 0.294, "lip": 0.346}, "ɝ": {"jaw": 0.749, "bodyPos": 0.529, "bodyHi": 0.721, "tipPos": 0.79, "tipHi": 0.215, "lip": 0.378}, "ə": {"jaw": 0.891, "bodyPos": 0.55, "bodyHi": 0.406, "tipPos": 0.936, "tipHi": 0.198, "lip": 0.414}, "l": {"jaw": 0.428, "bodyPos": 0.52, "bodyHi": 0.43, "tipPos": 0.7, "tipHi": 0.191, "lip": 1}, "r": {"jaw": 0.617, "bodyPos": 0.708, "bodyHi": 0.147, "tipPos": 0.79, "tipHi": 0.435, "lip": 0.405}, "w": {"jaw": 0.718, "bodyPos": 0.85, "bodyHi": 0.584, "tipPos": 0.84, "tipHi": 0.39, "lip": 0.154}, "j": {"jaw": 0, "bodyPos": 0.677, "bodyHi": 0.603, "tipPos": 0.813, "tipHi": 0.2, "lip": 0.65}, "m": {"jaw": 0.349, "bodyPos": 0.15, "bodyHi": 0.441, "tipPos": 0.85, "tipHi": 0.22, "lip": 0.121}, "n": {"jaw": 0.28, "bodyPos": 0.55, "bodyHi": 0.03, "tipPos": 0.81, "tipHi": 0.78, "lip": 0.545}, "ŋ": {"jaw": 0.347, "bodyPos": 0.592, "bodyHi": 0.78, "tipPos": 0.85, "tipHi": 0, "lip": 0.737}, "s": {"jaw": 0.45, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.85, "tipHi": 0.85, "lip": 0.975}, "z": {"jaw": 0.45, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.85, "tipHi": 0.85, "lip": 1}, "ʃ": {"jaw": 0.35, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.8, "tipHi": 0.75, "lip": 0.577}, "ʒ": {"jaw": 0.35, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.8, "tipHi": 0.8, "lip": 0.627}, "f": {"jaw": 0.3, "bodyPos": 0.35, "bodyHi": 0.15, "tipPos": 0.68, "tipHi": 0.1, "lip": 0.088}, "v": {"jaw": 0.15, "bodyPos": 0.35, "bodyHi": 0.15, "tipPos": 0.84, "tipHi": 0, "lip": 0.088}, "θ": {"jaw": 0.18, "bodyPos": 0.5, "bodyHi": 0.2, "tipPos": 0.96, "tipHi": 0.79, "lip": 0.759}, "ð": {"jaw": 0.355, "bodyPos": 0.5, "bodyHi": 0.2, "tipPos": 0.945, "tipHi": 0.79, "lip": 0.984}}, label:'John', note:'Measured: a 15.9 cm tract from F3, modal voice, pitch around 93 Hz.',
-    v:{ rd:1.26, press:0.18, jit:1.0, brth:0.075, drawl:0.08, open:0.05, per:0.13,
+    v:{ rd:1.26, press:0.18, jit:1.0, brth:0.19, drawl:0.08, open:0.05, per:0.13,
         sect:40, f0a:88, f0b:99, f0c:78 } },
   johncry:{ art:{"i": {"jaw": 0.092, "bodyPos": 0.637, "bodyHi": 0.67, "tipPos": 0.88, "tipHi": 0.25, "lip": 0.65}, "ɪ": {"jaw": 0.785, "bodyPos": 0.602, "bodyHi": 0.924, "tipPos": 0.807, "tipHi": 0.131, "lip": 1}, "ɛ": {"jaw": 0.782, "bodyPos": 0.638, "bodyHi": 0.792, "tipPos": 0.904, "tipHi": 0.086, "lip": 0.966}, "æ": {"jaw": 0.825, "bodyPos": 0.823, "bodyHi": 0.381, "tipPos": 0.742, "tipHi": 0.07, "lip": 0.879}, "ɑ": {"jaw": 0.7, "bodyPos": 0.301, "bodyHi": 0.409, "tipPos": 0.817, "tipHi": 0.059, "lip": 0.589}, "ɔ": {"jaw": 0.33, "bodyPos": 0.336, "bodyHi": 0.482, "tipPos": 0.84, "tipHi": 0.019, "lip": 0.438}, "ʊ": {"jaw": 0.94, "bodyPos": 0.514, "bodyHi": 0.039, "tipPos": 0.84, "tipHi": 0.081, "lip": 0.282}, "u": {"jaw": 0.951, "bodyPos": 0.702, "bodyHi": 0.286, "tipPos": 0.84, "tipHi": 0.037, "lip": 0.178}, "ʌ": {"jaw": 0.33, "bodyPos": 0.223, "bodyHi": 0.308, "tipPos": 0.731, "tipHi": 0.294, "lip": 0.346}, "ɝ": {"jaw": 0.749, "bodyPos": 0.529, "bodyHi": 0.721, "tipPos": 0.79, "tipHi": 0.215, "lip": 0.378}, "ə": {"jaw": 0.891, "bodyPos": 0.55, "bodyHi": 0.406, "tipPos": 0.936, "tipHi": 0.198, "lip": 0.414}, "l": {"jaw": 0.428, "bodyPos": 0.52, "bodyHi": 0.43, "tipPos": 0.7, "tipHi": 0.191, "lip": 1}, "r": {"jaw": 0.617, "bodyPos": 0.708, "bodyHi": 0.147, "tipPos": 0.79, "tipHi": 0.435, "lip": 0.405}, "w": {"jaw": 0.718, "bodyPos": 0.85, "bodyHi": 0.584, "tipPos": 0.84, "tipHi": 0.39, "lip": 0.154}, "j": {"jaw": 0, "bodyPos": 0.677, "bodyHi": 0.603, "tipPos": 0.813, "tipHi": 0.2, "lip": 0.65}, "m": {"jaw": 0.349, "bodyPos": 0.15, "bodyHi": 0.441, "tipPos": 0.85, "tipHi": 0.22, "lip": 0.121}, "n": {"jaw": 0.28, "bodyPos": 0.55, "bodyHi": 0.03, "tipPos": 0.81, "tipHi": 0.78, "lip": 0.545}, "ŋ": {"jaw": 0.347, "bodyPos": 0.592, "bodyHi": 0.78, "tipPos": 0.85, "tipHi": 0, "lip": 0.737}, "s": {"jaw": 0.45, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.85, "tipHi": 0.85, "lip": 0.975}, "z": {"jaw": 0.45, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.85, "tipHi": 0.85, "lip": 1}, "ʃ": {"jaw": 0.35, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.8, "tipHi": 0.75, "lip": 0.577}, "ʒ": {"jaw": 0.35, "bodyPos": 0.55, "bodyHi": 0.28, "tipPos": 0.8, "tipHi": 0.8, "lip": 0.627}, "f": {"jaw": 0.3, "bodyPos": 0.35, "bodyHi": 0.15, "tipPos": 0.68, "tipHi": 0.1, "lip": 0.088}, "v": {"jaw": 0.15, "bodyPos": 0.35, "bodyHi": 0.15, "tipPos": 0.84, "tipHi": 0, "lip": 0.088}, "θ": {"jaw": 0.18, "bodyPos": 0.5, "bodyHi": 0.2, "tipPos": 0.96, "tipHi": 0.79, "lip": 0.759}, "ð": {"jaw": 0.355, "bodyPos": 0.5, "bodyHi": 0.2, "tipPos": 0.945, "tipHi": 0.79, "lip": 0.984}}, label:'John shouting', note:'His own goal cry, measured: pitch falling 158 to 93 Hz over 2.9 seconds.',
-    v:{ rd:0.55, press:0.80, jit:1.3, brth:0.065, drawl:0.60, open:0.06, per:0.62,
+    v:{ rd:0.55, press:0.80, jit:1.3, brth:0.22, drawl:0.60, open:0.06, per:0.62,
         sect:40, f0a:158, f0b:150, f0c:95 } },
   man:{ label:'Man', note:'A 17.5 cm tract, modal voice, ordinary timing.',
-    v:{ rd:0.95, press:0.18, jit:1.0, brth:0.07, drawl:0.08, open:0.05, per:0.17,
+    v:{ rd:0.95, press:0.18, jit:1.0, brth:0.18, drawl:0.08, open:0.05, per:0.17,
         sect:46, f0a:96, f0b:112, f0c:84 } },
   woman:{ label:'Woman', note:'A shorter tract lifts every formant — that, not pitch alone, is the difference.',
-    v:{ rd:1.25, press:0.15, jit:1.0, brth:0.085, drawl:0.08, open:0.05, per:0.17,
+    v:{ rd:1.25, press:0.15, jit:1.0, brth:0.21, drawl:0.08, open:0.05, per:0.17,
         sect:37, f0a:200, f0b:232, f0c:178 } },
   child:{ label:'Child', note:'Shorter still, and breathier.',
-    v:{ rd:1.35, press:0.12, jit:1.3, brth:0.09, drawl:0.08, open:0.05, per:0.16,
+    v:{ rd:1.35, press:0.12, jit:1.3, brth:0.22, drawl:0.08, open:0.05, per:0.16,
         sect:31, f0a:268, f0b:310, f0c:244 } },
   helium:{ label:'Helium', note:'Same voice, same pitch — sound just travels faster, so the tube rings much higher. Source-filter separation, audible.',
-    v:{ rd:0.95, press:0.18, jit:1.0, brth:0.07, drawl:0.08, open:0.05, per:0.17,
+    v:{ rd:0.95, press:0.18, jit:1.0, brth:0.18, drawl:0.08, open:0.05, per:0.17,
         sect:19, f0a:96, f0b:112, f0c:84 } },
   whisper:{ label:'Whisper', note:'Barely phonating: the folds hardly close at all.',
-    v:{ rd:2.35, press:0.0, jit:1.8, brth:0.11, drawl:0.10, open:0.03, per:0.20,
+    v:{ rd:2.35, press:0.0, jit:1.8, brth:0.26, drawl:0.10, open:0.03, per:0.20,
         sect:44, f0a:130, f0b:148, f0c:120 } },
   barry:{ label:'Barry White', note:'A long tract and a low larynx: deep, resonant, unhurried.',
-    v:{ rd:0.78, press:0.22, jit:1.1, brth:0.07, drawl:0.14, open:0.10, per:0.20,
+    v:{ rd:0.78, press:0.22, jit:1.1, brth:0.18, drawl:0.14, open:0.10, per:0.20,
         damp:0.99972, sect:48, f0a:58, f0b:88, f0c:48 } },
   custom:{ label:'Custom', note:'Yours. Tune it in the Lab, then copy the seed — a seed is the whole voice, tract length and timing included.', v:null },
 };

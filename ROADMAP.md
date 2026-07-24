@@ -579,6 +579,31 @@ and you can watch it happen.
 
 ---
 
+## The voice was too clean
+
+Reported as *"unnatural peaks in the spectrogram"* and *"still robotic"*. Checking the output
+against the tract's transfer function found no spurious resonances at all — every peak was a
+harmonic, exactly where it should be. The problem was not wrong peaks. It was peaks that were
+**too distinct**.
+
+**Harmonic-to-noise ratio** measures this: how much energy sits *on* the harmonics against
+*between* them. A perfectly periodic source puts everything on the harmonics and nothing in the
+gaps, which is the comb-like appearance of synthesis and much of what makes it sound like a
+machine. Real voices leak — the folds never seal perfectly, and there is always turbulence
+riding on the voice.
+
+Measured: **the model at 38 dB, the reference recording at 2–5 dB** on the same measure.
+Published healthy voices sit around 15–25. Thirty-eight is not a person.
+
+The fix is aspiration, and the parameter could not even reach it — `brth` was capped at 0.12
+when about 0.20 was needed. Widened, and every preset raised. All nine now sit between 12 and
+29 dB, inside the human band, with a check to keep them there.
+
+Worth noting what this was *not*: not the formant bandwidths, not a bug in the tract, not the
+new oscillator. Just a source that was cleaner than any real larynx.
+
+---
+
 ## On flaky checks
 
 Twice now a check has passed and failed at random, and both times the cause was the same:
