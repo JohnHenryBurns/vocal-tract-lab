@@ -224,6 +224,56 @@ check("nothing the speller produces gets silently dropped", () => {
                             : `${words.length} words, nothing unspeakable` };
 });
 
+// ── Phase 8.0: the stress channel ──────────────────────────────────────────
+check("the speller marks exactly one stressed syllable", () => {
+  // This channel is the prerequisite for four later steps and it makes NO SOUND, so nothing
+  // else in the gate can see it go wrong. Without a check it could rot silently for months
+  // and then be discovered as a duration bug, which is the expensive way round.
+  const S = require(__dirname + "/../engine/spelling.js");
+  const bad = [];
+  // Three separate claims, because they fail for different reasons and a merged assertion
+  // would not say which.
+  //
+  // 1. The channel stays parallel to the phones. If these ever drift out of step, every
+  //    consumer indexes the wrong syllable and the symptom is a timing bug nowhere near here.
+  //    The multi-word path is included because it is where the lengths are assembled by hand.
+  for (const w of ["goal", "computer", "hey sexy lady", "the quick brown fox", "hmm"]) {
+    const r = S.g2p(w);
+    if (r.stress.length !== r.ph.length) bad.push(`${w}: ${r.ph.length}ph/${r.stress.length}st`);
+  }
+  // 2. One primary per word, and every word gets one. Zero means a word spoken flat; two
+  //    means the syllable walk double-counted, which is what an off-by-one in the coda
+  //    length would look like.
+  for (const w of ["goal","atlas","computer","possibility","banana","strengths","hmm"]) {
+    const r = S.g2pWord(w);
+    const n = r.syl.filter(s => s.stress === 1).length;
+    const want = r.syl.length ? 1 : 0;         // a vowelless word has no syllable to stress
+    if (n !== want) bad.push(`${w}: ${n} primary of ${r.syl.length}`);
+  }
+  // 3. Known answers. Chosen because each one broke a different draft of the rules: atlas and
+  //    better both took stress from the loose WEAK_FIRST prefix, kitchen tests that the
+  //    two-symbol affricate /tʃ/ is a legal onset, atlas that /tl/ is not, possibility the
+  //    antepenultimate suffix, and banana that the exception list is consulted at all.
+  const WANT = { goal:[1,0], atlas:[2,0], better:[2,0], kitchen:[2,0], water:[2,0],
+                 computer:[3,1], together:[3,1], about:[2,1], banana:[3,1],
+                 possibility:[5,2], maximus:[3,0], street:[1,0] };
+  for (const [w, [nsyl, pri]] of Object.entries(WANT)) {
+    const r = S.g2pWord(w);
+    if (r.syl.length !== nsyl || r.primary !== pri)
+      bad.push(`${w}: ${r.syl.length}syl@${r.primary} want ${nsyl}@${pri}`);
+  }
+  // The greedy "augh" rule that made daughter into "daffter". Not a stress fact, but it was
+  // found by reading this word's syllables and it belongs with the case that caught it.
+  for (const [w, want] of [["daughter","d.ɔ.t.ɝ"], ["taught","t.ɔ.t"], ["laugh","l.æ.f"],
+                           ["laughter","l.æ.f.t.ɝ"], ["slaughter","s.l.ɔ.t.ɝ"]]) {
+    const got = S.g2pWord(w).ph.join(".");
+    if (got !== want) bad.push(`${w}: ${got} want ${want}`);
+  }
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+                            : "parallel, one primary each, 12 known patterns" };
+});
+
 check("no fricative strays into another's band", () => {
   // /ð/ in "mother" came out as a static sh. Not a bug in the sound — it was in the WRONG
   // BAND. An automatic fit chasing a spectral target had moved the dental constriction back
