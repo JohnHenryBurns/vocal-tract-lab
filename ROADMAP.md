@@ -181,6 +181,26 @@ serves the next pair. Eight to ten taps converges somewhere slider-dragging neve
 This is the correct tool when the judge is a human ear, and it puts every second of listening
 time onto perceptual questions rather than measurable ones.
 
+### 1d. Every knob reachable  ✅ built
+
+Advice of the form *"turn `acc` to zero and listen"* was unfollowable: **five of twenty-eight
+parameters could be set by hand anywhere in either page**, and none of the Phase 8 ones. The
+tournament explores but cannot set a value, and building a seed by hand means computing base-36
+offsets. So the bisection story the prosody knobs were designed around had nowhere to happen.
+
+A **Knobs** panel in the bench: all twenty-eight, live, grouped the way the tournament groups
+them, each with a reset and — where one exists — a **∅** that sets it to its null.
+
+The null is declared in `VOICE_SPEC` as `off`, not written into the UI, because it is a fact
+about the parameter rather than about a button. Sixteen have one; a `p8` flag marks the nine
+that make up the Phase 8 prosody layer, so **Phase 8 off** nulls the lot in a single action.
+
+**That is the comparison worth having**, and it is gated: with the layer nulled, every held
+segment is the same length, every stop takes exactly `stopHold`, every level is 1 and the pitch
+contour is the bare baseline — the engine as it behaved before 8.1. The check also asserts the
+opposite, that with Phase 8 *on* none of those hold, because a switch that nulls a layer which
+was doing nothing anyway would pass the first half and mean nothing.
+
 ### 1c. Seed codes
 
 Any cry can be saved, shared and returned to as a short string. Without this, a good result
@@ -1455,6 +1475,37 @@ folds, which real larynges have and this model does not.
 **No prosody above the word.** Pitch is an arc across a single word, and a phrase is words with
 pauses between them. Real speech has phrase-level contours, stress, and final lengthening.
 This is no longer just a known fault — it is Phase 8, with a build order.
+
+---
+
+## A knob that nothing declared
+
+Worth writing down because the failure had three links and only the last one was a code bug.
+
+**A commit was pushed to a branch whose PR had already merged.** The Knobs panel went to
+`tournament-to-bench` after #8 was merged, so it was stranded: no Knobs panel on main, no `off`
+declarations, no `p8` flags — while two subsequent messages told the user to go and use it. This
+had happened twice before, caught both times; this is the third and it was not caught.
+
+**That made a later edit silently fail.** `gcap` was inserted into `VOICE_SPEC` by a
+`str.replace` whose anchor text contained `off:0, p8:1` — which existed only on the stranded
+branch. `str.replace` returns the string unchanged when it matches nothing, and that was the one
+edit in its batch without an assertion on the match. It reported success.
+
+**So `gcap` shipped as a parameter nothing declared.** The code read it through
+`P_('gcap', 0.5)` and it worked, taking its inline default — while being absent from the seed,
+absent from every group, unsettable, with no null. And *no check noticed*, including the one
+that asserts the groups partition the spec: `gcap` was not in the spec to be missing from it.
+A check that only looks at what is declared cannot see what was never declared.
+
+The fix is a check that reads the other way: **every name the engine reads as a voice parameter
+must appear in `VOICE_SPEC`**, found by scanning `phonemes.js` for `P_('...')` and
+`v.x === undefined`. Verified by ablation — remove `gcap` from the spec and it fails with
+*"read by the engine but not in VOICE_SPEC: gcap"*.
+
+The process lesson is smaller and duller: **branch fresh from main rather than pushing follow-ups
+onto an open PR's branch**, because the merge can land in the gap and nothing about pushing to a
+merged branch fails loudly.
 
 ---
 

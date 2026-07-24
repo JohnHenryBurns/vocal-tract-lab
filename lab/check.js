@@ -714,6 +714,69 @@ check("pitch moves in semitones and accents land on stressed syllables", () => {
                : `one copy, 200->100 midpoint ${mid.toFixed(0)} Hz, ${nStressed} accents at ${v.acc} st, perturbation ${st.toFixed(1)} st, no double-count` };
 });
 
+// ── every knob is reachable, and the whole phase can be switched off ───────
+check("Phase 8 nulls out cleanly, back to the engine before it", () => {
+  const P = H.P, S = require(__dirname + "/../engine/spelling.js"), bad = [];
+
+  // 1. Every declared null is inside its own range. A null outside [lo,hi] would be clamped on
+  //    the way in and the button would quietly do something other than what it says.
+  for (const p of P.VOICE_SPEC) {
+    if (p.off === undefined) continue;
+    if (p.off < p.lo || p.off > p.hi) bad.push(`${p.k} off=${p.off} outside [${p.lo},${p.hi}]`);
+  }
+  const p8 = P.VOICE_SPEC.filter(p => p.p8);
+  if (p8.length < 9) bad.push(`only ${p8.length} knobs marked p8`);
+
+  // 1b. EVERY KNOB THE ENGINE READS MUST BE DECLARED. buildWord reads its parameters through
+  //     P_('name', default), and buildF0 off the voice object. A name read but never put in
+  //     VOICE_SPEC still WORKS — it silently takes its inline default — while being invisible
+  //     to everything: not in the seed, not in a group, not settable, no null, and not missed
+  //     by the partition check either, because it is not in the spec to be missing from.
+  //     `gcap` shipped exactly like that: a str.replace whose anchor did not exist, on a branch
+  //     where the anchor had never landed, and no assertion on the match. This is the check
+  //     that catches the whole class rather than that one instance.
+  const ph = require("fs").readFileSync(__dirname + "/../engine/phonemes.js", "utf8");
+  const declared = new Set(P.VOICE_SPEC.map(x => x.k));
+  const read = new Set();
+  for (const m of ph.matchAll(/P_\(\s*'([A-Za-z_$][\w$]*)'/g)) read.add(m[1]);
+  for (const m of ph.matchAll(/v\.([A-Za-z_$][\w$]*)\s*===\s*undefined/g)) read.add(m[1]);
+  const undeclared = [...read].filter(k => !declared.has(k));
+  if (undeclared.length) bad.push(`read by the engine but not in VOICE_SPEC: ${undeclared.join(" ")}`);
+
+  // 2. THE CLAIM. Null the whole Phase 8 layer and the engine has to behave as it did before
+  //    any of 8.1 to 8.4 existed: every held segment the same length, every stop the same
+  //    closure, every level 1, and the pitch contour back to the bare baseline. If that stops
+  //    being true then "turn it off and listen" is not a bisection, it is a fourth thing to
+  //    debug — and the knobs exist precisely so a fault can be attributed.
+  //    drawl is zeroed too because it is not a Phase 8 knob and predates all of this; it is
+  //    the one other thing that lengthens a single segment.
+  const off = { ...P.defaultVoice(), drawl: 0 };
+  p8.forEach(p => off[p.k] = p.off);
+  const r = S.g2p("banana and a tomato");
+  const W = P.buildWord(r.ph, { D: 1.6, n: 44, stress: r.stress, pros: off, stopHold: off.stopT });
+  const dur = x => +((x.b - x.a).toFixed(9));
+  const held = W.seg.filter(s => s.sym !== " " && !P.STOP_KEYS.includes(s.sym)
+                              && !P.APPROX.includes(s.sym)).map(dur);
+  if (new Set(held).size !== 1) bad.push(`held segments not equal: ${[...new Set(held)].join(" ")}`);
+  const stops = W.seg.filter(s => P.STOP_KEYS.includes(s.sym));
+  if (!stops.every(s => Math.abs((s.b - s.a) - off.stopT) < 1e-12))
+    bad.push("stop closures differ from stopHold");
+  if (!W.keys.every(k => k.lv === undefined || k.lv === 1)) bad.push("levels are not flat");
+  if (JSON.stringify(P.buildF0(W.end, off, { stress: r.stress, seg: W.seg }))
+      !== JSON.stringify(P.buildF0(W.end, off))) bad.push("contour is not the bare baseline");
+
+  // 3. And it must be a real switch, not a no-op: with Phase 8 ON, none of those hold.
+  const on = { ...P.defaultVoice(), drawl: 0 };
+  const W2 = P.buildWord(r.ph, { D: 1.6, n: 44, stress: r.stress, pros: on, stopHold: on.stopT });
+  const held2 = W2.seg.filter(s => s.sym !== " " && !P.STOP_KEYS.includes(s.sym)
+                                && !P.APPROX.includes(s.sym)).map(dur);
+  if (new Set(held2).size === 1) bad.push("Phase 8 ON also gives flat durations — the knobs do nothing");
+
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : `${P.VOICE_SPEC.filter(p=>p.off!==undefined).length} nulls declared, ${p8.length} in phase 8, off == pre-8.1` };
+});
+
 // ── the voice operations are shared, and the groups partition the spec ─────
 check("one copy of the voice codec, and the groups cover it exactly", () => {
   const P = H.P, fs = require("fs"), bad = [];

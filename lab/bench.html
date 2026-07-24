@@ -53,6 +53,7 @@ select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--li
   <button class="tab" data-mode="pairs">Pairs</button>
   <button class="tab" data-mode="phrases">Phrases</button>
   <button class="tab" data-mode="tourney">Tournament</button>
+  <button class="tab" data-mode="knobs">Knobs</button>
   <button class="tab" data-mode="out">Results</button>
 </div>
 
@@ -167,6 +168,26 @@ select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--li
     <button id="tCopy">Copy seed</button>
     <button id="tReset">Reset</button>
   </div>
+</section>
+
+<!-- ── KNOBS ────────────────────────────────────────────────── -->
+<!-- Every parameter, reachable. Before this, five of twenty-eight could be set by hand
+     anywhere in either page — and none of the Phase 8 ones. Advice of the form "turn `acc` to
+     zero and listen" was unusable, because there was nowhere to turn it.
+
+     Each knob that has a meaningful null gets a "∅" button, and the null is read off
+     VOICE_SPEC rather than written here, because it is a fact about the parameter. "Phase 8
+     off" nulls the whole prosody layer at once, which is the comparison worth having: the
+     engine as it is against the engine as it was before any of 8.1 to 8.4 existed. -->
+<section id="paneKnobs" class="card hidden">
+  <div class="row" style="margin-bottom:6px">
+    <button id="kP8">Phase 8 off</button>
+    <button id="kDef">All defaults</button>
+    <button id="kCopy">Copy seed</button>
+  </div>
+  <div class="ctx" id="kNote" style="margin-bottom:8px"></div>
+  <div id="kList"></div>
+  <div id="kSeed" class="chain" style="font-family:var(--mono);font-size:.8rem;word-break:break-all;margin-top:8px"></div>
 </section>
 
 <!-- ── RESULTS ──────────────────────────────────────────────── -->
@@ -291,7 +312,7 @@ async function boot(src){
     BRANCHED: P.BRANCHED, NASAL: P.NASAL, VOICELESS: P.VOICELESS,
     FRICATIVE: P.FRICATIVE, ASPIRATE: P.ASPIRATE,
     articulate: P.articulate, buildF0: P.buildF0,
-    VOICE_GROUPS: P.VOICE_GROUPS, mutateVoice: P.mutateVoice,
+    VOICE_GROUPS: P.VOICE_GROUPS, mutateVoice: P.mutateVoice, VOICE_SPEC: P.VOICE_SPEC,
     encodeVoice: P.encodeVoice, decodeVoice: P.decodeVoice, defaultVoice: P.defaultVoice,
     buildWord: (chain, D, stress) => P.buildWord(chain, {
       D, drawl: VOICE.drawl, glide: VOICE.glide, stopHold: VOICE.stopT,
@@ -564,6 +585,83 @@ document.getElementById('tReset').addEventListener('click', ()=>{
   tChamp=ENG.defaultVoice(); tStep=1.0; tRound=1; tPick=null; tNext();
 });
 
+/* ── KNOBS ────────────────────────────────────────────────
+   Every parameter, live, grouped the way the tournament groups them. Five of twenty-eight used
+   to be settable by hand across both pages, and none of the Phase 8 ones — so "turn acc to
+   zero and listen" was advice with nowhere to follow it. */
+function kApply(k, val){
+  VOICE[k] = val;
+  const el = document.getElementById('kv_'+k);
+  if(el) el.textContent = (+val).toFixed(3).replace(/\.?0+$/,'');
+  const sl = document.getElementById('ks_'+k);
+  if(sl && +sl.value !== +val) sl.value = val;
+  document.getElementById('kSeed').textContent = ENG.encodeVoice(kVoiceOnly());
+  kNote();
+}
+function kVoiceOnly(){ const v={...VOICE}; delete v.art; delete v.name; return v; }
+function kNote(){
+  const p8 = ENG.VOICE_SPEC.filter(p => p.p8);
+  const nulled = p8.filter(p => Math.abs(VOICE[p.k] - p.off) < 1e-9).length;
+  const off = ENG.VOICE_SPEC.filter(p => p.off !== undefined && Math.abs(VOICE[p.k]-p.off) < 1e-9)
+                            .map(p => p.k);
+  document.getElementById('kNote').textContent =
+    (nulled === p8.length ? 'Phase 8 is OFF \u2014 timing, stress and pitch as they were before 8.1. '
+     : nulled ? nulled + ' of ' + p8.length + ' Phase 8 knobs nulled. ' : '')
+    + (off.length ? 'at their null: ' + off.join(' ') : 'nothing nulled');
+}
+function drawKnobs(){
+  const host = document.getElementById('kList');
+  if(host.dataset.built){ ENG.VOICE_SPEC.forEach(p => kApply(p.k, VOICE[p.k])); return; }
+  host.dataset.built = '1';
+  for(const [g, keys] of Object.entries(ENG.VOICE_GROUPS)){
+    const h = document.createElement('div');
+    h.className = 'glabel'; h.style.cssText = 'margin:10px 0 4px';
+    h.textContent = g;
+    host.appendChild(h);
+    for(const k of keys){
+      const p = ENG.VOICE_SPEC.find(x => x.k === k);
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.style.cssText = 'align-items:center;gap:6px;margin-bottom:3px';
+      row.innerHTML =
+        '<span style="flex:0 0 4.2rem;font-family:var(--mono);font-size:.78rem">'+k+'</span>'
+      + '<input type="range" id="ks_'+k+'" style="flex:2" min="'+p.lo+'" max="'+p.hi+'" '
+      +   'step="'+((p.hi-p.lo)/400)+'" value="'+VOICE[k]+'">'
+      + '<span id="kv_'+k+'" class="ctx" style="flex:0 0 3.2rem;text-align:right;'
+      +   'font-family:var(--mono);font-size:.75rem"></span>';
+      const btns = document.createElement('span');
+      btns.style.cssText = 'flex:0 0 auto;display:flex;gap:3px';
+      if(p.off !== undefined){
+        const z = document.createElement('button');
+        z.textContent = '\u2205'; z.title = 'null this effect (' + p.off + ')';
+        z.style.cssText = 'padding:2px 6px';
+        z.addEventListener('click', () => kApply(k, p.off));
+        btns.appendChild(z);
+      }
+      const d = document.createElement('button');
+      d.textContent = '\u21ba'; d.title = 'default (' + p.d + ')';
+      d.style.cssText = 'padding:2px 6px';
+      d.addEventListener('click', () => kApply(k, p.d));
+      btns.appendChild(d);
+      row.appendChild(btns);
+      host.appendChild(row);
+      row.querySelector('#ks_'+k).addEventListener('input', e => kApply(k, +e.target.value));
+    }
+  }
+  ENG.VOICE_SPEC.forEach(p => kApply(p.k, VOICE[p.k]));
+}
+document.getElementById('kP8').addEventListener('click', () => {
+  ENG.VOICE_SPEC.filter(p => p.p8).forEach(p => kApply(p.k, p.off));
+});
+document.getElementById('kDef').addEventListener('click', () => {
+  ENG.VOICE_SPEC.forEach(p => kApply(p.k, p.d));
+});
+document.getElementById('kCopy').addEventListener('click', () => {
+  try{ navigator.clipboard.writeText(ENG.encodeVoice(kVoiceOnly())); }catch(e){}
+  const b = document.getElementById('kCopy'); b.textContent = 'Copied';
+  setTimeout(() => b.textContent = 'Copy seed', 1200);
+});
+
 /* ── state ───────────────────────────────────────────────── */
 let mode='sweep', i=0, order=[], blindOrder=[], pairI=0;
 const R = { sweep:{}, blind:[], pairs:{} };
@@ -714,16 +812,18 @@ document.querySelectorAll('[data-pv]').forEach(b=>b.onclick=()=>{
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
   mode=b.dataset.mode;
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));
-  document.getElementById('paneTrial').classList.toggle('hidden', mode==='pairs'||mode==='out'||mode==='phrases'||mode==='tourney');
+  document.getElementById('paneTrial').classList.toggle('hidden', mode==='pairs'||mode==='out'||mode==='phrases'||mode==='tourney'||mode==='knobs');
   document.getElementById('panePairs').classList.toggle('hidden', mode!=='pairs');
   document.getElementById('paneOut').classList.toggle('hidden', mode!=='out');
   document.getElementById('panePhrases').classList.toggle('hidden', mode!=='phrases');
   document.getElementById('paneTourney').classList.toggle('hidden', mode!=='tourney');
+  document.getElementById('paneKnobs').classList.toggle('hidden', mode!=='knobs');
   document.getElementById('sweepCtl').classList.toggle('hidden', mode!=='sweep');
   document.getElementById('blindCtl').classList.toggle('hidden', mode!=='blind');
   if(mode!=='pairs') i=0;
   if(mode==='phrases') drawPhrases();
   if(mode==='tourney') drawTourney();
+  if(mode==='knobs') drawKnobs();
   draw(); render();
 });
 document.querySelector('.tab').classList.add('on');
