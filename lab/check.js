@@ -365,6 +365,31 @@ check("Rd spans breathy to pressed", () => {
            note: `H1-H2 ${pressed.toFixed(1)} dB pressed -> ${breathy.toFixed(1)} dB breathy` };
 });
 
+check("the two-mass folds oscillate and follow pitch", () => {
+  // An oscillator, not a waveform: it vibrates because the physics makes it. Pitch must
+  // follow tension, and it must actually start.
+  const bad = [];
+  for (const f0 of [95, 140, 200]) {
+    const x = H.sustain("ɑ", { n: 44, seconds: 0.9, f0,
+                               voice: { ...H.P.defaultVoice(), folds: 1, press: 0.35 } });
+    let e = 0;
+    for (let i = Math.floor(x.length*0.5); i < x.length; i++) e += x[i]*x[i];
+    if (Math.sqrt(e / (x.length*0.5)) < 0.004) { bad.push(`${f0}Hz silent`); continue; }
+    const st = Math.floor(x.length*0.55);
+    let best = 0, bl = 0;
+    for (let lag = Math.floor(H.SR/400); lag < Math.floor(H.SR/60); lag++) {
+      let s2 = 0;
+      for (let i = 0; i < 3000; i++) s2 += x[st+i]*x[st+i+lag];
+      if (s2 > best) { best = s2; bl = lag; }
+    }
+    let m = bl ? H.SR/bl : 0;
+    while (m > 0 && m < f0*0.7) m *= 2;
+    if (Math.abs(m - f0)/f0 > 0.10) bad.push(`${f0}->${m.toFixed(0)}`);
+  }
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join(" ") : "oscillates and tracks pitch at 95, 140 and 200 Hz" };
+});
+
 // ── report ─────────────────────────────────────────────────────────────────
 console.log("\nVOCAL TRACT LAB — checks\n");
 let failed = 0;

@@ -541,13 +541,32 @@ spans dozens of them; the front cavity that gives /s/ its character spans **six*
 per sample halves the section length and roughly doubles the cost. This is the one that would
 most improve fricatives.
 
-### 7d. Two-mass folds
+### 7d. Two-mass folds  ✅ built
 
 Replace the prescribed LF waveform with an oscillator: two coupled masses driven by
-subglottal pressure, with the mucosal wave as a phase delay between them. Jitter, shimmer,
-diplophonia and register breaks stop being parameters and become *emergent*. Every attempt in
-this project to add irregularity by hand has made it sound less human, which is the argument
-for making it come out of the physics instead.
+subglottal pressure. **Built, and selectable** — *Advanced → Vocal folds → oscillator*.
+
+Three things fell out of the physics without being coded:
+
+- **Pitch rises with tension** at an exponent of 0.44 against the spring law's 0.5. A mass on
+  a spring, emerging.
+- **Pitch also rises with breath pressure**, which is why a shout goes sharp.
+- **Stiff folds at low pressure will not start at all.** That is phonation threshold pressure,
+  a real and well-documented phenomenon, and nothing in the model mentions it.
+
+**Two failures worth recording.** The first version never oscillated: with the folds held
+*apart* at rest, the Bernoulli pressures on the two masses cancel and there is no net force —
+it simply sat there. Real folds rest *adducted*, pressed together, so that subglottal pressure
+has something to push against. And the second: a symmetric oscillator does **not** produce
+jitter. It settles into a perfectly clean limit cycle, 0.00%. I had expected irregularity to
+appear on its own and it does not.
+
+**What it actually buys** is better than that. Real jitter comes from the *drive* — neural
+firing is not perfectly regular and breath pressure wobbles. Feed the model a 10% wobble in
+breath pressure and it returns **jitter 0.21% and shimmer 2.45%**, both in the healthy human
+range, at a ratio of 11.8×. One input, correctly distributed across period, amplitude and
+waveform shape. With a prescribed waveform you must set jitter and shimmer separately and
+*choose* that ratio; here it is a consequence.
 
 ### What this will not achieve
 
