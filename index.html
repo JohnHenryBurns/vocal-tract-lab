@@ -2058,9 +2058,18 @@ document.getElementById('rememberBtn').addEventListener('click', ()=>{
 // A voice is source + expression + the length of the tube it resonates in.
 // sections 44 = 17.5 cm (adult male). Fewer sections = shorter tract = every formant rises.
 const VOICES = {
-  announcer:{ label:'Goal announcer', note:'Pressed, high and drawn out. The stadium cry.',
-    v:{ rd:0.48, press:0.85, jit:1.4, brth:0.02, drawl:0.62, open:0.62, per:0.62,
-        sect:44, f0a:205, f0b:272, f0c:188 } },
+  // Measured from a real goal cry: the pitch falls the whole way (158 -> 93 Hz) and the
+  // vowel does NOT open. I had modelled it as an arc with the jaw dropping; the recording
+  // says otherwise, so the recording wins.
+  announcer:{ label:'Goal announcer', note:'Pressed and drawn out, pitch falling the whole way. Measured from a real cry.',
+    v:{ rd:0.48, press:0.85, jit:1.4, brth:0.02, drawl:0.62, open:0.06, per:0.62,
+        sect:44, f0a:196, f0b:188, f0c:118 } },
+  john:{ label:'John', note:'Measured: a 15.9 cm tract from F3, modal voice, pitch around 93 Hz.',
+    v:{ rd:1.26, press:0.18, jit:1.0, brth:0.03, drawl:0.08, open:0.05, per:0.13,
+        sect:40, f0a:88, f0b:99, f0c:78 } },
+  johncry:{ label:'John shouting', note:'His own goal cry, measured: pitch falling 158 to 93 Hz over 2.9 seconds.',
+    v:{ rd:0.55, press:0.80, jit:1.3, brth:0.03, drawl:0.60, open:0.06, per:0.62,
+        sect:40, f0a:158, f0b:150, f0c:95 } },
   man:{ label:'Man', note:'A 17.5 cm tract, modal voice, ordinary timing.',
     v:{ rd:0.95, press:0.18, jit:1.0, brth:0.02, drawl:0.08, open:0.05, per:0.17,
         sect:46, f0a:96, f0b:112, f0c:84 } },

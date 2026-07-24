@@ -51,31 +51,66 @@ def segments(x, floor_db=-42, min_len=0.18, pad=0.03):
     return segs
 
 
+def _yin_window(x, lo, hi, thresh=0.15):
+    """YIN: cumulative mean normalised difference. Takes the FIRST dip below threshold,
+    which is the fundamental — raw autocorrelation takes the LARGEST peak, which is
+    routinely an octave out."""
+    n = len(x)
+    d = np.zeros(hi + 1)
+    for tau in range(1, hi + 1):
+        diff = x[:n-tau] - x[tau:]
+        d[tau] = np.dot(diff, diff)
+    cum = np.zeros(hi + 1)
+    run = 0.0
+    for tau in range(1, hi + 1):
+        run += d[tau]
+        cum[tau] = d[tau] * tau / run if run > 0 else 1.0
+    tau = -1
+    for t in range(lo, hi):
+        if cum[t] < thresh:
+            while t + 1 < hi and cum[t+1] < cum[t]:
+                t += 1
+            tau = t
+            break
+    if tau < 0:
+        tau = int(np.argmin(cum[lo:hi])) + lo
+        if cum[tau] > 0.55:
+            return 0.0
+    # parabolic refinement
+    if 0 < tau < hi - 1:
+        a, b, c = cum[tau-1], cum[tau], cum[tau+1]
+        denom = a - 2*b + c
+        if denom != 0:
+            tau = tau + 0.5 * (a - c) / denom
+    return SR / tau if tau > 0 else 0.0
+
+
 def f0_of(seg):
-    """Autocorrelation pitch, with an octave guard."""
-    x = seg - seg.mean()
-    x *= np.hanning(len(x))
-    ac = np.correlate(x, x, "full")[len(x) - 1:]
+    """Median YIN over several windows — one window can still be fooled, five rarely are."""
     lo, hi = int(SR / 400), int(SR / 55)
-    if hi >= len(ac):
+    win = min(len(seg), int(0.045 * SR))
+    if win < lo * 2:
         return 0.0
-    region = ac[lo:hi]
-    if not len(region) or ac[0] <= 0:
+    hops = max(1, min(7, (len(seg) - win) // (win // 2) + 1))
+    vals = []
+    for k in range(hops):
+        st = k * (win // 2)
+        if st + win > len(seg):
+            break
+        w = seg[st:st+win].astype(np.float64)
+        w = w - w.mean()
+        if np.sqrt((w**2).mean()) < 1e-4:
+            continue
+        f = _yin_window(w, lo, min(hi, win - 2))
+        if 50 < f < 420:
+            vals.append(f)
+    if not vals:
         return 0.0
-    lag = lo + int(np.argmax(region))
-    # if half the lag also correlates well, the true period is the shorter one
-    half = lag // 2
-    if half > lo and ac[half] > 0.8 * ac[lag]:
-        lag = half
-    return SR / lag
+    return float(np.median(vals))
 
 
-def formants(seg, order=14, n=4):
-    """LPC formants from the steady middle of a segment."""
-    mid = seg[len(seg)//3: len(seg)*2//3]
-    if len(mid) < 256:
-        mid = seg
-    x = np.append(mid[0], mid[1:] - 0.97 * mid[:-1])      # pre-emphasis
+def _lpc_formants(x, order=14, n=4):
+    x = np.append(x[0], x[1:] - 0.97 * x[:-1])
     x = x * np.hamming(len(x))
     r = np.correlate(x, x, "full")[len(x)-1:][:order+1]
     if r[0] <= 0:
@@ -98,6 +133,49 @@ def formants(seg, order=14, n=4):
     fs = sorted((float(np.angle(z) * SR / (2*np.pi)),
                  float(-0.5 * (SR/np.pi) * np.log(abs(z)))) for z in roots)
     return [(f, bw) for f, bw in fs if 150 < f < 5200][:n]
+
+
+def formants(seg, order=14, n=4):
+    """Find the STEADIEST stretch and measure there.
+
+    A /hVd/ word is mostly not the vowel — there is aspiration at the front and a stop at
+    the back. Measuring the middle third still catches the transitions, which drags F1 and
+    F2 toward whatever the consonants were doing. So: track formants across the segment in
+    short windows and keep the run where they move least."""
+    win = int(0.030 * SR)
+    hop = int(0.010 * SR)
+    if len(seg) < win * 3:
+        return _lpc_formants(seg, order, n)
+    track = []
+    for st in range(0, len(seg) - win, hop):
+        w = seg[st:st+win]
+        f = _lpc_formants(w, order, n)
+        if len(f) >= 2:
+            track.append((st, f, float(np.sqrt((w**2).mean()))))
+    if not track:
+        return _lpc_formants(seg, order, n)
+    # The vowel nucleus is the LOUDEST part of a /hVd/ word — aspiration and the stop are
+    # both quiet. Steadiness alone will happily settle on the /h/, which is stable noise.
+    # So: score on energy AND stability together.
+    peak = max(t[2] for t in track) + 1e-12
+    best, bestv = None, -1e18
+    span = 2
+    for i in range(len(track)):
+        lo, hi = max(0, i - span), min(len(track), i + span + 1)
+        f1 = [t[1][0][0] for t in track[lo:hi]]
+        f2 = [t[1][1][0] for t in track[lo:hi]]
+        wobble = float(np.std(f1)/(np.mean(f1)+1e-9) + np.std(f2)/(np.mean(f2)+1e-9))
+        loud = float(np.mean([t[2] for t in track[lo:hi]]) / peak)
+        score = loud - 1.6 * wobble
+        if score > bestv:
+            bestv, best = score, (lo, hi)
+    lo, hi = best
+    a = track[lo][0]
+    b = min(len(seg), track[hi-1][0] + win)
+    mid = seg[a:b]
+    if len(mid) < 256:
+        mid = seg
+    return _lpc_formants(mid, order, n)
 
 
 def quality(seg, f0):

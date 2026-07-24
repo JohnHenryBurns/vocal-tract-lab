@@ -415,6 +415,34 @@ case for finer resolution, and it is about fricatives, not about the model being
 
 ---
 
+## Measured against a real voice
+
+A recording of the whole phoneme set, 41 items, was analysed and fitted. Three findings, one
+of which overturned a modelling decision.
+
+**Tract length must come from F3.** Fitting length to F1 and F2 gave a flat, meaningless
+minimum — everything from 40 to 52 sections landed within 1% — because those formants are
+dominated by where the tongue is, so the search simply stretched the tube to cover for the
+articulation model's limits. F3 barely moves with articulation; it tracks the tube. It gave
+15.9 cm cleanly.
+
+**/u/ and /ʊ/ sit ~400 Hz higher in F2 than Peterson & Barney.** That is not error, it is
+*/u/-fronting* — a documented shift in modern American English, strongest in the West. The
+1952 data was recorded from speakers born around 1900. Targets drawn from published averages
+carry a seventy-year-old dialect.
+
+**The goal cry does not open, and I had it backwards.** I had modelled a shouted vowel as
+opening — the jaw dropping as it is held, turning a long /o/ into "goooaaa". Measured on a
+real cry: F1 fell 35 Hz and F2 fell 73 Hz across 2.9 seconds. The vowel *closes* slightly and
+sits backer and more rounded than any vowel in the speaker's own set. The pitch also falls
+monotonically, 158 to 93 Hz, where the model had it rise then fall. Three assumptions, all
+reasonable, all wrong, and none of them findable without a recording.
+
+That is the argument for measuring rather than reasoning, stated as plainly as this project
+can state it.
+
+---
+
 ## Note on method
 
 Four times during the earlier synthesis work, a confident diagnosis turned out to be a

@@ -105,23 +105,37 @@ function main() {
 
   console.log(`\nmeasured vowels: ${vowels.map(v => `/${v}/ ${measured[v][0]}/${measured[v][1]}`).join("   ")}\n`);
 
-  // ---- one tract length, fitted against all of them ----
-  console.log("fitting tract length across the whole set:\n");
-  console.log("  sections   cm      mean error");
-  let bestN = null;
-  for (let n = 28; n <= 56; n += 2) {
+  // ---- tract length, from F3 ----
+  // F1 and F2 are dominated by where the tongue is; fitting length to them gives a flat,
+  // meaningless minimum and the search just stretches the tube to cover for the
+  // articulation model's limits. F3 barely moves with articulation — it tracks the TUBE.
+  const f3s = rows.map(r => (r.F && r.F.length >= 3 && r.F[2] > 1800 && r.F[2] < 4000)
+                            ? r.F[2] : null).filter(Boolean);
+  let bestN;
+  if (f3s.length >= 4) {
+    const medF3 = [...f3s].sort((a,b)=>a-b)[Math.floor(f3s.length/2)];
+    const cm = 5 * 35000 / (4 * medF3);
+    const n = Math.max(20, Math.min(60, Math.round(cm/100 / (350/(44100*2)))));
+    bestN = { n, cm: n * 350 / (44100*2) * 100, err: 0, from: `F3 median ${medF3.toFixed(0)} Hz` };
+    console.log(`tract length from F3 (5c/4L, ${f3s.length} vowels):`);
+    console.log(`  median F3 ${medF3.toFixed(0)} Hz  ->  ${cm.toFixed(1)} cm  ->  ${bestN.n} sections\n`);
+  } else {
+    bestN = { n: 44, cm: 17.5, err: 0, from: "default — too few F3 measurements" };
+    console.log("not enough F3 measurements; defaulting to 44 sections\n");
+  }
+  // report how well the vowels fit at that length, and nearby, so the choice is visible
+  console.log("  how the vowels fit at that length and around it:");
+  for (const n of [bestN.n - 6, bestN.n - 3, bestN.n, bestN.n + 3, bestN.n + 6]) {
+    if (n < 20) continue;
     let err = 0, cnt = 0;
     for (const v of vowels) {
-      const s = solveVowel(measured[v][0], measured[v][1], n, 320, 7 + n);
-      if (!s) continue;
-      err += s.err; cnt++;
+      const s = solveVowel(measured[v][0], measured[v][1], n, 260, 7 + n);
+      if (s) { err += s.err; cnt++; }
     }
-    err /= Math.max(1, cnt);
-    const cm = n * 350 / (44100 * 2) * 100;
-    console.log(`     ${String(n).padStart(2)}     ${cm.toFixed(1)}    ${err.toFixed(1)}%`);
-    if (!bestN || err < bestN.err) bestN = { n, err, cm };
+    console.log(`    ${String(n).padStart(2)} sections (${(n*350/(44100*2)*100).toFixed(1)} cm)`
+              + `  mean ${(err/Math.max(1,cnt)).toFixed(1)}%${n===bestN.n ? "   <- chosen from F3" : ""}`);
   }
-  console.log(`\n  best: ${bestN.n} sections = ${bestN.cm.toFixed(1)} cm  (${bestN.err.toFixed(1)}% mean error)\n`);
+  console.log();
 
   // ---- re-solve each vowel properly at that length ----
   console.log("articulations at that length:\n");
@@ -137,7 +151,10 @@ function main() {
 
   // ---- source parameters from the voice-quality measures ----
   const f0s = rows.map(r => r.f0).filter(x => x > 40);
-  const h1h2 = rows.map(r => r.h1h2).filter(x => typeof x === "number");
+  // A fricative has no harmonics, so H1-H2 is meaningless there. Vowels only.
+  const VOWEL_WORDS = new Set(Object.keys(WORD_VOWEL));
+  const h1h2 = rows.filter(r => VOWEL_WORDS.has(String(r.label||"").toLowerCase()))
+                   .map(r => r.h1h2).filter(x => typeof x === "number");
   const durs = rows.filter(r => r.label).map(r => r.b - r.a);
   const med = a => a.length ? [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] : null;
 
