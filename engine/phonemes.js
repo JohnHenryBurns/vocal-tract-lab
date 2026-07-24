@@ -352,25 +352,29 @@ const isPause = sym => sym === ' ';
 const isDiph  = sym => !!DIPH[sym];
 
 // ---- the voices ----
+// `off` is the value at which a parameter stops doing anything — 0 for an excursion, 1 for a
+// ratio. Declared HERE rather than in whatever UI happens to offer the button, because it is a
+// fact about the parameter. `p8` marks the Phase 8 prosody layer, so the whole of it can be
+// nulled in one action and the engine heard as it was before any of it existed.
 const VOICE_SPEC=[
   {k:'rd',   lo:0.35,   hi:2.40,    d:0.80},    // LF shape: pressed <-> breathy
-  {k:'press',lo:0,      hi:1,       d:0.45},    // how much effort presses at the peak
-  {k:'jit',  lo:0,      hi:3,       d:1},       // vocal-fold irregularity
+  {k:'press',lo:0,      hi:1,       d:0.45, off:0,},    // how much effort presses at the peak
+  {k:'jit',  lo:0,      hi:3,       d:1, off:0,},       // vocal-fold irregularity
   {k:'damp', lo:0.9985, hi:0.99985, d:0.9995},  // tract losses -> formant bandwidth
   {k:'lipR', lo:-0.95,  hi:-0.62,   d:-0.85},   // radiation at the lips
-  {k:'brth', lo:0,      hi:0.34,    d:0.18},   // aspiration — the noise BETWEEN harmonics,    // aspiration
+  {k:'brth', lo:0,      hi:0.34,    d:0.18, off:0,},   // aspiration — the noise BETWEEN harmonics,    // aspiration
   {k:'f0a',  lo:80,     hi:330,     d:208},     // pitch: onset  (must reach a man at 110
   {k:'f0b',  lo:90,     hi:380,     d:250},     //        peak     and a child at 310)
   {k:'f0c',  lo:70,     hi:300,     d:190},     //        fall
-  {k:'drawl',lo:0,      hi:1,       d:0.55},    // how much the first vowel is stretched
+  {k:'drawl',lo:0,      hi:1,       d:0.55, off:0,},    // how much the first vowel is stretched
   {k:'glide',lo:0.03,   hi:0.22,    d:0.085},  // transition time between sounds
   {k:'stopT',lo:0.035,  hi:0.15,    d:0.075},  // how long a stop stays sealed
-  {k:'burst',lo:0.02,   hi:1.2,     d:0.16},   // release strength; the seal does most of the work
+  {k:'burst',lo:0.02,   hi:1.2,     d:0.16, off:0.02,},   // release strength; the seal does most of the work
   {k:'hiss', lo:0.3,    hi:2.2,     d:1.0},    // how hard fricatives hiss
   {k:'sect', lo:14,     hi:52,      d:44},     // tract length in sections (44 = 17.5 cm)
-  {k:'open', lo:0,      hi:1,       d:0.05},   // how far a held vowel opens as it is shouted
+  {k:'open', lo:0,      hi:1,       d:0.05, off:0,},   // how far a held vowel opens as it is shouted
   {k:'per',  lo:0.10,   hi:0.80,    d:0.17},   // seconds per sound
-  {k:'folds',lo:0,      hi:1,       d:0},      // 0 = LF waveform, 1 = two-mass oscillator
+  {k:'folds',lo:0,      hi:1,       d:0, off:0,},      // 0 = LF waveform, 1 = two-mass oscillator
   // ---- the prosody layer, Phase 8 ----
   // These were module constants until now, which meant the one part of the model that most
   // needs an ear could not be swept, could not be seeded and could not differ between voices.
@@ -386,16 +390,16 @@ const VOICE_SPEC=[
   //
   // APPENDED, not inserted. Seeds are read positionally, so adding at the end leaves every
   // seed saved before today loading exactly as it did.
-  {k:'vlen', lo:0,      hi:2,       d:1},      // intrinsic vowel length (0 = all equal)
-  {k:'coda', lo:0,      hi:2,       d:1},      // how much a coda lengthens the vowel
-  {k:'wkdur',lo:0.35,   hi:1,       d:0.60},   // unstressed syllable duration
-  {k:'wklev',lo:0.35,   hi:1,       d:0.65},   // unstressed syllable level
-  {k:'fnl',  lo:1,      hi:1.6,     d:1.25},   // final lengthening
-  {k:'poly', lo:0,      hi:0.3,     d:0.12},   // shortening per extra syllable
-  {k:'stopVc',lo:1,     hi:2,       d:1.5},    // voiceless/voiced closure ratio
+  {k:'vlen', lo:0,      hi:2,       d:1, off:0, p8:1,},      // intrinsic vowel length (0 = all equal)
+  {k:'coda', lo:0,      hi:2,       d:1, off:0, p8:1,},      // how much a coda lengthens the vowel
+  {k:'wkdur',lo:0.35,   hi:1,       d:0.60, off:1, p8:1,},   // unstressed syllable duration
+  {k:'wklev',lo:0.35,   hi:1,       d:0.65, off:1, p8:1,},   // unstressed syllable level
+  {k:'fnl',  lo:1,      hi:1.6,     d:1.25, off:1, p8:1,},   // final lengthening
+  {k:'poly', lo:0,      hi:0.3,     d:0.12, off:0, p8:1,},   // shortening per extra syllable
+  {k:'stopVc',lo:1,     hi:2,       d:1.5, off:1, p8:1,},    // voiceless/voiced closure ratio
   {k:'apw',  lo:0.15,   hi:0.7,     d:0.34},   // approximant weight against a reference vowel
-  {k:'acc',  lo:0,      hi:8,       d:3},      // accent excursion on a stressed syllable, semitones
-  {k:'pert', lo:0,      hi:2,       d:1},      // consonant perturbation of the following vowel
+  {k:'acc',  lo:0,      hi:8,       d:3, off:0, p8:1,},      // accent excursion on a stressed syllable, semitones
+  {k:'pert', lo:0,      hi:2,       d:1, off:0, p8:1,},      // consonant perturbation of the following vowel
 ];
 const VOICES = {
   // Measured from a real goal cry: the pitch falls the whole way (158 -> 93 Hz) and the
