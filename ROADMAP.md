@@ -652,6 +652,163 @@ and you can watch it happen.
 
 ---
 
+## Phase 8 — the suprasegmental layer  ◐ in progress
+
+Phase 4 said prosody was "the shape of the shout over time" and left it at six parameters.
+That framing was too small. What is actually missing is everything **above the phoneme**:
+duration, stress, accent placement, amplitude envelope. Right now each of those is either a
+constant or one global scalar.
+
+Concretely, in `buildWord` every non-stop segment gets weight `1` (approximants `0.34`, the
+first vowel `1+drawl*2.6`), every stop gets the same `stopHold`, every vowel gets the same
+amplitude, and the F0 contour is one six-point template scaled to word length. The segmental
+layer is good enough now that this is what remains audible.
+
+**The diagnosis:** this is a well-built segmental synthesizer with no suprasegmental layer.
+
+### Build order
+
+The order is not the ranking by payoff — it is the ranking by payoff *given what each step
+depends on*. 8.0 has no audible effect on its own and three later steps are blocked on it.
+
+| | step | depends on | audible |
+|---|---|---|---|
+| **8.0** | syllabification and stress marking | — | no |
+| **8.1** | duration weights | 8.0 | **large** |
+| **8.2** | stop closure duration, unreleased finals | — | medium |
+| **8.3** | per-segment amplitude | 8.0 | medium |
+| **8.4** | F0: semitones, accent alignment, declination, perturbation | 8.0 | **large** |
+| **8.5** | pause policy | — | medium |
+| **8.6** | vowel reduction | 8.0 | medium |
+| **8.7** | allophony: flapping, dark /l/, nasal assimilation | 8.0 | medium |
+| **8.8** | layered jitter: drift and tremor | — | small |
+
+### 8.0 Syllabification and stress  ✅ built
+
+Maximum-onset syllabification over the phone string, then primary stress from a suffix and
+prefix heuristic with a small exception list. Returned as a `stress` array **parallel to
+`ph`**, alongside a `syl` breakdown — added to the return value rather than replacing it, so
+every existing consumer of `{ph, from}` is untouched.
+
+No sound changes. This step exists so that 8.1, 8.3, 8.4, 8.6 and 8.7 have something to read.
+
+The heuristic is a heuristic and will be wrong: *banana* defaults to initial stress without
+its entry in `STRESS_DICT`. A real system carries stress in the lexicon. Extending the
+exception list is the cheap fix and the honest one.
+
+### 8.1 Duration weights
+
+The single largest missing cue, and it is a weight table — no DSP.
+
+- **Voiced-coda lengthening.** The vowel in *bad* runs about 1.5× the vowel in *bat*. Verified
+  absent: both spell to `b æ [d|t]` and `vw` hands the `æ` an identical share. This is the
+  biggest allophonic duration cue in English.
+- **Intrinsic length.** Tense `i u ɑ ɔ ɝ` and the diphthongs run 1.4–1.8× lax `ɪ ɛ æ ʌ ʊ`.
+- **Final lengthening.** The phrase-final syllable stretches about 1.25×.
+- **Polysyllabic shortening.** Syllables shorten as the word lengthens.
+- **Stress.** Unstressed syllables run roughly half a stressed one.
+
+**Ships with a gate check**, or it is unfalsifiable: measure synthesized segment durations and
+assert the *ratios* above, not absolute milliseconds. Ratios survive a change of speaking rate;
+absolute values would pin the gate to one `per` setting.
+
+### 8.2 Stop closure and unreleased finals
+
+`stopHold` is one constant for all six stops. Voiced closures run ~50–70 ms against ~80–100
+for voiceless, and cluster-medial stops are shorter than either. Separately: **English
+word-final stops are usually unreleased**, and every stop here gets a burst. That reads as
+over-articulated. Make the burst conditional on a following vowel.
+
+Independent of 8.0 — can be taken out of order if 8.1 stalls.
+
+### 8.3 Per-segment amplitude
+
+`vAmp` is one smoothed scalar, so every vowel sounds at the same level. Open vowels are
+intrinsically 4–6 dB louder than close ones, and unstressed syllables are quieter. Constant
+segmental amplitude reads as monotone even while the pitch is moving — which means some of
+what has been heard as a pitch problem may not be one.
+
+### 8.4 F0
+
+Four changes, smallest first:
+
+1. **Interpolate in semitones, not Hz.** Lines 1072–73 interpolate linearly in Hz, so a fall
+   has the wrong perceptual shape. One `Math.log2`, and it should be taken alone and listened
+   to, because it changes every existing voice.
+2. **Consonant perturbation.** A 10–20 Hz dip after voiced obstruents, a rise after voiceless,
+   over the first ~50 ms of the vowel. Small, cheap, and ears catch its absence.
+3. **Accent alignment.** Excursions belong on stressed syllables, not at `end*0.55`.
+4. **Declination and reset.** A falling baseline across the phrase, reset at boundaries, with
+   the terminal contour chosen by sentence type.
+
+The goal-cry template stays as a voice preset. It is a good shout; it is just not a sentence.
+
+### 8.5 Pause policy
+
+`isPause` emits `sil:1, vl:1` and a 90–300 ms gap at **every** space. Most word boundaries
+inside a phrase carry no silence at all — only continuous articulation. Default the gap to
+zero, keep the articulatory glide, and reserve real silence for punctuation. Until then a
+phrase will keep sounding like a word list.
+
+Note that check 15 — *a pause is silent, but the tract keeps moving* — asserts the current
+behaviour. It will need rewriting to assert the movement without requiring the silence.
+
+### 8.6 Vowel reduction
+
+`WEAK_FIRST` catches prefixes; with 8.0 this becomes general. Reduce unstressed lax vowels in
+non-final syllables to `ə`. Deliberately **not** bundled into 8.0: it changes what the speller
+emits, check 9 watches the speller, and a step that both adds a channel and changes the
+existing one cannot be bisected.
+
+### 8.7 Allophony
+
+Flapping first — `/t d/` to an alveolar tap between vowels when the second is unstressed. Both
+*better* and *water* are already in the test vocabulary and both currently come out fully
+articulated. Then dark versus light `/l/`: `ART` carries one `/l/`, and a coda `/l/` wants a
+much lower `bodyPos`. Then nasal place assimilation.
+
+### 8.8 Layered jitter
+
+`jitT` is one random walk updated at 40 Hz through a one-pole. Real F0 perturbation is layered:
+cycle-to-cycle jitter around 0.5%, a slow drift at 0.3–0.5 Hz and 1–2%, and tremor at 4–7 Hz.
+Adding drift and tremor to the LF path is a few lines.
+
+On the two-mass path the existing diagnosis holds — the oscillator is symmetric, so it settles
+into a limit cycle cleaner than the LF path with jitter applied. The fix is left/right fold
+asymmetry of a few percent in mass and stiffness, which produces jitter *through* the physics
+rather than on top of it.
+
+---
+
+## Phase 9 — interpolate in articulatory space  ❌ not started
+
+`buildWord` already emits an `art` array of six-parameter postures alongside the 44-element
+diameter arrays. The worklet interpolates the **diameter arrays**: 44 correlated numbers, when
+the six latent ones are sitting right there unused.
+
+Moving the interpolation into articulatory space buys three things at once:
+
+- **Per-articulator time constants.** Lips and jaw are slow (~8–10 Hz), the tongue tip is fast
+  (~15 Hz), the tongue body slowest. One global `glide` for all of them is exactly why `/l/`
+  needs the `glide*0.45` special case in `glideFor` — that special case is a symptom, and it
+  should disappear on its own when this lands. That is the test.
+- **Undershoot, for free.** Drive each parameter toward its target with a critically damped
+  second-order filter instead of interpolating to it, and short segments stop arriving. Failing
+  to reach the target is most of the difference between connected speech and concatenated
+  postures. Every segment currently arrives exactly.
+- **Velocity continuity.** `u*u*(3-2u)` has zero derivative at both ends, so all six
+  articulators come to a dead stop at every keyframe and start again. Real articulators pass
+  *through* targets. Suspected to be part of what reads as over-enunciation.
+
+It also removes the three O(n) per-sample passes the lab README measures as 95% of gate cost:
+six parameters at control rate instead of 44 diameters at 44.1 kHz. **But** that README also
+records that moving articulation to control rate cost 1.7 dB of spectral movement and would
+force a band recalibration. So this is a recalibration-sized change and wants its own branch —
+which is the reason it sits behind Phase 8 rather than in front of it, despite being the more
+interesting piece of work.
+
+---
+
 ## The voice was too clean
 
 Reported as *"unnatural peaks in the spectrogram"* and *"still robotic"*. Checking the output
@@ -765,7 +922,7 @@ can state it.
 
 Things known to be wrong, so they are not rediscovered as surprises.
 
-**The voice sounds hoarse, and the noise LEVEL is not why.** Noticed by ear, and it survives
+**The voice sounds hoarse, and the noise LEVEL is not why.**  ◐ fix shipped, then reverted Noticed by ear, and it survives
 the obvious explanation. Harmonic-to-noise sits at 22.8 dB and every preset is between 12 and
 29, which is inside the healthy human band — Praat puts a healthy sustained [a] near 20. So
 there is not too much noise. What is wrong is its **colour**. Measured spectral tilt from
@@ -792,15 +949,67 @@ behave; the unfiltered one does not.
 
 This is one candidate cause for three separate complaints: the hoarseness, the `static` tag the
 bench put on six sounds (g z ʃ ð v h), and the /ʃ ʒ h/ that read as hiss at levels where /f/
-reads correctly — gain was measured and is not their problem. **Fix to try:** shape the breath
-noise the way the other two noise paths already are. It touches every voice and every sound,
-and it is coupled to the harmonic-to-noise band, so that band will want re-checking after.
+reads correctly — gain was measured and is not their problem. **The fix was made, shipped as `b1671ae`, and reverted as `ea9a62d`.** It ran the breath noise
+through the same two-pole lowpass the other paths use, with the gain compensated by 5.139 — the
+reciprocal of the 0.1946 of unit-variance white the filter passes. It broke the bench and made
+*goal* render as static with gaps, and it was reverted whole to get back to a known-good build
+before diagnosing. So the analysis above still stands and the remedy is still believed correct;
+what is not yet known is why *that implementation* of it failed.
+
+**The hypothesis recorded with the revert does not survive reading the code.** It said the new
+filter carried per-sample state (`bh1`, `bh`) never reset at word end or sequence restart,
+"where every other noise path in the engine is reset at those points". Only one of the three
+is. `stopSeq` and the end-of-sequence branch reset `fh1 fh2 fhx fhy` — the frication path — and
+nothing else. The /h/ path (`ah1`, `ah`) and the VOT aspiration path (`vh1`, `vh`) carry state
+across words exactly as `bh` would have, and neither produces this symptom. That weakens the
+hypothesis considerably. It is the fifth time in this project a confident diagnosis has not held
+up, which is the reason this file records them.
+
+**A better candidate, measured.** The 5.139 was derived to restore *variance*, and it does:
+
+| | RMS | peak | crest | samples over \|1\| |
+|---|---|---|---|---|
+| raw white | 0.577 | 1.000 | 1.73 | 0% by construction |
+| two-pole, ×5.139 | 0.577 | **2.657** | **4.61** | **8.3%** |
+
+Four million samples each. Variance is not peak. Lowpassing decorrelates nothing and *correlates*
+everything — the result is a slower signal, and scaling it back to the same RMS gives it 2.66×
+the excursion. The unfiltered term could never leave ±1; the filtered one leaves it 8% of the
+time. That product goes into `src` alongside `g*0.9` and the output is hard-clipped at
+`Math.max(-1,Math.min(1,yy*0.8))`. Clipping on the loud parts is a good description of "static",
+and clipping hard enough to flatten a waveform is a good description of "gaps".
+
+**Cheap test before re-attempting:** keep the filter, but normalise to peak rather than to RMS —
+or simply divide the 5.139 by the measured crest ratio — and listen. If the static goes, the
+gain derivation was the fault and not the filtering, and the spectral-tilt fix can be had at a
+slightly lower noise level. Check the harmonic-to-noise band after either way, since that band
+was calibrated against the level, not the colour.
 
 **The dental fricatives hiss.** /ð/ in *mother* and *father* comes out as a staticy "sh"
 rather than a soft voiced buzz. The measured target is a peak near 500 Hz with the energy
 spread; the model puts it higher and noisier. Suspected cause: the aspiration raised across all
 voices to fix the harmonic-to-noise problem also lands on the dentals, where there is very
 little voicing to mask it. Not yet diagnosed properly.
+
+**`WEAK_FIRST` reduces vowels it should not.** Found while smoke-testing 8.0. The prefix
+regex only requires three more letters after the prefix, so it fires on *better* (be+tter),
+*belly*, *reddish*, *apple*, *actor* and *angry*, and each of those spells with a schwa where
+it should have a full vowel — *better* is `b·ə·t·ɝ` today. The regularity it is missing is
+that an unstressed first syllable is **open**: the prefix is followed by a consonant and then
+a vowel (a-bout, be-cause, to-gether), whereas two consonants close the syllable and stress it
+(at-las, bet-ter, ap-ple). One lookahead, `(?=[^aeiouy][aeiouy])`, fixes all six — it is
+already written and in use, as `WEAK_STRESS`, on the stress side where it changes no sounds.
+Applying it to `WEAK_FIRST` changes what the speller emits, so it belongs with **8.6**, not in
+a step that promises to change nothing. Note the Latin prefixes satisfy the lookahead
+unchanged, since they already end in a consonant.
+
+**The chain filter will silently break the stress channel.** `index.html:1225` does
+`chain=r.ph.filter(x=>known.has(x))` — it drops any phone the tract cannot say. Check 9 exists
+to ensure that filter is a no-op in practice, and it currently is. But `stress` is *parallel*
+to `ph`, so the first time that filter removes something while 8.1 is live, every syllable
+after it is off by one and the symptom will be a duration bug with no obvious cause. **8.1
+must filter both arrays in lockstep, or not filter at all.** Written down now because this is
+exactly the class of bug that costs a weekend.
 
 **Consonant postures are fitted from one speaker.** The fricatives were refitted at the default
 tract length with the targets scaled, but everything else — stops, nasals, approximants —
@@ -817,6 +1026,7 @@ folds, which real larynges have and this model does not.
 
 **No prosody above the word.** Pitch is an arc across a single word, and a phrase is words with
 pauses between them. Real speech has phrase-level contours, stress, and final lengthening.
+This is no longer just a known fault — it is Phase 8, with a build order.
 
 ---
 

@@ -67,10 +67,18 @@ stays correct on any device.
 
 ## Known limitation
 
-The /l/ is imperfect, and audibly so — it comes out closer to a *w*. A real lateral splits
-the airflow around the tongue, producing a spectral **zero**, and a single unbranched tube
-is an all-pole system that structurally cannot produce one. The fix is a branched waveguide,
-which is also how you would get nasals. That's the next build.
+The /l/ used to come out as a *w*. A real lateral splits the airflow around the tongue,
+producing a spectral **zero**, and a single unbranched tube is an all-pole system that
+structurally cannot produce one. That is now built: a short closed pocket taps into the tube at
+a three-port scattering junction, and a second, longer branch at the velum — open at the far
+end, because nostrils radiate — gives the nasals. Both are in `scatter()`.
+
+What is imperfect now is everything **above** the phoneme. Individual sounds land where the
+measurements say they should; what they lack is timing. Every vowel gets the same share of the
+word, every stop the same closure, every syllable the same loudness, and the pitch contour is
+one template stretched to fit. So the tract says the right things and reads as careful rather
+than as speech. That is [Phase 8](ROADMAP.md), and it is mostly a weight table rather than more
+physics.
 
 ## Where this is going
 
