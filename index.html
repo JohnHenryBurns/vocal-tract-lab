@@ -216,6 +216,12 @@ aside section{display:block}
   border-bottom:1px solid var(--rule)}
 .cardhead h2{margin:0;font-size:1.25rem;font-weight:600;letter-spacing:-.01em}
 .cardhead .btn{margin-left:auto}
+.cardhead .btn+.btn{margin-left:0}
+footer{display:flex;align-items:center;gap:.85rem;padding:.45rem 1rem;
+  font-family:var(--mono);font-size:.75rem;color:var(--dim);border-top:1px solid var(--rule)}
+footer a{color:var(--dim);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px}
+footer a:hover{color:var(--ink)}
+footer .sep{opacity:.5}
 .tabs{display:flex;gap:.3rem;padding:.6rem 1.2rem 0;border-bottom:1px solid var(--rule)}
 .tab{font-family:var(--sans);font-size:.92rem;font-weight:500;color:var(--dim);
   background:transparent;border:0;border-bottom:2px solid transparent;
@@ -261,6 +267,7 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
   .sub{display:none}
   #spectro{height:76px}
   .readout{font-size:.76rem;padding:.42rem .8rem;gap:.9rem}
+  footer{font-size:.72rem;padding:.38rem .8rem;gap:.7rem}
   .readout .eq{display:none}
   .badge{font-size:.78rem;left:.7rem;top:.65rem}
   aside[data-show="word"] section:not([data-panel="word"]){display:none}
@@ -477,6 +484,8 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
   <div class="card" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
     <div class="cardhead">
       <h2 id="aboutTitle">Vocal Tract Lab</h2>
+      <a class="btn" href="https://github.com/JohnHenryBurns/vocal-tract-lab"
+         target="_blank" rel="noopener">GitHub</a>
       <button class="btn" id="aboutClose">Close</button>
     </div>
     <div class="tabs" id="tabs">
@@ -652,6 +661,7 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 
         <p class="links">
           <a href="https://github.com/JohnHenryBurns/vocal-tract-lab" target="_blank" rel="noopener">Source on GitHub</a>
+          <a href="https://github.com/JohnHenryBurns/vocal-tract-lab/blob/main/LICENSE" target="_blank" rel="noopener">MIT licence</a>
           <a href="https://github.com/JohnHenryBurns/vocal-tract-lab/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a>
           <a href="https://github.com/JohnHenryBurns/three-sided-football/blob/main/docs/AUDIO-EXPERIMENT.md" target="_blank" rel="noopener">The nine-attempt write-up</a>
           <a href="https://dood.al/pink-trombone/" target="_blank" rel="noopener">Pink Trombone</a>
@@ -668,6 +678,12 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
   <span id="modeWrap"><b id="mode">idle</b></span>
   <span class="eq" style="margin-left:auto">Reflection at each junction: <b>r = (A₁−A₂)/(A₁+A₂)</b></span>
 </div>
+
+<footer>
+  <a href="https://github.com/JohnHenryBurns/vocal-tract-lab" target="_blank" rel="noopener">Source on GitHub</a>
+  <span class="sep">·</span>
+  <a href="https://github.com/JohnHenryBurns/vocal-tract-lab/blob/main/LICENSE" target="_blank" rel="noopener">MIT</a>
+</footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <!-- The phoneme layer: tract shapes, classes, voices, articulation, buildWord. One copy,
