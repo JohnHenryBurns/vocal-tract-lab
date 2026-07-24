@@ -676,7 +676,7 @@ depends on*. 8.0 has no audible effect on its own and three later steps are bloc
 | **8.0** | syllabification and stress marking | — | no |
 | **8.1** | duration weights | 8.0 | **large** |
 | **8.1b** | make `D` a rate rather than an absolute length | 8.1 | medium |
-| **8.2** | stop closure duration, unreleased finals | — | medium |
+| **8.2** | stop closure duration, unreleased finals | — | medium |  ✅
 | **8.3** | per-segment amplitude | 8.0 | medium |
 | **8.4** | F0: semitones, accent alignment, declination, perturbation | 8.0 | **large** |
 | **8.5** | pause policy | — | medium |
@@ -740,14 +740,32 @@ The fix is to let the summed weights set the word's length and make `D` a rate. 
 it is *wide*. The F0 contour is built from `end`, the duration slider changes meaning, and every
 gate band that measures a whole word moves. Its own branch.
 
-### 8.2 Stop closure and unreleased finals
+### 8.2 Stop closure and unreleased finals  ✅ built
 
-`stopHold` is one constant for all six stops. Voiced closures run ~50–70 ms against ~80–100
-for voiceless, and cluster-medial stops are shorter than either. Separately: **English
-word-final stops are usually unreleased**, and every stop here gets a burst. That reads as
-over-articulated. Make the burst conditional on a following vowel.
+`stopHold` was one constant for all six. A voiced closure cannot be held — oral pressure rises
+to meet subglottal and the folds stop — so it is short where a voiceless one is not: roughly
+50–70 ms against 80–100. Now a multiple of `stopHold` rather than an absolute, so it tracks the
+voice's own timing; at the default 75 ms that is 60 against 90. Word length is still exactly
+`D`, the same invariant 8.1 holds, so nothing else in the gate moved.
 
-Independent of 8.0 — can be taken out of order if 8.1 stalls.
+**The claim that "every stop here gets a burst" was wrong, and I wrote it.** Measured before
+changing anything: the /d/ of *bæd* releases at 0% of the vowel peak and the /g/ of *bʊldɔg* at
+1%, against 184% for the medial /d/. Word-final stops were **already unreleased** — the tract
+simply never reopens at word end, so no burst fires. That is the correct English behaviour, but
+it was arrived at by accident and nothing was holding it in place. So the work here was not to
+build it but to **pin it**, with a paired assertion: final stops silent, medial stop loud. The
+medial half matters as much as the final one, since without it the check would still pass if
+bursts stopped working altogether.
+
+A side effect worth naming rather than taking credit for: because voiced closures are now
+shorter, they leave more of `pool` for the vowel, so *bad* does come out with a slightly longer
+vowel than *bat* even in isolation — 757 ms against 727. That is pool arithmetic, not the
+coda-voicing rule of 8.1, and it is far short of the 1.5 that rule wants. 8.1b is still the
+thing that fixes it properly.
+
+Place of articulation also moves closure duration — labials longest, velars shortest — but the
+effect is smaller, the literature less consistent, and nothing in the bench would catch it going
+the wrong way. Not done rather than done badly.
 
 ### 8.3 Per-segment amplitude
 
