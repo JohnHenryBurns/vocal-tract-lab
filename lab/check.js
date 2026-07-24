@@ -41,22 +41,34 @@ check("uniform tube resonates at c/4L", () => {
 });
 
 // ── vowels land where the measurements say ─────────────────────────────────
+// Peterson & Barney (1952), adult-male means, JASA 24(2):175-184. These ten are theirs and
+// match the published table exactly.
 const VOWEL_TARGETS = {
   i:[270,2290], "ɪ":[390,1990], "ɛ":[530,1840], "æ":[660,1720], "ʌ":[640,1190],
   "ɑ":[730,1090], "ɔ":[570,840], "ʊ":[440,1020], u:[300,870], "ɝ":[490,1350],
+  // NOT Peterson & Barney. They measured ten vowels — heed hid head had hod hawed hood who'd
+  // hud heard — and neither of these is among them. Conventional adult-male values, kept
+  // because the model should hit them, but the check's name overstated its authority while
+  // they sat in the same table unmarked.
   "ə":[500,1500], o:[490,910],
 };
+const PB_VOWELS = new Set(["i","ɪ","ɛ","æ","ʌ","ɑ","ɔ","ʊ","u","ɝ"]);
 check("vowels match Peterson & Barney", () => {
-  let good = 0, worst = "", worstErr = 0;
+  // Reported split by provenance. Twelve targets are checked but only ten are Peterson &
+  // Barney's; saying "12/12 against P&B" claimed an authority two of them do not have.
+  let good = 0, pbGood = 0, pbN = 0, worst = "", worstErr = 0;
   for (const [sym, [t1, t2]] of Object.entries(VOWEL_TARGETS)) {
     const f = H.formants(sym);
     if (f.length < 2) continue;
     const e = Math.sqrt(((f[0]-t1)/t1)**2 + ((f[1]-t2)/t2)**2)*100;
-    if (e < 12) good++;
+    const isPB = PB_VOWELS.has(sym);
+    if (isPB) pbN++;
+    if (e < 12) { good++; if (isPB) pbGood++; }
     if (e > worstErr) { worstErr = e; worst = sym; }
   }
   const n = Object.keys(VOWEL_TARGETS).length;
-  return { ok: good >= n - 2, note: `${good}/${n} within 12% (worst /${worst}/ ${worstErr.toFixed(0)}%)` };
+  return { ok: good >= n - 2,
+           note: `${pbGood}/${pbN} vs P&B, ${good}/${n} overall within 12% (worst /${worst}/ ${worstErr.toFixed(0)}%)` };
 });
 
 // ── consonants close where they should ─────────────────────────────────────
@@ -440,8 +452,16 @@ check("the voice is not too cleanly periodic", () => {
   // Harmonic-to-noise ratio: how much energy sits ON the harmonics against between them.
   // A perfectly periodic source puts everything on the harmonics and nothing between, which
   // is the comb-like look of synthesis and a large part of why it sounds robotic. Measured
-  // at 38 dB against a real recording's 2-5 dB on the same measure; published healthy voices
-  // sit around 15-25. Aspiration is what fills the gaps.
+  // Measured at 38 dB before the fix. Published healthy voices sit around 15-25 dB: Praat's
+  // own documentation puts a healthy sustained [a] at about 20, and the clinical literature
+  // runs roughly 7-26. Aspiration is what fills the gaps.
+  // A CORRECTION, recorded rather than quietly dropped: this check used to cite "a real
+  // recording measures 2-5 dB on this". That figure is not a healthy value — 2-5 dB is the
+  // hoarse/pathological range — and it was almost certainly our own estimator misreading a
+  // room recording rather than a property of the speaker. The band below was never set from
+  // it (it is v < 30, which follows the published range), and the aspiration raise in 401c855
+  // landed all nine presets at 12-29 dB, inside the human band. So the number was wrong and
+  // the work it prompted was still right. It is corrected here so nobody aims at 2-5 next time.
   const hnr = (sig, f0) => {
     let N = 1; while (N*2 <= sig.length) N *= 2; N = Math.min(N, 16384);
     const st = Math.floor((sig.length - N)/2);
@@ -465,7 +485,7 @@ check("the voice is not too cleanly periodic", () => {
   };
   const x = H.sustain("ɑ", { n: 44, seconds: 1.2, f0: 100 });
   const v = hnr(x.subarray(Math.floor(x.length*0.4)), 100);
-  return { ok: v < 30, note: `${v.toFixed(1)} dB (a real recording measures 2-5 on this; 38 was ours)` };
+  return { ok: v < 30, note: `${v.toFixed(1)} dB (healthy voices 15-25; 38 was ours before aspiration)` };
 });
 
 check("every voice speaks at its own tract length", () => {

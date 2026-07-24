@@ -25,7 +25,9 @@ seal-and-release. But the word currently comes out, in the project's own field n
 
 ### Vowels are solved. Consonants are the work.
 
-Vowels land within 12% of Peterson & Barney. A labelled ɑCɑ sweep on voice=john scored
+Vowels land within 12% of target: **10/10 against Peterson & Barney's measured adult-male
+means**, plus schwa and /o/, which P&B did not measure, against conventional values. A labelled
+ɑCɑ sweep on voice=john scored
 **1 / 22** on consonants. That is four root causes, not twenty-two:
 
 | # | fault | state |
@@ -361,8 +363,12 @@ reporting phonemes the model cannot pronounce. It belongs after the rest of Engl
 1. **A hand-written dictionary.** For a family project this is not a compromise, it is the
    right answer for the words that matter most. Names are exactly where automatic conversion is
    worst, and there are perhaps thirty that count.
-2. **Letter-to-sound rules.** The NRL rule set (Elovitz et al., 1976) is the classic, still used
-   in eSpeak. Around 70–85% word accuracy on ordinary English, considerably worse on names.
+2. **Letter-to-sound rules.** The NRL rule set (Elovitz, Johnson, McHugh & Shore, 1976, NRL
+   Report 7948) is the classic: 329 rules, and the report claims correct pronunciations for
+   about **90%** of words in average text. Later independent evaluations put practical accuracy
+   lower, and names are much worse than either figure. *(Corrected: this used to say the rules
+   are "still used in eSpeak" and cite 70–85%. eSpeak ships its own per-language rule files and
+   no source connects it to the NRL set, and 70–85% was not the report's own number.)*
 3. **Rules plus an exception list**, which is what practical systems actually ship. The
    exception list is the dictionary from (1), and it grows every time someone corrects it.
 
@@ -659,8 +665,15 @@ gaps, which is the comb-like appearance of synthesis and much of what makes it s
 machine. Real voices leak — the folds never seal perfectly, and there is always turbulence
 riding on the voice.
 
-Measured: **the model at 38 dB, the reference recording at 2–5 dB** on the same measure.
-Published healthy voices sit around 15–25. Thirty-eight is not a person.
+Measured: **the model at 38 dB.** Published healthy voices sit around 15–25 — Praat's own
+documentation puts a healthy sustained [a] near 20, and the clinical literature runs roughly
+7–26. Thirty-eight is not a person.
+
+*Corrected 2026-07: this section used to report the reference recording at 2–5 dB on the same
+measure. That is the hoarse/pathological range, not a healthy one, and it was almost certainly
+our estimator misreading a room recording. Nothing was calibrated against it — the band is
+v < 30, from the published range — and the presets landed at 12–29 dB, inside the human band.
+The number was wrong; the work it prompted was not.*
 
 The fix is aspiration, and the parameter could not even reach it — `brth` was capped at 0.12
 when about 0.20 was needed. Widened, and every preset raised. All nine now sit between 12 and
@@ -751,6 +764,37 @@ can state it.
 ## Open faults
 
 Things known to be wrong, so they are not rediscovered as surprises.
+
+**The voice sounds hoarse, and the noise LEVEL is not why.** Noticed by ear, and it survives
+the obvious explanation. Harmonic-to-noise sits at 22.8 dB and every preset is between 12 and
+29, which is inside the healthy human band — Praat puts a healthy sustained [a] near 20. So
+there is not too much noise. What is wrong is its **colour**. Measured spectral tilt from
+4–20 kHz, where real speech falls:
+
+| | measured tilt | real speech |
+|---|---|---|
+| /ɑ/ | **+4.4 dB/oct** | −12 or steeper |
+| /ʃ/ | +7.0 | falls above ~4 kHz |
+| /ð/ | +10.8 | falls |
+| /h/ | **−5.7** | −6 to −12 ✓ |
+
+Everything rises toward Nyquist except /h/, and a vowel cannot do that. The cluster around
++4 to +7 dB/octave is the signature of a **differentiator**, which is exactly what lip
+radiation is (R(z) = 1 − 1/z, +6 dB/oct) — correct physics that requires the source to roll off
+to compensate. The breath noise mixed into the glottal source does not roll off. It goes in as
+raw white noise:
+
+    let src=(g*0.9 + (Math.random()*2-1)*this.breath*g)*this.vAmp;   // engine, unfiltered
+
+The /h/ path and the stop-aspiration path both put their noise through a two-pole lowpass
+first, and /h/ is the one sound on the list with a physically sane tilt. The filtered paths
+behave; the unfiltered one does not.
+
+This is one candidate cause for three separate complaints: the hoarseness, the `static` tag the
+bench put on six sounds (g z ʃ ð v h), and the /ʃ ʒ h/ that read as hiss at levels where /f/
+reads correctly — gain was measured and is not their problem. **Fix to try:** shape the breath
+noise the way the other two noise paths already are. It touches every voice and every sound,
+and it is coupled to the harmonic-to-noise band, so that band will want re-checking after.
 
 **The dental fricatives hiss.** /ð/ in *mother* and *father* comes out as a staticy "sh"
 rather than a soft voiced buzz. The measured target is a peak near 500 Hz with the energy

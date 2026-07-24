@@ -102,6 +102,8 @@ reflecting at 1000/2005/3005 Hz (the full harmonic series of a string). Same cod
 - Fant (1960), *Acoustic Theory of Speech Production* — source–filter
 - Klatt (1980), JASA — the cascade/parallel formant synthesizer
 - Fant, Liljencrants & Lin (1985) — the LF glottal flow model
-- Peterson & Barney (1952) — the vowel formant measurements used to solve these shapes
+- Peterson & Barney (1952), *Control methods used in a study of the vowels*, JASA 24(2):175–184
+  — the vowel formant measurements used to solve these shapes. Their study covers ten vowels;
+  schwa and /o/ are not among them and are targeted against conventional values instead.
 - Neil Thapen's [Pink Trombone](https://dood.al/pink-trombone/) — the articulatory
   synthesizer that showed this could live in a browser tab
