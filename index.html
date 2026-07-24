@@ -1590,11 +1590,22 @@ function makeKey(sym, host){
   });
   host.appendChild(b);
 }
-function baseFor(sym){ return ART[sym] || (DIPH[sym] && ART[DIPH[sym][0]]) || ART['ə']; }
-function shapeFor(sym){
-  if(DIPH[sym]) return articulate(ART[DIPH[sym][0]], N);      // a diphthong starts at its first
-  return articulate(ART[sym]||ART['ə'], N);
+// PER-VOICE ARTICULATION. Postures were global — every voice moved its tongue identically
+// and only the tube length changed. That cannot represent a real speaker: John's /u/ and /ʊ/
+// are fronted, which is a dialect feature, not a tract-length one. A voice may now carry its
+// own measured postures and fall back to the shared ones for anything it does not override.
+function voiceArt(){ const V=VOICES[voiceName]; return (V && V.art) || null; }
+function baseFor(sym){
+  const own=voiceArt();
+  if(own && own[sym]) return own[sym];
+  if(DIPH[sym]){
+    const first=DIPH[sym][0];
+    if(own && own[first]) return own[first];
+    return ART[first];
+  }
+  return ART[sym] || ART['ə'];
 }
+function shapeFor(sym){ return articulate(baseFor(sym), N); }
 // Hold a shout and your jaw drops — the vowel opens as it goes. That is what makes a long
 // /o/ become "goooaaa" without a second vowel target, and it is why "g o ɑ l" was heard as
 // three separate segments: it WAS three separate segments.
@@ -1694,10 +1705,13 @@ const G2P_RULES = [
   [/^ng/,        ['ŋ']],
   [/^qu/,        ['k','w']],
   [/^x/,         ['k','s']],
+  [/^eo/,        ['i']],         // people
+  [/^wa(?=[^aeiouy])/, ['w','ɔ']], // water, want, wash, watch
   [/^ee/,        ['i']],
   [/^ea/,        ['i']],
   [/^ie/,        ['i']],
   [/^oo/,        ['u']],
+  [/^ow$/,       ['oʊ']],       // yellow, window, show — final -ow is not the -ow of "down"
   [/^ou/,        ['aʊ']],
   [/^ow/,        ['aʊ']],
   [/^oa/,        ['oʊ']],
@@ -1730,6 +1744,7 @@ const G2P_RULES = [
   [/^y(?=[aeiou])/, ['j']],
   [/^y$/,        ['i']],
   [/^y/,         ['ɪ']],
+  [/^o$/,        ['oʊ']],       // go, no, hello, potato
   // a final silent e
   [/^e$/,        []],
   // plain letters
@@ -1755,12 +1770,37 @@ function g2p(phrase){
   }
   return g2pWord(words[0]||'');
 }
+// English reduces unstressed vowels to schwa, and rules cannot see stress. But the weak
+// first syllable is highly patterned: a-bout, a-gain, be-cause, com-puter, to-gether. Catching
+// those prefixes fixes most of it without needing a stress model.
+const WEAK_FIRST=/^(a|be|com|con|de|re|to|pro|per|sur|sup|suc|o[bcf]|ac|ad|al|as|at|ef|em|en|ex|im|in|ob|oc|op|pre|sub)(?=[a-z]{3,})/;
 function g2pWord(word){
   let w=String(word||'').toLowerCase().replace(/[^a-z]/g,'');
   const dict=loadDict();
   if(dict[w]) return {ph:dict[w].slice(), from: BUILTIN_DICT[w]?'built in':'remembered'};
   const out=[];
   let guard=0;
+  // reduce the vowel of a weak first syllable before the rules see it
+  let weak=0;
+  const m0=w.match(WEAK_FIRST);
+  if(m0 && !/^[aeiou]{2}/.test(w)){
+    const pre=m0[1];
+    const vi=pre.search(/[aeiou]/);
+    if(vi>=0){ out.push(...(vi?[]:[]) ); weak=vi+1; }
+  }
+  if(weak){
+    // consonants before the weak vowel go through the rules as usual
+    let head=w.slice(0,weak-1), rest=w.slice(weak);
+    let hg=0;
+    while(head.length && hg++<8){
+      let hit=null;
+      for(const [re,ph] of G2P_RULES){ const mm=head.match(re); if(mm){ hit=[mm[0].length||1,ph]; break; } }
+      if(!hit){ head=head.slice(1); continue; }
+      out.push(...hit[1]); head=head.slice(hit[0]);
+    }
+    out.push('ə');
+    w=rest;
+  }
   while(w.length && guard++<200){
     let hit=null;
     for(const [re,ph] of G2P_RULES){
@@ -1781,6 +1821,20 @@ function g2pWord(word){
 const BUILTIN_DICT = {
   // English spells /θ/ and /ð/ identically. Only a list can tell them apart, and the
   // voiced ones are almost all function words — a short list covers most of the language.
+  // The words English simply does not spell phonetically. Rules reach about 60%; the rest
+  // is memorised, by people as much as by programs.
+  hello:['h','ə','l','oʊ'], hi:['h','aɪ'], hey:['h','eɪ'],
+  because:['b','ɪ','k','ɔ','z'], again:['ə','g','ɛ','n'], any:['ɛ','n','i'],
+  many:['m','ɛ','n','i'], said:['s','ɛ','d'], says:['s','ɛ','z'],
+  one:['w','ʌ','n'], once:['w','ʌ','n','s'], two:['t','u'], who:['h','u'],
+  what:['w','ʌ','t'], want:['w','ɔ','n','t'], was:['w','ʌ','z'], were:['w','ɝ'],
+  are:['ɑ','r'], have:['h','æ','v'], give:['g','ɪ','v'], live:['l','ɪ','v'],
+  come:['k','ʌ','m'], some:['s','ʌ','m'], done:['d','ʌ','n'], love:['l','ʌ','v'],
+  computer:['k','ə','m','p','j','u','t','ɝ'], together:['t','ə','g','ɛ','ð','ɝ'],
+  potato:['p','ə','t','eɪ','t','oʊ'], tomato:['t','ə','m','eɪ','t','oʊ'],
+  music:['m','j','u','z','ɪ','k'], use:['j','u','z'], you:['j','u'], your:['j','ɔ','r'],
+  friend:['f','r','ɛ','n','d'], school:['s','k','u','l'], their:['ð','ɛ','r'],
+  eye:['aɪ'], eyes:['aɪ','z'], door:['d','ɔ','r'], floor:['f','l','ɔ','r'],
   // English writes "oo" for two different vowels and gives no clue which. Only a list knows.
   good:['g','ʊ','d'], book:['b','ʊ','k'], look:['l','ʊ','k'], took:['t','ʊ','k'],
   foot:['f','ʊ','t'], hood:['h','ʊ','d'], wood:['w','ʊ','d'], wool:['w','ʊ','l'],
@@ -2130,10 +2184,10 @@ const VOICES = {
   announcer:{ label:'Goal announcer', note:'Pressed and drawn out, pitch falling the whole way. Measured from a real cry.',
     v:{ rd:0.48, press:0.85, jit:1.4, brth:0.055, drawl:0.62, open:0.06, per:0.62,
         sect:44, f0a:196, f0b:188, f0c:118 } },
-  john:{ label:'John', note:'Measured: a 15.9 cm tract from F3, modal voice, pitch around 93 Hz.',
+  john:{ art:{"i": {"jaw": 0.092, "bodyPos": 0.637, "bodyHi": 0.67, "tipPos": 0.88, "tipHi": 0.25, "lip": 0.65}, "ɪ": {"jaw": 0.785, "bodyPos": 0.602, "bodyHi": 0.924, "tipPos": 0.807, "tipHi": 0.131, "lip": 1}, "ɛ": {"jaw": 0.782, "bodyPos": 0.638, "bodyHi": 0.792, "tipPos": 0.904, "tipHi": 0.086, "lip": 0.966}, "æ": {"jaw": 0.825, "bodyPos": 0.823, "bodyHi": 0.381, "tipPos": 0.742, "tipHi": 0.07, "lip": 0.879}, "ɑ": {"jaw": 0.7, "bodyPos": 0.301, "bodyHi": 0.409, "tipPos": 0.817, "tipHi": 0.059, "lip": 0.589}, "ɔ": {"jaw": 0.33, "bodyPos": 0.336, "bodyHi": 0.482, "tipPos": 0.84, "tipHi": 0.019, "lip": 0.438}, "ʊ": {"jaw": 0.94, "bodyPos": 0.514, "bodyHi": 0.039, "tipPos": 0.84, "tipHi": 0.081, "lip": 0.282}, "u": {"jaw": 0.951, "bodyPos": 0.702, "bodyHi": 0.286, "tipPos": 0.84, "tipHi": 0.037, "lip": 0.178}, "ʌ": {"jaw": 0.33, "bodyPos": 0.223, "bodyHi": 0.308, "tipPos": 0.731, "tipHi": 0.294, "lip": 0.346}, "ɝ": {"jaw": 0.749, "bodyPos": 0.529, "bodyHi": 0.721, "tipPos": 0.79, "tipHi": 0.215, "lip": 0.378}, "ə": {"jaw": 0.891, "bodyPos": 0.55, "bodyHi": 0.406, "tipPos": 0.936, "tipHi": 0.198, "lip": 0.414}}, label:'John', note:'Measured: a 15.9 cm tract from F3, modal voice, pitch around 93 Hz.',
     v:{ rd:1.26, press:0.18, jit:1.0, brth:0.075, drawl:0.08, open:0.05, per:0.13,
         sect:40, f0a:88, f0b:99, f0c:78 } },
-  johncry:{ label:'John shouting', note:'His own goal cry, measured: pitch falling 158 to 93 Hz over 2.9 seconds.',
+  johncry:{ art:{"i": {"jaw": 0.092, "bodyPos": 0.637, "bodyHi": 0.67, "tipPos": 0.88, "tipHi": 0.25, "lip": 0.65}, "ɪ": {"jaw": 0.785, "bodyPos": 0.602, "bodyHi": 0.924, "tipPos": 0.807, "tipHi": 0.131, "lip": 1}, "ɛ": {"jaw": 0.782, "bodyPos": 0.638, "bodyHi": 0.792, "tipPos": 0.904, "tipHi": 0.086, "lip": 0.966}, "æ": {"jaw": 0.825, "bodyPos": 0.823, "bodyHi": 0.381, "tipPos": 0.742, "tipHi": 0.07, "lip": 0.879}, "ɑ": {"jaw": 0.7, "bodyPos": 0.301, "bodyHi": 0.409, "tipPos": 0.817, "tipHi": 0.059, "lip": 0.589}, "ɔ": {"jaw": 0.33, "bodyPos": 0.336, "bodyHi": 0.482, "tipPos": 0.84, "tipHi": 0.019, "lip": 0.438}, "ʊ": {"jaw": 0.94, "bodyPos": 0.514, "bodyHi": 0.039, "tipPos": 0.84, "tipHi": 0.081, "lip": 0.282}, "u": {"jaw": 0.951, "bodyPos": 0.702, "bodyHi": 0.286, "tipPos": 0.84, "tipHi": 0.037, "lip": 0.178}, "ʌ": {"jaw": 0.33, "bodyPos": 0.223, "bodyHi": 0.308, "tipPos": 0.731, "tipHi": 0.294, "lip": 0.346}, "ɝ": {"jaw": 0.749, "bodyPos": 0.529, "bodyHi": 0.721, "tipPos": 0.79, "tipHi": 0.215, "lip": 0.378}, "ə": {"jaw": 0.891, "bodyPos": 0.55, "bodyHi": 0.406, "tipPos": 0.936, "tipHi": 0.198, "lip": 0.414}}, label:'John shouting', note:'His own goal cry, measured: pitch falling 158 to 93 Hz over 2.9 seconds.',
     v:{ rd:0.55, press:0.80, jit:1.3, brth:0.065, drawl:0.60, open:0.06, per:0.62,
         sect:40, f0a:158, f0b:150, f0c:95 } },
   man:{ label:'Man', note:'A 17.5 cm tract, modal voice, ordinary timing.',

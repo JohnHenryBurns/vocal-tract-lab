@@ -383,6 +383,34 @@ something already known to be broken:
 
 ---
 
+## Per-voice articulation  ✅ built
+
+Postures were **global**: every voice moved its tongue identically and only the tube length
+changed. That cannot represent a real speaker. The measured /u/ and /ʊ/ in the reference
+recording are *fronted* by around 400 Hz in F2 — a dialect feature, not a tract-length one,
+and shared postures have no way to express it.
+
+A voice may now carry its own postures and fall back to the shared ones for anything it does
+not override. Fitted against the recording: **mean vowel error 21% with generic postures, 4%
+with measured ones.**
+
+**Consonants are still hand-placed**, from articulatory description — "tip to the ridge",
+"body to the velum" — then adjusted until the acoustics looked right. They are not fitted to
+anyone. That is the next honest gap.
+
+### The estimator that invented a formant
+
+The first fit reported every vowel within 0.5–4%. The postures it produced were wrong. It had
+optimised against **LPC**, which for two of the vowels placed F2 around 2500 Hz where the
+transfer function has no peak at all — /ɛ/ came out 1620 Hz adrift. Plotting the spectrum
+settled it in one look: peaks at 500, 900 and 2950, and nothing between.
+
+Sixth time in this project that a measurement, rather than a piece of reasoning, has been the
+thing that was wrong. The rule that keeps holding: **peak-pick the transfer function; do not
+trust LPC**, and when two estimators disagree, plot the thing.
+
+---
+
 ## Phase 7 — pushing the physics
 
 Measured against a real recording, the model is within 5–8 dB below 3 kHz and **10–17 dB
