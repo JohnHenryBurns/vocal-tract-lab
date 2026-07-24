@@ -395,6 +395,7 @@ const VOICE_SPEC=[
   {k:'stopVc',lo:1,     hi:2,       d:1.5},    // voiceless/voiced closure ratio
   {k:'apw',  lo:0.15,   hi:0.7,     d:0.34},   // approximant weight against a reference vowel
   {k:'acc',  lo:0,      hi:8,       d:3},      // accent excursion on a stressed syllable, semitones
+  {k:'pert', lo:0,      hi:2,       d:1},      // consonant perturbation of the following vowel
 ];
 const VOICES = {
   // Measured from a real goal cry: the pitch falls the whole way (158 -> 93 Hz) and the
@@ -719,20 +720,6 @@ function buildF0(end, v, opts){
   // regardless of which syllable is stressed.
   const pts = [[0,a],[Math.min(0.12,end*0.1),b],[end*0.55,b],
                [end*0.82,(b+c)/2],[end,c],[end+0.2,c*0.92]];
-  const semis = (v.acc === undefined ? 3 : v.acc);
-  if(!stress || !seg || semis <= 0.01) return pts;
-
-  // ---- accents, on the syllables that carry them ----
-  // Only on the NUCLEUS. `stress` marks every phone of a stressed syllable, so accenting all
-  // of them would put three excursions on one syllable and read as a wobble.
-  const isNuc = sym => VDUR[sym] !== undefined || DIPH[sym] !== undefined;
-  const marks = [];
-  seg.forEach((sg, i) => { if(sg.sym !== ' ' && isNuc(sg.sym) && stress[i]) marks.push(sg); });
-  if(!marks.length) return pts;
-
-  // Read the baseline where the accent falls, then push up from it. Excursions are
-  // MULTIPLICATIVE because pitch is: three semitones is three semitones wherever the baseline
-  // happens to be, which is what stops a late accent vanishing into the declination.
   const at = t => {
     if(t <= pts[0][0]) return pts[0][1];
     for(let k=1;k<pts.length;k++) if(t <= pts[k][0]){
@@ -741,18 +728,61 @@ function buildF0(end, v, opts){
     }
     return pts[pts.length-1][1];
   };
-  const out = pts.slice();
-  const k = Math.pow(2, semis/12);
-  for(const sg of marks){
+  const semis = (v.acc  === undefined ? 3   : v.acc);
+  const pert  = (v.pert === undefined ? 1   : v.pert);
+  if(!stress || !seg) return pts;
+
+  // ---- everything above the baseline is an OFFSET IN SEMITONES ----
+  // Written as summed contributions rather than as points pushed onto the contour, because two
+  // of them land on the same vowel and would otherwise fight over the same instant: a stressed
+  // syllable after a /t/ has BOTH a raised onset and an accent peak, and it really does have
+  // both. Semitones add where hertz would not, which is the other reason this is the right
+  // space to work in.
+  const parts = [];                            // each: {t0, t1, f(t) -> semitones}
+  const ramp = (t0, t1, v0, v1) => ({ t0, t1,
+    f: t => t<=t0 ? v0 : t>=t1 ? v1 : v0 + (v1-v0)*(t-t0)/(t1-t0) });
+
+  const isNuc = sym => VDUR[sym] !== undefined || DIPH[sym] !== undefined;
+  const nuclei = [];
+  seg.forEach((sg, i) => { if(sg.sym !== ' ' && isNuc(sg.sym)) nuclei.push([sg, i]); });
+
+  // ACCENTS, on the stressed nuclei only. `stress` marks every phone of a stressed syllable,
+  // so accenting all of them puts three excursions on one syllable and reads as a wobble.
+  if(semis > 0.01) for(const [sg, i] of nuclei){
+    if(!stress[i]) continue;
     const mid = (sg.a + sg.b)/2;
-    // A shoulder either side, so an accent is a gesture and not a corner. Anchored to the
-    // baseline so the pitch comes back down to where the declination says it should be.
-    out.push([sg.a, at(sg.a)]);
-    out.push([mid,  at(mid)*k]);
-    out.push([sg.b, at(sg.b)]);
+    parts.push(ramp(sg.a, mid, 0, semis));
+    parts.push(ramp(mid, sg.b, semis, 0));
   }
-  out.sort((x,y)=>x[0]-y[0]);
-  return out;
+
+  // CONSONANT PERTURBATION. A vowel does not start at its own pitch: after a voiceless
+  // obstruent it starts HIGH and falls into place, after a voiced one it starts LOW and rises.
+  // Hombert, Ohala & Ewan (1979); House & Fairbanks (1953). The effect is asymmetric — the
+  // voiceless raising is roughly twice the voiced lowering — and it is gone within about 60 ms,
+  // which is why it is microprosody and not intonation. Small, and its absence is one of the
+  // things that makes synthetic speech sound assembled rather than spoken.
+  if(pert > 0.01) for(const [sg, i] of nuclei){
+    const prev = i > 0 ? seg[i-1].sym : null;
+    if(!prev) continue;
+    const st = VOICELESS_OBS[prev] ? 1.2*pert : VOICED_OBS[prev] ? -0.7*pert : 0;
+    if(!st) continue;
+    const back = Math.min(0.06, (sg.b - sg.a) * 0.6);   // never longer than the vowel it marks
+    parts.push(ramp(sg.a, sg.a + back, st, 0));
+  }
+
+  if(!parts.length) return pts;
+  // Sample where anything changes, and nowhere else.
+  const times = new Set(pts.map(p => p[0]));
+  for(const p of parts){ times.add(p.t0); times.add(p.t1); times.add((p.t0+p.t1)/2); }
+  const out = [...times].filter(t => t >= 0 && t <= end + 0.2).sort((x,y) => x-y);
+  return out.map(t => {
+    let d = 0;
+    // HALF-OPEN, [t0, t1). Strict-on-both-sides missed the value AT a ramp's start, which is
+    // exactly where consonant perturbation lives — it fired on nothing. Closed-on-both-sides
+    // would double-count at an accent's peak, where one ramp ends and the next begins.
+    for(const p of parts) if(t >= p.t0 && t < p.t1) d += p.f(t);
+    return [t, at(t) * Math.pow(2, d/12)];
+  });
 }
 
 const HOLLER = {

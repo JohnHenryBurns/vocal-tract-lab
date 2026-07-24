@@ -3,14 +3,19 @@
 **[Open the lab →](https://johnhenryburns.github.io/hollerbox/)**
 
 An interactive Kelly–Lochbaum digital waveguide vocal tract, running in the browser.
-Forty-four cylinders, sound sloshing back and forth between them, and the resonances
-of human speech falling out of the geometry.
+Forty-four cylinders at a 44.1 kHz sample rate — the count follows the hardware, so that
+17.5 cm of tract stays 17.5 cm — with sound sloshing back and forth between them and the
+resonances of human speech falling out of the geometry.
 
 *A hollerbox is a box you holler out of. This one does it from first principles: no
 recordings, no samples, just air, tubes and the arithmetic of a wave hitting a change
 in cross-section.*
 
-There are no formant filters anywhere in this code.
+**No formant filters in the voiced path.** A vowel here is not a bank of resonators tuned to
+Peterson & Barney's numbers; it is a tube shape, and the formants are whatever that tube does.
+Two explicit filters *do* exist, both in the noise paths, and the honest version of the claim is
+in [Verification](#verification) below — a project that says "from first principles" should be
+easy to audit, not hard.
 
 ---
 
@@ -24,8 +29,10 @@ two neighbouring cylinders have different cross-sectional areas, part of the wav
 r = (A₁ − A₂) / (A₁ + A₂)
 ```
 
-That single line is the whole model. Run it 44 times in a row, twice per audio sample, and
-you have a throat. Change the tube's shape and the resonances move on their own — which is
+That single line is the whole of the *tube*. Run it 44 times in a row, twice per audio sample,
+and you have a throat. It is not the whole of the model — there is also a glottal source, a side
+branch for the lateral, a nasal branch, radiation at the lips and losses at the walls — but
+nothing anywhere prescribes a resonance. Change the tube's shape and the resonances move on their own — which is
 what a vowel *is*.
 
 Each cylinder in the 3D view is coloured by the standing-wave energy actually present in
@@ -33,7 +40,8 @@ that section, so you can watch the pressure pattern that produces a formant.
 
 The tube is drawn as soon as the page loads and the articulator sliders reshape it
 immediately — audio just adds the wind. Starting the voice sustains **one** vowel;
-**SAY GOOOAAALLL** is the only control that moves the tract through a whole word.
+**Play word** speaks anything you type, spelled by rule and by a dictionary of the words English
+does not spell phonetically, and **SAY GOOOAAALLL** runs the cry it was all built for.
 
 ## Controls
 
@@ -64,6 +72,45 @@ one end is a quarter-wave resonator, so a 17.5 cm tract must resonate at odd mul
 c/4L — 500, 1500, 2500 Hz, the neutral schwa. Measured: **500 / 1505 / 2505 Hz**, under 1%
 error. The tract auto-sizes its section count to the hardware sample rate so the length
 stays correct on any device.
+
+`node lab/check.js` is the gate: assertions that must hold, in about half a minute.
+`--report` adds the spectral measurements, which are worth watching and are deliberately not
+allowed to fail the build — a band drawn around one calibration goes red when something is
+*different*, not when something is *wrong*. Renders are seeded and reproducible, so a green
+run means the same thing twice; `HOLLER_SEEDS=5` re-runs everything across five seeds.
+
+### The honest version of "no formant filters"
+
+The claim is about the **voiced path**, and there it is exact: source → waveguide → output, with
+no resonator in between. `tract-worklet.js` line 413 makes the source, 436 runs it through
+`scatter()`, 615 writes the sample. Nothing else touches it. The vowels are the tube.
+
+Two explicit filters exist elsewhere, both on **noise**:
+
+- a two-pole resonator on frication, giving a sibilant its peak;
+- a one-pole lowpass on a stop burst, colouring the release.
+
+Neither is a per-phoneme lookup. Both take their frequency from the **measured front cavity** —
+the sibilant's centre is the quarter-wave resonance `c/4L` of however much tube lies in front of
+the constriction, and the burst's corner is derived the same way. They exist because at 44
+sections a sibilant's front cavity is three or four sections long, which is too coarse to ring
+on its own; the code says so at the point where it does it. That is a **spatial-resolution
+limitation**, not a shortcut, and finer sections would remove the need for them.
+
+So: no prescribed resonances anywhere, and two geometry-driven filters compensating for section
+count. If you were going to check one claim in this file, check that one — it is the load-bearing
+one, and `grep -n "fb1\|fb2" engine/tract-worklet.js` is the whole audit.
+
+### Two things that are easy to over-read
+
+The solved vowel shapes are scored against Peterson & Barney (1952), whose study covers **ten**
+vowels. Schwa and /o/ are not among them and are targeted against conventional values instead;
+the gate reports the two provenances separately rather than claiming twelve.
+
+Prosody — duration, stress, level, pitch contour — is **not** emergent. It is a control layer
+sitting on top, with published values from Peterson & Lehiste (1960) and House & Fairbanks (1953),
+and its parameters are in the voice where they can be swept. The tube is first-principles; the
+timing is a model.
 
 ## Known limitation
 

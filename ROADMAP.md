@@ -799,7 +799,7 @@ because its stressed /u/ is intrinsically the quietest vowel there is. Real spee
 The default path is unchanged and gated as such: supply no stress — a chain tapped in by hand,
 anything that never went through the speller — and every level stays 1.
 
-### 8.4 F0  ◐ 1, 3 and one copy built; 2 and 4 to come
+### 8.4 F0  ◐ 0, 1, 2 and 3 built; 4 blocked
 
 Four changes, smallest first:
 
@@ -815,8 +815,27 @@ Four changes, smallest first:
    hitting all the right endpoints, which is exactly why it never showed up as a wrong note.
    Gated by driving the real processor, since the engine does its own interpolation and that
    was the copy that mattered.
-2. **Consonant perturbation.** A 10–20 Hz dip after voiced obstruents, a rise after voiceless,
-   over the first ~50 ms of the vowel. Small, cheap, and ears catch its absence.
+2. **Consonant perturbation.**  ✅ A vowel does not start at its own pitch: after a voiceless
+   obstruent it starts high and falls in, after a voiced one it starts low and rises. Hombert,
+   Ohala & Ewan (1979). Asymmetric — the voiceless raising is about twice the voiced lowering —
+   and gone within ~60 ms, which is why it is microprosody rather than intonation.
+
+   Defined and gated in **semitones, not hertz**: 1.9 st is 28 Hz on the default 250 Hz voice
+   and 11 Hz on John's 95, and the published 10–25 Hz is quoted for male voices. In hertz the
+   assertion would have been voice-dependent and the effect would have been wrong on half the
+   presets. Depth is `pert` in `VOICE_SPEC`.
+
+   This forced a rewrite of how the contour is assembled, and the rewrite is the useful part.
+   Accents and perturbation both land on the same vowel — a stressed syllable after a /t/ has a
+   raised onset *and* an accent peak, and really does have both — so pushing points onto the
+   contour made them fight over the same instant. The contour is now a **baseline plus summed
+   offsets in semitones**, sampled where anything changes. Semitones add where hertz would not,
+   which is the other reason that is the right space to work in.
+
+   Two bugs from that rewrite, both caught by the gate: the offsets were evaluated on strictly
+   open intervals, so nothing was active *at* a ramp's start, which is exactly where
+   perturbation lives — it fired on nothing. Closing both ends instead double-counts at an
+   accent's peak, where one ramp ends and the next begins. Half-open, `[t0, t1)`.
 3. **Accent alignment.**  ✅ Excursions now sit on the stressed syllables rather than at
    `end*0.55`. The old arch is kept as the BASELINE — it is a good goal cry, it was measured
    from one — and accents ride on top of it. They are **multiplicative**, because pitch is:
@@ -829,8 +848,14 @@ Four changes, smallest first:
    **Known gap, from the first run:** the speller marks every monosyllable as stressed, so the
    article *a* in "banana and a tomato" takes an accent. Real phrases destress function words.
    That is phrase-level stress and it wants its own step; it is not an accent-placement bug.
-4. **Declination and reset.** A falling baseline across the phrase, reset at boundaries, with
-   the terminal contour chosen by sentence type.
+4. **Declination and reset.**  ❌ **blocked, and worth naming why.** The baseline already falls
+   across the utterance. What is missing is the *reset* at a phrase boundary — and a phrase
+   boundary is punctuation, which the speller deletes: `replace(/[^a-z]/g,'')` on the way in.
+   Nothing downstream can tell a comma from a space, so there is no boundary to reset at.
+
+   The same missing information blocks the terminal contour, since a question and a statement
+   differ by a mark that never arrives. Punctuation has to survive the speller first, and that
+   pairs naturally with **8.5**, which also needs to know which boundaries are real.
 
 The goal-cry template stays as a voice preset. It is a good shout; it is just not a sentence.
 

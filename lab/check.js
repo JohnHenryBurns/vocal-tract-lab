@@ -608,37 +608,74 @@ check("pitch moves in semitones and accents land on stressed syllables", () => {
   // 3. Accents land on stressed NUCLEI and nowhere else. `stress` marks every phone of a
   //    stressed syllable, so accenting all of them would put three excursions on one syllable
   //    and read as a wobble rather than an accent.
-  const v = P.defaultVoice(), r = S.g2p("banana and a tomato");
+  //    Measured against the baseline with perturbation OFF, because the two overlap on a short
+  //    vowel and the question here is only where the accents are. The first version of this
+  //    asserted that every point in the contour sat inside a stressed nucleus, which stopped
+  //    being true the moment perturbation started adding its own breakpoints on unstressed
+  //    ones — the assertion was stale, not the code.
+  const v = P.defaultVoice(), noP = { ...v, pert: 0 };
+  const r = S.g2p("banana and a tomato");
   const W = P.buildWord(r.ph, { D: 1.6, n: 44, stress: r.stress, pros: v });
-  const base = P.buildF0(W.end, v);
-  const acc  = P.buildF0(W.end, v, { stress: r.stress, seg: W.seg });
-  const nuclei = W.seg.filter((s, i) => r.stress[i] && s.sym !== " " &&
-                   (P.VDUR[s.sym] !== undefined || P.DIPH[s.sym] !== undefined));
-  if (acc.length <= base.length) bad.push("accents added no points");
-  for (const sg of nuclei) {
-    const mid2 = (sg.a + sg.b) / 2;
-    const here = acc.find(x => Math.abs(x[0] - mid2) < 1e-9);
-    const flat = base.find(x => Math.abs(x[0] - mid2) < 1e-9);
-    if (!here) { bad.push(`no accent on stressed /${sg.sym}/`); continue; }
-    if (flat) bad.push("baseline already had a point there — cannot tell them apart");
-  }
-  // Every added point must sit inside a stressed nucleus. One outside means an accent landed
-  // on a consonant or an unstressed syllable.
-  const times = new Set(base.map(x => x[0]));
-  for (const [t] of acc) {
-    if (times.has(t)) continue;
-    if (!nuclei.some(sg => t >= sg.a - 1e-9 && t <= sg.b + 1e-9))
-      bad.push(`accent point at ${t.toFixed(3)}s is not in a stressed nucleus`);
-  }
+  const base = P.buildF0(W.end, noP);
+  const acc  = P.buildF0(W.end, noP, { stress: r.stress, seg: W.seg });
+  const isNuc = sym => P.VDUR[sym] !== undefined || P.DIPH[sym] !== undefined;
+  const readAt = (pts, t) => {
+    if (t <= pts[0][0]) return pts[0][1];
+    for (let k = 1; k < pts.length; k++) if (t <= pts[k][0]) {
+      const [t0,v0] = pts[k-1], [t1,v1] = pts[k];
+      return t1 === t0 ? v1 : v0*Math.pow(v1/v0, (t-t0)/(t1-t0));
+    }
+    return pts[pts.length-1][1];
+  };
+  let nStressed = 0;
+  W.seg.forEach((sg, i) => {
+    if (sg.sym === " " || !isNuc(sg.sym)) return;
+    const mid = (sg.a + sg.b)/2;
+    const lift = 12*Math.log2(readAt(acc, mid) / readAt(base, mid));
+    if (r.stress[i]) { nStressed++;
+      if (Math.abs(lift - v.acc) > 0.2) bad.push(`stressed /${sg.sym}/ lifted ${lift.toFixed(2)} st, want ${v.acc}`);
+    } else if (Math.abs(lift) > 0.2) bad.push(`UNstressed /${sg.sym}/ lifted ${lift.toFixed(2)} st`);
+  });
+  if (!nStressed) bad.push("no stressed nuclei found to test");
 
-  // 4. acc=0 gives the baseline back exactly. Every prosody knob is a bisection tool; this
-  //    one has to be able to turn Phase 8.4's accents off without touching code.
-  const off = P.buildF0(W.end, { ...v, acc: 0 }, { stress: r.stress, seg: W.seg });
-  if (JSON.stringify(off) !== JSON.stringify(base)) bad.push("acc=0 does not return the baseline");
+  // 4. CONSONANT PERTURBATION. A vowel after a voiceless obstruent starts high and falls in;
+  //    after a voiced one it starts low and rises. Asymmetric, and gone within ~60 ms.
+  //    Asserted in SEMITONES, not hertz, because that is how it is defined and how it scales:
+  //    1.9 st is 28 Hz on this 250 Hz voice and 11 Hz on John's 95, and the published 10-25 Hz
+  //    is quoted for male voices. In hertz this assertion would be voice-dependent.
+  const onset = ch => {
+    const W2 = P.buildWord(ch, { D: 0.8, n: 44, stress: [1,1,1], pros: v });
+    const f  = P.buildF0(W2.end, v, { stress: [1,1,1], seg: W2.seg });
+    const vw = W2.seg[1];
+    return { on: f.find(x => Math.abs(x[0]-vw.a) < 1e-9)[1],
+             peak: Math.max(...f.filter(x => x[0] >= vw.a && x[0] <= vw.b).map(x => x[1])) };
+  };
+  const vl = onset(["t","ɑ","t"]), vd = onset(["d","ɑ","d"]);
+  const st = 12*Math.log2(vl.on/vd.on);
+  if (Math.abs(st - 1.9) > 0.2) bad.push(`perturbation ${st.toFixed(2)} st, want ~1.9`);
+  // It must DECAY. If it did not, it would be an accent rather than microprosody, and the two
+  // syllables would not reach the same peak.
+  if (Math.abs(vl.peak - vd.peak) > 0.5) bad.push("perturbation does not decay before the accent");
+  // And it must not double-count with the accent that sits on the same vowel. Two ramps meet
+  // at the accent's peak; counting both would give 6 semitones where the knob says 3.
+  const W3 = P.buildWord(["d","ɑ","d"], { D: 0.8, n: 44, stress: [1,1,1], pros: v });
+  const exc = 12*Math.log2(Math.max(...P.buildF0(W3.end, v, { stress:[1,1,1], seg:W3.seg }).map(x=>x[1]))
+                         / Math.max(...P.buildF0(W3.end, v).map(x=>x[1])));
+  if (Math.abs(exc - 3) > 0.15) bad.push(`accent excursion ${exc.toFixed(2)} st, want 3 (6 = double-counted)`);
+  if (JSON.stringify(P.buildF0(W3.end, { ...v, pert: 0, acc: 0 }, { stress:[1,1,1], seg:W3.seg }))
+      !== JSON.stringify(P.buildF0(W3.end, v)))
+    bad.push("pert=0 acc=0 does not return the baseline");
+
+  // 5. Turning BOTH off returns the baseline exactly — asserted in 4. acc=0 alone must NOT,
+  //    because perturbation is a separate effect and switching one knob should not silently
+  //    disable the other. That was the first version's mistake.
+  if (JSON.stringify(P.buildF0(W.end, { ...v, acc: 0 }, { stress: r.stress, seg: W.seg }))
+      === JSON.stringify(P.buildF0(W.end, v)))
+    bad.push("acc=0 also disabled perturbation");
 
   return { ok: bad.length === 0,
            note: bad.length ? bad.join("  ")
-               : `one copy, 200->100 midpoint ${mid.toFixed(0)} Hz, ${nuclei.length} accents on nuclei, acc=0 flat` };
+               : `one copy, 200->100 midpoint ${mid.toFixed(0)} Hz, ${nStressed} accents at ${v.acc} st, perturbation ${st.toFixed(1)} st, no double-count` };
 });
 
 check("no word clicks", () => {
