@@ -500,13 +500,39 @@ turned out to be **aspiration**, not losses or radiation. Every preset had breat
 perfectly and there is always turbulence riding on the voice. Raising it closed most of a
 10–17 dB gap above 5 kHz.
 
-### 7b. Frequency-dependent losses
+### 7b. Frequency-dependent losses  ❌ attempted, reverted
 
 One damping constant is applied everywhere. Real losses are not flat: viscous and thermal
 boundary-layer losses scale roughly with √f and with the inverse of the radius, and soft walls
 absorb low frequencies through compliance. The audible consequence is **formant bandwidth** —
 a real F1 is narrow and a real F3 is wide, where ours are all much the same. Flat bandwidths
 are a large part of what makes synthetic speech sound like a filter bank.
+
+**Measured first:** our bandwidths run 24–68 Hz with no trend from F1 to F3, against real
+values of 50–90 for F1 and 110–180 for F3. So the diagnosis was right — a real F3 is two to
+three times wider than a real F1, and ours were all alike.
+
+**Two implementations, both reverted.**
+
+*Per-section one-pole lowpass.* Gives exactly the right tilt — F3/F1 bandwidth ratio went from
+0.7× to 1.9× — and loss that grows in narrow sections, which is physically correct. But
+forty-four cascaded one-poles carry forty-four lots of group delay. That lengthens the tube:
+F1 fell 11%, and every vowel drifted off its target.
+
+*Consolidated at the boundary.* One filter per round trip instead of forty-four, which is
+standard waveguide practice and mostly fixes the drift. But one filter is too gentle to reach
+realistic bandwidths, and pushing it hard enough (wallK 0.82) brought the delay back —
+vowel accuracy collapsed from 11/12 to 4/12, the uniform-tube validation shifted from
+500/1500/2500 to 475/1430/2385, and stop releases went to 240% of the vowel.
+
+**The trade, measured:** at the strongest setting that keeps 11 of 12 vowels, the bandwidth
+ratio only reaches ~1.3×. The realism gained does not pay for the accuracy lost, so it is out.
+
+**What it would take.** The obstacle is group delay, not the loss model. Doing this properly
+means either a delay-compensated loss filter (shorten the delay lines by exactly the filter's
+group delay, which varies with frequency and so needs an allpass to do honestly), or moving to
+a formulation where losses are applied in a way that does not add delay at all. Both are real
+work, and neither is a tuning exercise. Left documented rather than half-done.
 
 ### 7c. Finer sections
 
