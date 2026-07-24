@@ -1082,6 +1082,28 @@ after it is off by one and the symptom will be a duration bug with no obvious ca
 must filter both arrays in lockstep, or not filter at all.** Written down now because this is
 exactly the class of bug that costs a weekend.
 
+**Three speller faults the phrase list turned up, all left unfixed on purpose.**
+
+*Regular past tense `-ed`.* "picked" spells to `p·ɪ·k·ɛ·d` where English says /pɪkt/. The rule
+is highly regular — /t/ after a voiceless consonant, /d/ after a voiced one, /ɪd/ after /t/ or
+/d/ — and it is the same whole-word shape as the final -y and final -e fixes, since "bed",
+"red" and "fed" must not take it. The exceptions are a short closed list of adjectives:
+*sacred, naked, wicked, learned, aged*. Worth doing; too big to fold into a lexical fix.
+
+*Magic-e before `-le`.* `^le$` maps to /əl/, which is right for *table, little, candle, apple*
+— a consonant then the syllabic -le — and wrong for every magic-e word ending the same way:
+*smile* spells to `s·m·aɪ·ə·l`, *male* to `m·eɪ·ə·l`, *whale*, *hole*, *rule*, *style* likewise.
+Pre-existing, confirmed identical before and after the -y/-e fix. It is not a one-liner: the
+rules only ever match a suffix, so by the time `le$` fires the vowel before the /l/ has been
+consumed and cannot be seen. The clean fix is to let the magic-e rules consume through the
+final `e` instead of looking ahead at it, which changes the shape of the rule table.
+
+*Final `-s` after a vowel.* Now handled after a voiced CONSONANT — dogs, bells, sells, hands —
+and deliberately not after a vowel, because there the spelling predicts nothing: *is, his, has,
+as, was* are /z/ while *bus, gas, yes, us, plus, thus* are /s/, and the four function words are
+in the dictionary instead. Plurals of magic-e words are a second gap in the same place:
+"hopes" spells to `h·ɑ·p·ɛ·s`, because the trailing `s` stops the magic-e lookahead matching.
+
 **Consonant postures are fitted from one speaker.** The fricatives were refitted at the default
 tract length with the targets scaled, but everything else — stops, nasals, approximants —
 carries hand-placed generic postures, with only the measured voice getting fitted ones.

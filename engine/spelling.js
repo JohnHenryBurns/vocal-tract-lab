@@ -229,6 +229,23 @@ function markStress(word, ph){
   return {syl, stress, primary};
 }
 
+// ---- whole-word shapes ----
+// G2P_RULES only ever match a SUFFIX of the word: by the time `^y$` or `^e$` fires, everything
+// before it has been consumed and the rule cannot see whether the word had any other vowel.
+// Two very common English patterns depend on exactly that, so they are decided up front.
+const WORD_SHAPE = [
+  // A final -y is /aɪ/ when it is the word's only vowel and /i/ otherwise: my, by, why, try,
+  // fly, cry, sky, shy against happy, city, funny, lazy. Same letter, two sounds, and what
+  // decides is what came before it. "my" was coming out as /mi/.
+  [/^[^aeiouy]+y$/, 'aɪ'],
+  // A final -e is silent when something else carries the vowel — make, wife, love — but when
+  // it is the ONLY vowel it IS the vowel. The silent-e rule was firing on those and returning
+  // a bare consonant with no vowel at all: "she" spelled to /ʃ/, "be" to /b/. Five of the
+  // hundred commonest words in English, each of them silent.
+  // y is excluded from the class so "style" and "rhyme" keep their own vowel.
+  [/^[^aeiouy]+e$/, 'i'],
+];
+
 const PAUSE=' ';                    // a word boundary in the sound chain
 function g2p(phrase){
   // A space is a word boundary. Each word is looked up on its own, then joined by a pause.
@@ -265,6 +282,9 @@ function g2pWord(word){
   if(dict[w]) return withStress(spelling, {ph:dict[w].slice(), from: BUILTIN_DICT[w]?'built in':'remembered'});
   const out=[];
   let guard=0;
+  // Strip the shaped final letter and hold its sound back; the rules run on what is left.
+  let tail=null;
+  for(const [re,ph] of WORD_SHAPE) if(re.test(w)){ tail=ph; w=w.slice(0,-1); break; }
   // reduce the vowel of a weak first syllable before the rules see it
   let weak=0;
   const m0=w.match(WEAK_FIRST);
@@ -296,9 +316,22 @@ function g2pWord(word){
     out.push(...hit[1]);
     w=w.slice(hit[0]);
   }
+  if(tail) out.push(tail);
   // collapse doubled consonants, which English spells but does not say
   const clean=[];
   for(const ph of out) if(!(clean.length && clean[clean.length-1]===ph && !'iɪɛæʌɑɔʊuɝəo'.includes(ph))) clean.push(ph);
+  // ---- a final -s is /z/ after a voiced consonant ----
+  // The regular plural and third-person -s assimilates to what precedes it: dogs, bells,
+  // hands, runs, sells, shells. It stays /s/ after a voiceless one: cats, jumps, hopes.
+  //
+  // Deliberately NOT applied after a vowel, where the spelling stops predicting anything:
+  // "is his has as was" are /z/ but "bus gas yes us plus thus" are /s/, and nothing
+  // orthographic separates them. Those go in the dictionary instead. Words spelled -se are
+  // excluded for the same reason — the /s/ of "else", "horse" and "false" is not an
+  // inflection — and so is -ss, which is never one either.
+  const VOICED_C={b:1,d:1,g:1,v:1,'ð':1,z:1,'ʒ':1,m:1,n:1,'ŋ':1,l:1,r:1,w:1,j:1};
+  if(/[^s]s$/.test(spelling) && clean.length>1 && clean[clean.length-1]==='s'
+     && VOICED_C[clean[clean.length-2]]) clean[clean.length-1]='z';
   return withStress(spelling, {ph:clean, from:'rules'});
 }
 
@@ -310,6 +343,21 @@ const BUILTIN_DICT = {
   // "augh" is /ɔ/ by rule; these are the words where it is not. See the aught rule above.
   laughter:['l','æ','f','t','ɝ'], laughed:['l','æ','f','t'], draught:['d','r','æ','f','t'],
   draughts:['d','r','æ','f','t','s'], laughs:['l','æ','f','s'],
+  // The commonest words in English are the least regular ones, which is why they are here.
+  // "I" is a single letter naming a sound no rule would give it; a/of/to/do/is/his/has/as are
+  // function words; great/break/steak are the three "ea" words that are /eɪ/ and not /i/.
+  i:['aɪ'], a:['ə'], of:['ʌ','v'], to:['t','u'], do:['d','u'],
+  is:['ɪ','z'], his:['h','ɪ','z'], has:['h','æ','z'], as:['æ','z'],
+  great:['g','r','eɪ','t'], break:['b','r','eɪ','k'], steak:['s','t','eɪ','k'],
+  // Final -ow is /oʊ/ by rule, which is right for yellow, window, show, know, grow and slow.
+  // These are the ones where it is /aʊ/, and nothing in the spelling tells them apart —
+  // "how" and "show" differ by a letter that changes the vowel it is not attached to.
+  how:['h','aʊ'], now:['n','aʊ'], cow:['k','aʊ'], brow:['b','r','aʊ'], vow:['v','aʊ'],
+  plow:['p','l','aʊ'], allow:['ə','l','aʊ'], bow:['b','aʊ'],
+  // "ea" is /i/ by rule; this is the short-/ɛ/ set. All of them also take a voiced "th".
+  leather:['l','ɛ','ð','ɝ'], weather:['w','ɛ','ð','ɝ'], feather:['f','ɛ','ð','ɝ'],
+  heather:['h','ɛ','ð','ɝ'], breath:['b','r','ɛ','θ'], head:['h','ɛ','d'],
+  bread:['b','r','ɛ','d'], dead:['d','ɛ','d'], ready:['r','ɛ','d','i'],
   hello:['h','ə','l','oʊ'], hi:['h','aɪ'], hey:['h','eɪ'],
   because:['b','ɪ','k','ɔ','z'], again:['ə','g','ɛ','n'], any:['ɛ','n','i'],
   many:['m','ɛ','n','i'], said:['s','ɛ','d'], says:['s','ɛ','z'],
@@ -359,7 +407,7 @@ function saveWord(word,ph){
        STORE.setItem('hollerbox.dict',JSON.stringify(d)); }catch(e){}
 }
 
-root.HOLLER_SPELL = { G2P_RULES, BUILTIN_DICT, PAUSE, WEAK_FIRST,
+root.HOLLER_SPELL = { G2P_RULES, BUILTIN_DICT, PAUSE, WEAK_FIRST, WORD_SHAPE,
                   NUCLEI, STRESS_DICT, WEAK_STRESS, legalOnset, syllabify, stressIndex, markStress,
                   g2p, g2pWord, loadDict, saveWord, useStorage };
 if (typeof module !== 'undefined' && module.exports) module.exports = root.HOLLER_SPELL;

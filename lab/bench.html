@@ -51,6 +51,7 @@ select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--li
   <button class="tab" data-mode="sweep">Sweep</button>
   <button class="tab" data-mode="blind">Blind</button>
   <button class="tab" data-mode="pairs">Pairs</button>
+  <button class="tab" data-mode="phrases">Phrases</button>
   <button class="tab" data-mode="out">Results</button>
 </div>
 
@@ -115,6 +116,20 @@ select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--li
     <button data-pv="swap">Different — but backwards <span class="k">4</span></button>
   </div>
   <div class="status" id="pst"></div>
+</section>
+
+<!-- ── PHRASES ──────────────────────────────────────────────── -->
+<!-- Whole utterances rather than one consonant in a frame. The sweep and blind modes test
+     whether a sound is the RIGHT sound; this tests whether a sentence sounds like a sentence,
+     which is the only thing that can judge the prosody work in Phase 8. Every phrase below is
+     here for a stated reason — the same rule the gate bands follow. -->
+<section id="panePhrases" class="card hidden">
+  <div class="row" style="margin-bottom:8px">
+    <input id="phraseIn" class="mini" style="flex:2" placeholder="type anything and press enter">
+    <button id="phraseGo">▶ say</button>
+  </div>
+  <div id="phraseChain" class="ctx" style="font-family:var(--mono);min-height:1.2em"></div>
+  <div id="phraseList" style="margin-top:10px"></div>
 </section>
 
 <!-- ── RESULTS ──────────────────────────────────────────────── -->
@@ -239,10 +254,19 @@ async function boot(src){
     BRANCHED: P.BRANCHED, NASAL: P.NASAL, VOICELESS: P.VOICELESS,
     FRICATIVE: P.FRICATIVE, ASPIRATE: P.ASPIRATE,
     articulate: P.articulate,
-    buildWord: (chain, D) => P.buildWord(chain, {
+    buildWord: (chain, D, stress) => P.buildWord(chain, {
       D, drawl: VOICE.drawl, glide: VOICE.glide, stopHold: VOICE.stopT,
-      open: VOICE.open || 0, n: N, art: VOICE.art || null })
+      open: VOICE.open || 0, n: N, art: VOICE.art || null, stress })
   };
+
+  // The speller sits beside the phoneme layer. It is optional: without it the sweep, blind
+  // and pairs modes work exactly as before and only the phrase list goes dark, which is
+  // better than failing to boot over a tab nobody may open.
+  try {
+    const su = ENGSRC.replace(/phonemes\.js(\?.*)?$/, 'spelling.js');
+    const r = await fetch(su, { cache: 'no-store' });
+    if (r.ok) { const t = await r.text(); if (/root\.HOLLER_SPELL\s*=/.test(t)) new Function(t)(); }
+  } catch (e) { /* offline or CORS: the phrase tab will say so */ }
 
   const sel = document.getElementById('voiceSel');
   Object.keys(VOICES).forEach(k=>{
@@ -291,9 +315,9 @@ function syncTract(){
 }
 
 /* ── one token → the same keyframes the app builds ───────── */
-function planFor(chain){
+function planFor(chain, stress){
   const D = Math.max(0.45, chain.length*(VOICE.per||0.17));
-  const W = ENG.buildWord(chain, D);
+  const W = ENG.buildWord(chain, D, stress);
   const end = W.end;
   const f0 = [[0,VOICE.f0a],[Math.min(0.12,end*0.1),VOICE.f0b],[end*0.55,VOICE.f0b],
               [end*0.82,(VOICE.f0b+VOICE.f0c)/2],[end,VOICE.f0c],[end+0.2,VOICE.f0c*0.92]];
@@ -302,14 +326,83 @@ function planFor(chain){
 function chainFor(c, mode){
   return mode==='VCV' ? ['ɑ',c,'ɑ'] : mode==='CV' ? [c,'ɑ'] : mode==='CVi' ? [c,'i'] : [c];
 }
-async function speak(chain){
+async function speak(chain, stress){
   await audioUp();
   if(ctx.state==='suspended') await ctx.resume();
   syncTract();
   const v = {...VOICE}; delete v.art; delete v.name;
   node.port.postMessage({type:'voice', v});
-  node.port.postMessage({type:'goal', seq:planFor(chain)});
+  node.port.postMessage({type:'goal', seq:planFor(chain, stress)});
 }
+
+/* ── PHRASES ──────────────────────────────────────────────
+   Each one is here for a reason, and the reason is written down. A list of phrases somebody
+   liked the sound of would drift into a list of phrases that happen to pass. */
+const PHRASES = [
+  ['Hello World',                 'the smallest sanity check'],
+  ['I love my daughter',          'the words that found the final-y and final-e bugs'],
+  ['my wife is great',            'three lexical exceptions in four words: my, is, great'],
+  ['hello Jupiter and Maximus',   'dictionary names, and the /d\u0292/ and /ks/ clusters'],
+  ['she sells sea shells',        '/s/ against /\u0283/ \u2014 the pair the report tier measures'],
+  ['Peter Piper picks a peck',    'voiceless stops back to back: VOT and aspiration'],
+  ['bad bat bed bet',             "8.1's coda-voicing pairs, heard rather than measured"],
+  ['banana and a tomato',         'stress placement, and the schwas either side of it'],
+  ['red leather yellow leather',  '/l/ and /r/ \u2014 what the side branch exists for'],
+  ['how now brown cow',           'the /a\u028a/ diphthong, four times'],
+  ['my mother and my brother',    'nasals, and the /\u00f0/ that Open Faults says still hisses'],
+  ['the quick brown fox jumps over the lazy dog',
+                                  'long enough to hear phrase rhythm rather than word rhythm'],
+];
+
+function spellPhrase(text){
+  const S = window.HOLLER_SPELL;
+  if(!S) return null;
+  const r = S.g2p(text);
+  const known = new Set([...Object.keys(ENG.ART), ...Object.keys(ENG.DIPH), ' ']);
+  // Lockstep, for the same reason index.html does it: stress is parallel to ph, so filtering
+  // one and not the other shifts every syllable after the first dropped sound.
+  const keep = r.ph.map(x=>known.has(x));
+  return { ph: r.ph.filter((_,i)=>keep[i]),
+           stress: (r.stress||null) && r.stress.filter((_,i)=>keep[i]),
+           dropped: r.ph.filter((_,i)=>!keep[i]) };
+}
+
+async function sayPhrase(text){
+  const p = spellPhrase(text);
+  const el = document.getElementById('phraseChain');
+  if(!p){ el.textContent = 'speller not loaded \u2014 serve the lab over http, or open it beside engine/'; return; }
+  el.textContent = p.ph.join(' \u00b7 ') + (p.dropped.length ? '   [dropped: '+p.dropped.join(' ')+']' : '');
+  if(p.ph.length) await speak(p.ph, p.stress);
+}
+
+function drawPhrases(){
+  const host = document.getElementById('phraseList');
+  if(!window.HOLLER_SPELL){
+    host.innerHTML = '<div class="ctx">The speller did not load, so phrases are unavailable. '
+                   + 'Sweep, Blind and Pairs are unaffected.</div>';
+    return;
+  }
+  host.innerHTML = '';
+  PHRASES.forEach(([text, why])=>{
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.cssText = 'align-items:baseline;gap:8px;margin-bottom:6px';
+    const b = document.createElement('button');
+    b.textContent = '\u25b6';
+    b.style.cssText = 'flex:0 0 auto';
+    b.addEventListener('click', ()=>sayPhrase(text));
+    const t = document.createElement('div');
+    t.style.cssText = 'flex:2';
+    t.innerHTML = '<div>'+text+'</div><div class="ctx" style="opacity:.7">'+why+'</div>';
+    row.appendChild(b); row.appendChild(t); host.appendChild(row);
+  });
+}
+
+document.getElementById('phraseGo').addEventListener('click',
+  ()=>sayPhrase(document.getElementById('phraseIn').value));
+document.getElementById('phraseIn').addEventListener('keydown', e=>{
+  if(e.key==='Enter') sayPhrase(e.target.value);
+});
 
 /* ── state ───────────────────────────────────────────────── */
 let mode='sweep', i=0, order=[], blindOrder=[], pairI=0;
@@ -461,12 +554,14 @@ document.querySelectorAll('[data-pv]').forEach(b=>b.onclick=()=>{
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
   mode=b.dataset.mode;
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));
-  document.getElementById('paneTrial').classList.toggle('hidden', mode==='pairs'||mode==='out');
+  document.getElementById('paneTrial').classList.toggle('hidden', mode==='pairs'||mode==='out'||mode==='phrases');
   document.getElementById('panePairs').classList.toggle('hidden', mode!=='pairs');
   document.getElementById('paneOut').classList.toggle('hidden', mode!=='out');
+  document.getElementById('panePhrases').classList.toggle('hidden', mode!=='phrases');
   document.getElementById('sweepCtl').classList.toggle('hidden', mode!=='sweep');
   document.getElementById('blindCtl').classList.toggle('hidden', mode!=='blind');
   if(mode!=='pairs') i=0;
+  if(mode==='phrases') drawPhrases();
   draw(); render();
 });
 document.querySelector('.tab').classList.add('on');
