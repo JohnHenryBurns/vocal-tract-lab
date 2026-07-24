@@ -395,25 +395,7 @@ class TractProcessor extends AudioWorkletProcessor {
       this.gArea = (this.voiceless||this.vot>0)
         ? 2.2
         : Math.max(0, Math.min(1, this.gflow * 0.02));
-      // BREATH NOISE IS SHAPED, NOT WHITE. Radiation at the lips is a differentiator —
-      // R(z) = 1 - 1/z, +6 dB/octave — which is correct physics, and it requires the source to
-      // roll off to compensate. This term did not: it went in as raw white noise, so after
-      // radiation the whole voice rose toward Nyquist. Measured tilt 4-20 kHz, where real
-      // speech FALLS: +4.4 dB/oct on a vowel, +7.0 on /ʃ/, +10.8 on /ð/ — and -5.7 on /h/,
-      // the one sound in the inventory that behaved. /h/ behaved because its noise already
-      // goes through the two-pole lowpass below; this one did not. Same filter, same reason.
-      //
-      // Two poles at a=0.86 is 1059 Hz each, so -12 dB/oct, which against radiation's +6
-      // lands at -6: the range published for real aspiration, and what /h/ already measures.
-      //
-      // The gain is compensated so the AMOUNT of noise is unchanged. The filter passes 0.1946
-      // of unit-variance white, measured over four million samples, so the reciprocal 5.139
-      // restores it. This matters: harmonic-to-noise was calibrated against this level, the
-      // presets were raised to reach it, and shaping the noise must change its colour without
-      // quietly making the voice too clean again.
-      this.bh1=(this.bh1||0)*0.86+(Math.random()*2-1)*0.14;
-      this.bh =(this.bh ||0)*0.86+this.bh1*0.14;
-      let src=(g*0.9 + this.bh*5.139*this.breath*g)*this.vAmp;
+      let src=(g*0.9 + (Math.random()*2-1)*this.breath*g)*this.vAmp;
       // /h/ is not a constriction fricative — it is turbulence at the GLOTTIS with the tract
       // wide open. It needs a noise path that does not require the folds to be vibrating, or
       // a voiceless /h/ is silent. Which is exactly what it was.
