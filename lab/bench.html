@@ -80,6 +80,8 @@ select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--li
   <div id="blindCtl" class="hidden">
     <div class="mini" style="margin-top:10px">What did you hear? (no peeking — the label is hidden)</div>
     <div class="hearas" id="blindpick"></div>
+    <div class="mini" style="margin-top:10px">…or, if it maps to no consonant at all:</div>
+    <div class="grid" id="blindother"></div>
   </div>
   <div class="status" id="st"></div>
 </section>
@@ -301,6 +303,19 @@ function build(){
 const shuffle = a => a.map(v=>[Math.random(),v]).sort((x,y)=>x[0]-y[0]).map(x=>x[1]);
 
 /* class buttons */
+/* A forced choice among 22 consonants is the right instrument for a CONFUSION, but it is
+   the wrong one for a token that is not a speech sound at all — guessing puts a fake place
+   or manner error into the matrix. These four are the escape hatch, split along mechanism
+   lines so the escape is still diagnostic: noise with no identity, a transient with no
+   transition, the voiced-continuant default, and nothing. Stored with a leading '#' so the
+   summary can keep them out of the confusion counts. */
+const NONSPEECH = [
+  ['#hiss', 'Hiss — noise, no identity'],
+  ['#blip', 'Blip — a click or thump only'],
+  ['#buzz', 'Buzz — voiced, but no consonant'],
+  ['#none', 'Nothing — silence']
+];
+
 CLASSES.forEach(([k,label],n)=>{
   const b=document.createElement('button');
   b.innerHTML=`<span class="k">${(n+1)%10}</span>${label}`;
@@ -313,6 +328,12 @@ CONS.forEach(c=>{
     b.onclick = host==='hearas' ? ()=>heardAs(c) : ()=>blindPick(c);
     document.getElementById(host).appendChild(b);
   });
+});
+NONSPEECH.forEach(([k,label],n)=>{
+  const b=document.createElement('button');
+  b.innerHTML=`<span class="k">${n+1}</span>${label}`;
+  b.onclick=()=>blindPick(k);
+  document.getElementById('blindother').appendChild(b);
 });
 
 function cur(){ return mode==='blind' ? blindOrder[i] : order[i]; }
@@ -383,6 +404,7 @@ addEventListener('keydown',e=>{
   if(e.key===' '){ e.preventDefault();
     if(mode==='pairs') document.getElementById('pab').click(); else document.getElementById('play').click(); return; }
   if(mode==='sweep' && /^[0-9]$/.test(e.key)){ const n=(+e.key||10)-1; if(CLASSES[n]) record(CLASSES[n][0]); }
+  if(mode==='blind' && /^[1-4]$/.test(e.key)) blindPick(NONSPEECH[+e.key-1][0]);
   if(mode==='pairs' && /^[1-4]$/.test(e.key)) document.querySelectorAll('[data-pv]')[+e.key-1].click();
   if(e.key==='ArrowRight') next();
   if(e.key==='ArrowLeft'){ i=Math.max(0,i-1); draw(); }
@@ -401,12 +423,20 @@ function render(){
     });
   }
   if(R.blind.length){
-    const ok=R.blind.filter(([a,b])=>a===b).length;
-    L.push('',`BLIND  ${ok}/${R.blind.length} correct`);
+    const ns = R.blind.filter(([,b])=>b[0]==='#');
+    const ph = R.blind.filter(([,b])=>b[0]!=='#');
+    const ok = ph.filter(([a,b])=>a===b).length;
+    L.push('',`BLIND  ${ok}/${R.blind.length} correct · ${ph.length} heard as speech, ${ns.length} not`);
     const conf={};
-    R.blind.filter(([a,b])=>a!==b).forEach(([a,b])=>{ const k=a+'→'+b; conf[k]=(conf[k]||0)+1; });
+    ph.filter(([a,b])=>a!==b).forEach(([a,b])=>{ const k=a+'→'+b; conf[k]=(conf[k]||0)+1; });
     const rows=Object.entries(conf).sort((x,y)=>y[1]-x[1]).map(([k,v])=>k+(v>1?' ×'+v:''));
-    if(rows.length) L.push('  '+rows.join(', '));
+    if(rows.length) L.push('  confused: '+rows.join(', '));
+    if(ns.length){
+      const by={};
+      ns.forEach(([a,b])=>{ by[a]=by[a]||{}; by[a][b]=(by[a][b]||0)+1; });
+      L.push('  not speech: '+CONS.filter(c=>by[c]).map(c=>
+        c+'='+Object.entries(by[c]).map(([k,v])=>k.slice(1)+(v>1?'×'+v:'')).join('/')).join(', '));
+    }
   }
   const pk=Object.keys(R.pairs);
   if(pk.length){
