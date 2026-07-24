@@ -181,6 +181,13 @@ select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--li
      off" nulls the whole prosody layer at once, which is the comparison worth having: the
      engine as it is against the engine as it was before any of 8.1 to 8.4 existed. -->
 <section id="paneKnobs" class="card hidden">
+  <!-- Tuning by ear is play, tweak, play. Having to change tab to hear a knob move made the
+       loop long enough that you stop doing it, which defeats the point of the panel. -->
+  <div class="row" style="margin-bottom:6px">
+    <button id="kPlay" style="flex:0 0 auto">▶ play <span class="k">space</span></button>
+    <select id="kPhrase" style="flex:2"></select>
+  </div>
+  <div id="kChain" class="ctx" style="font-family:var(--mono);min-height:1.1em;margin-bottom:6px"></div>
   <div class="row" style="margin-bottom:6px">
     <button id="kP8">Phase 8 off</button>
     <button id="kDef">All defaults</button>
@@ -427,9 +434,9 @@ function spellPhrase(text){
            dropped: r.ph.filter((_,i)=>!keep[i]) };
 }
 
-async function sayPhrase(text){
+async function sayPhrase(text, into){
   const p = spellPhrase(text);
-  const el = document.getElementById('phraseChain');
+  const el = document.getElementById(into || 'phraseChain');
   if(!p){ el.textContent = 'speller not loaded \u2014 serve the lab over http, or open it beside engine/'; return; }
   el.textContent = p.ph.join(' \u00b7 ') + (p.dropped.length ? '   [dropped: '+p.dropped.join(' ')+']' : '');
   if(p.ph.length) await speak(p.ph, p.stress);
@@ -642,7 +649,16 @@ function kNote(){
      : nulled ? nulled + ' of ' + p8.length + ' Phase 8 knobs nulled. ' : '')
     + (off.length ? 'at their null: ' + off.join(' ') : 'nothing nulled');
 }
+let kPhraseIdx = 1;
+function kSay(){ return sayPhrase((PHRASES[kPhraseIdx]||PHRASES[0])[0], 'kChain'); }
 function drawKnobs(){
+  const ps = document.getElementById('kPhrase');
+  if(!ps.options.length){
+    PHRASES.forEach(([t], i) => { const o=document.createElement('option');
+      o.value=i; o.textContent=t; ps.appendChild(o); });
+    ps.value = kPhraseIdx;
+    ps.addEventListener('change', e => { kPhraseIdx = +e.target.value; });
+  }
   const host = document.getElementById('kList');
   if(host.dataset.built){ ENG.VOICE_SPEC.forEach(p => kApply(p.k, VOICE[p.k])); return; }
   host.dataset.built = '1';
@@ -683,6 +699,7 @@ function drawKnobs(){
   }
   ENG.VOICE_SPEC.forEach(p => kApply(p.k, VOICE[p.k]));
 }
+document.getElementById('kPlay').addEventListener('click', kSay);
 document.getElementById('kP8').addEventListener('click', () => {
   ENG.VOICE_SPEC.filter(p => p.p8).forEach(p => kApply(p.k, p.off));
 });
@@ -863,8 +880,28 @@ document.querySelector('.tab').classList.add('on');
 
 /* keyboard — the whole point is speed */
 addEventListener('keydown',e=>{
+  // Do not steal keys from somewhere text is being typed. There was no guard at all, so the
+  // global space handler preventDefault()ed inside the free-text phrase box — you could not
+  // type "hello world" into it, because the space never arrived. Range sliders and selects are
+  // deliberately NOT excluded: space does nothing useful on either, and the knobs workflow is
+  // move a slider, hit space, listen, move it again.
+  const el = e.target, tag = (el.tagName||'').toLowerCase(),
+        type = (el.type||'').toLowerCase();
+  const typing = tag==='textarea' || el.isContentEditable ||
+                 (tag==='input' && !['range','checkbox','radio','button','submit'].includes(type));
+  if(typing) return;
   if(e.key===' '){ e.preventDefault();
-    if(mode==='pairs') document.getElementById('pab').click(); else document.getElementById('play').click(); return; }
+    // Route it to whatever "play" means in the mode you are actually in. It used to click
+    // #play unconditionally, which lives in paneTrial — hidden in knobs, phrases and
+    // tournament, so the space bar silently did nothing in three of the six modes.
+    const target = mode==='pairs'   ? 'pab'
+                 : mode==='knobs'   ? 'kPlay'
+                 : mode==='tourney' ? 'tA'
+                 : mode==='phrases' ? 'phraseGo'
+                 : 'play';
+    const b = document.getElementById(target);
+    if(b) b.click();
+    return; }
   if(mode==='sweep' && /^[1-4]$/.test(e.key)) setAcc(ACC[+e.key-1][0]);
   if(mode==='sweep' && /^[hps]$/.test(e.key)) toggleTag({h:'hiss',p:'pop',s:'static'}[e.key]);
   if(mode==='sweep' && (e.key==='Enter')) next();
