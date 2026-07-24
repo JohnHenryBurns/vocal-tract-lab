@@ -190,17 +190,14 @@ check("nothing the speller produces gets silently dropped", () => {
   // "name" spelled correctly to n eɪ m and then came out as "n m", because the app filtered
   // the result against ART — where diphthongs do not live. A sound that vanishes between
   // the speller and the chain is invisible unless something checks for it.
-  const html = require("fs").readFileSync(__dirname + "/../index.html", "utf8");
-  const main = html.match(/<script>([\s\S]*)<\/script>/g).pop();
   const known = new Set([...Object.keys(H.P.ART), ...Object.keys(H.P.DIPH), " "]);
-  const g2p = new Function("localStorage",
-    main.match(/const PAUSE=[\s\S]*?\nfunction g2pWord/)[0].replace(/\nfunction g2pWord$/, "") + "\n" +
-    main.match(/function g2pWord\(word\)\{[\s\S]*?\n\}/)[0] + "\n" +
-    main.match(/const G2P_RULES = \[[\s\S]*?\n\];/)[0] + "\n" +
-    main.match(/const BUILTIN_DICT = \{[\s\S]*?\n\};/)[0] + "\n" +
-    main.match(/function loadDict\(\)\{[\s\S]*?\n\}/)[0] + "\n" +
-    main.match(/function saveWord\([\s\S]*?\n\}/)[0] + "\nreturn g2p;")(
-      { getItem: () => null, setItem: () => {} });
+  // The speller is a file. This used to rebuild it out of index.html with six regular
+  // expressions and a fake localStorage — one of which required `const PAUSE=` to be
+  // immediately followed by `function g2pWord`, so reordering two unrelated declarations in
+  // the page would have broken this check while looking like a speller regression.
+  // Required with no storage, so it tests the SHIPPED dictionary rather than a browser's.
+  const S = require(__dirname + "/../engine/spelling.js");
+  const g2p = S.g2p;
   const words = ["name","high","how","boy","bay","boat","thin","then","chin","gin","measure",
                  "goal","bulldog","maximus","solana","rachel","orion","jupiter","atlas",
                  "this","mother","wed","you","zoo","hey sexy lady"];
