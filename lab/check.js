@@ -225,15 +225,27 @@ check("no fricative strays into another's band", () => {
   // dental is weak and diffuse (neither). Measure that, and by band share rather than peak:
   // on a noise source the peak wanders 84% between renders, and three checks in this file
   // went flaky before I stopped using it.
-  const avg = (sym, f) => { let a = 0; for (let i = 0; i < 3; i++) a += f(sym); return a/3; };
+  // AVERAGING, sized against measured variance rather than picked. Per render: /ʃ/ high-share
+  // is 40.4% ±12.1% and /ð/ 31.0% ±13.4%, so at three renders the two distributions overlap
+  // often enough to trip the 0.95 margin about 2% of the time — and it did, once in seven runs
+  // while checking something unrelated. A gate that fails at random is worse than one that
+  // fails, because the next green tick means nothing. Averaged over longer renders with more
+  // spectral hops, which buys the same variance reduction far cheaper than more renders do.
+  //
+  // NOTE, and it wants looking at: the LEVEL half of this test is currently vacuous. /ð/
+  // measures 0.0202 against /ʃ/'s 0.0173 — the dental is LOUDER than the sibilant, so
+  // `l > shL*0.95` is always true and the whole check rests on the high-share half alone.
+  // That is not what "weaker OR duller" was meant to mean. It predates the sibilant rescale
+  // (the gate's own notes show ð 82% of a vowel against ʃ 78% well before it). Recorded here
+  // rather than patched, because the fix belongs in the fricative levels, not in the band.
   const lvl = sym => { let a = 0;
     for (let i = 0; i < 3; i++) a += H.rms(H.sustain(sym, { seconds: 1.0 }), 0.45, 0.9);
     return a/3; };
   const high = sym => { let a = 0;
-    for (let i = 0; i < 3; i++)
-      a += H.bandShare(H.spectrum(H.sustain(sym, { seconds: 1.0 }),
-                                  { lo: 300, hi: 9000, step: 200, hops: 10 }), 3000, 9000);
-    return a/3; };
+    for (let i = 0; i < 4; i++)
+      a += H.bandShare(H.spectrum(H.sustain(sym, { seconds: 1.8 }),
+                                  { lo: 300, hi: 9000, step: 200, hops: 20 }), 3000, 9000);
+    return a/4; };
   const shL = lvl("ʃ"), shH = high("ʃ");
   const bad = [];
   for (const sym of ["f", "v", "θ", "ð"]) {

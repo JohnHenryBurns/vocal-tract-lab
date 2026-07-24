@@ -1595,6 +1595,13 @@ let az=0.62, el=0.10, zoom=1, baseDist=15, drag=false, lx=0, ly=0;
 const pts=new Map();
 let pinch0=0, zoom0=1;
 stage.addEventListener('pointerdown',e=>{
+  // The view tabs and the stage overlay live INSIDE #stage, so a press on them arrives here
+  // first. Capturing the pointer retargets the pointerup to #stage, and the click is then
+  // dispatched at #stage rather than at the button — above the .viewtabs listener, which
+  // never sees it. A finger still delivers a compatibility click; a mouse does not, which is
+  // why the Mouth tab was dead on desktop and fine on a phone.
+  // Orbiting is for the empty stage, not for the controls drawn on top of it.
+  if(e.target.closest('button, a, input, select, .viewtabs, #stageInfo')) return;
   pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
   stage.setPointerCapture(e.pointerId);
   if(pts.size===1){ drag=true; lx=e.clientX; ly=e.clientY; }
@@ -1760,6 +1767,10 @@ document.querySelector('.viewtabs').addEventListener('click',e=>{
   document.querySelectorAll('.vt').forEach(t=>t.classList.toggle('on',t===b));
   mouthCv.hidden = view!=='mouth';
   renderer.domElement.style.visibility = view==='mouth' ? 'hidden' : 'visible';
+  // Size it on the way in. Sizing happened only at startup and on resize, so if the stage had
+  // no height when the page loaded, mw stayed 0, drawMouth returned early on every frame, and
+  // a window that is never resized never recovered — a blank tab with nothing in the console.
+  if(view==='mouth') sizeMouth();
 });
 
 function frame(){
