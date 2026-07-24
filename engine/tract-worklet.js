@@ -455,7 +455,20 @@ class TractProcessor extends AudioWorkletProcessor {
         // times. Blind listening duly returned g as d and k as t.
         const secCm=35000/(sr*this.steps);
         const frontCm=Math.max(0.45,(n-1-this.burstAt)*secCm);
-        this.bfc=Math.max(900,Math.min(5200,35000/(4*frontCm)*1.45));
+        // A front cavity only rings if there IS one. The quarter-wave law diverges as the
+        // cavity vanishes, so a labial — released AT the lips, with nothing in front of it —
+        // came out at the 5200 Hz ceiling: the BRIGHTEST burst of the three places, where a
+        // real /b/ is the dullest. Measured: labial 0.79 cm -> 5200 Hz against alveolar
+        // 2.78 cm -> 4568 and velar 7.94 cm -> 1599. The two with real cavities were right
+        // and the one without was inverted. The blind bench duly returned /b/ as "hiss" —
+        // and /p/ as fine, because 70 ms of aspiration follows a /p/ and covers for it.
+        // So the resonance fades out as the cavity stops existing, leaving the diffuse,
+        // falling-spectrum puff that a labial burst actually is. 950 Hz is where the old
+        // fixed lowpass sat (858 Hz) back when /b/ was heard correctly — calibrated against
+        // a build known to get this one right, not guessed.
+        const res=35000/(4*frontCm)*1.45;
+        const w=Math.min(1,Math.max(0,(frontCm-0.8)/1.2));   // 0 at the lips, 1 by 2 cm
+        this.bfc=Math.max(900,Math.min(5200,950*(1-w)+res*w));
         this.bco=Math.exp(-2*Math.PI*this.bfc/sr);
         // keep loudness constant as the cutoff moves: a one-pole lowpass passes
         // (1-a)/(1+a) of unit-variance noise, and 0.0610 is what the old 0.885 passed.

@@ -1195,7 +1195,16 @@ const VOICELESS={ p:1, t:1, k:1, s:1, 'ʃ':1, f:1, h:1, 'θ':1 };   // folds apa
 // length difference. Not guessed.
 // Dentals are made AT THE TEETH — no front cavity, weak and diffuse. An earlier automatic
 // fit moved them back to a /ʃ/-sized cavity, and they duly sounded like /ʃ/.
-const FRICATIVE={ 's':1.05, 'z':0.8, 'ʃ':1, 'ʒ':0.34, 'f':0.73, 'v':0.63, 'θ':0.16, 'ð':0.20 };
+// LEVEL, not spectrum. Measured in ɑCɑ against the flanking vowels, /s/ ran at 2.4x the
+// vowel and /z/ at 1.2x, where every other fricative sits at 0.4-0.8x and /f/ at 0.66x reads
+// correctly. A speech sound that is two and a half times louder than the vowels around it
+// stops being heard as a consonant and starts being heard as noise — the blind bench returned
+// /s/ as "hiss" while its centroid (4750 Hz) was already right. The alveolar pair is scaled
+// together by 0.40 so the s:z intensity ratio fitted in d35b029 survives: /s/ lands at 1.0x
+// the vowel and /z/ at 0.5x, keeping /s/ the loudest fricative, which is correct.
+// This does NOT explain /ʃ ʒ h/, which measure 0.4-0.8x and still read as hiss. That is a
+// different fault and gain will not fix it.
+const FRICATIVE={ 's':0.42, 'z':0.32, 'ʃ':1, 'ʒ':0.34, 'f':0.73, 'v':0.63, 'θ':0.16, 'ð':0.20 };
 const ASPIRATE ={ h:1 };                               // turbulence at the glottis instead
 const branchFor=sym=>BRANCHED[sym]||0;
 const nasalFor =sym=>NASAL[sym]||0;
