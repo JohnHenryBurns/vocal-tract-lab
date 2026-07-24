@@ -1,10 +1,14 @@
-# Vocal Tract Lab
+# Hollerbox
 
-**[Open the lab →](https://johnhenryburns.github.io/vocal-tract-lab/)**
+**[Open the lab →](https://johnhenryburns.github.io/hollerbox/)**
 
 An interactive Kelly–Lochbaum digital waveguide vocal tract, running in the browser.
 Forty-four cylinders, sound sloshing back and forth between them, and the resonances
 of human speech falling out of the geometry.
+
+*A hollerbox is a box you holler out of. This one does it from first principles: no
+recordings, no samples, just air, tubes and the arithmetic of a wave hitting a change
+in cross-section.*
 
 There are no formant filters anywhere in this code.
 

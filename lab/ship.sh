@@ -21,12 +21,12 @@ echo "— checks —"
 node lab/check.js
 
 echo "— deploy —"
-cp index.html /mnt/user-data/outputs/vocal-tract-lab.html
+cp index.html /mnt/user-data/outputs/hollerbox.html
 git add -A
 git -c user.email=claude@anthropic.com -c user.name=Claude commit -qm "$1"
 git push -q origin main
 sleep 5
 curl -s -H "Authorization: Bearer $VTL_TOKEN" -H "Accept: application/vnd.github.raw" \
-  "https://api.github.com/repos/JohnHenryBurns/vocal-tract-lab/contents/index.html?ref=main" > /tmp/remote.html
+  "https://api.github.com/repos/JohnHenryBurns/hollerbox/contents/index.html?ref=main" > /tmp/remote.html
 diff -q /tmp/remote.html index.html
 echo "  REMOTE == LOCAL"

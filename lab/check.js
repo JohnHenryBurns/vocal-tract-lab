@@ -616,7 +616,7 @@ if (!isMainThread && workerData && workerData.idx) {
   const t0 = Date.now();
   const done = [];
 
-  console.log(`\nVOCAL TRACT LAB — checks   ${idx.length}/${REG.length}` +
+  console.log(`\nHOLLERBOX — checks   ${idx.length}/${REG.length}` +
               `${terms.length ? ` matching "${query}"` : ""}` +
               `${jobs > 1 && !bail ? `, ${jobs} jobs` : ""}\n`);
 

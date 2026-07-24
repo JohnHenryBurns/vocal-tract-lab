@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Consonant bench — Vocal Tract Lab</title>
+<title>Consonant bench — Hollerbox</title>
 <style>
 :root{ --bg:#0e1113; --fg:#e8e6e1; --dim:#8a908f; --line:#242a2d; --hot:#e2b13c; --good:#5aa469; --bad:#c05a4e; }
 *{box-sizing:border-box}
@@ -139,12 +139,12 @@ select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--li
    ───────────────────────────────────────────────────────────── */
 /* Where to read the engine from, in order of preference:
      1. ?src=<url>                       — explicit override
-     2. ../index.html                    — the sibling app, when served over http(s)
+     2. ../engine/phonemes.js            — the sibling file, when served over http(s)
      3. raw.githubusercontent.com/main   — works from any origin, sends CORS
-     4. a file the user picks            — for testing an uncommitted index.html
+     4. a file the user picks            — for testing an uncommitted phonemes.js
    The bench renders inside sandboxed previews too, where location.href is
    `about:srcdoc` and has no base, so step 2 must be allowed to fail quietly. */
-const RAW = 'https://raw.githubusercontent.com/JohnHenryBurns/vocal-tract-lab/main/engine/phonemes.js';
+const RAW = 'https://raw.githubusercontent.com/JohnHenryBurns/hollerbox/main/engine/phonemes.js';
 function relSrc(){
   try{
     if(!/^https?:$/.test(location.protocol)) return null;
