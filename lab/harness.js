@@ -26,6 +26,40 @@ function loadPage() {
 
 const P = loadPage();
 
+// ─── DETERMINISM AND MEMOISATION ─────────────────────────────────────────────
+// The engine calls Math.random() nine times per sample, so two renders of the same word were
+// never the same audio. Everything downstream inherited that: bands had to be wide enough to
+// cover the spread, a check measuring a noise source once was a coin flip, and the lab README
+// records a bit-exact buffer comparison that could not work for exactly this reason.
+//
+// The fix the README already prescribes — "seed the RNG before comparing two builds" — but
+// applied by DEFAULT and RESET PER RENDER rather than once at startup. Per-render matters:
+// seeded once, render N depends on renders 1..N-1, so the answer would depend on which checks
+// ran first and in which order the job pool happened to schedule them. Reset per render, every
+// render is a pure function of its arguments.
+//
+// That purity is what makes the cache below sound. It is not an optimisation bolted onto a
+// random process; it is the same call returning the same answer.
+//
+// HOLLER_SEED=n   pick a different seed
+// HOLLER_SEEDS=k  sweep k seeds and require the verdict to agree (see check.js)
+const BASE_SEED = (process.env.HOLLER_SEED ? +process.env.HOLLER_SEED : 20260724) >>> 0;
+let SEED = BASE_SEED, seedNow = BASE_SEED;
+function setSeed(x) { SEED = x >>> 0; CACHE.clear(); }        // a new seed invalidates renders
+function reseed() { seedNow = SEED; }
+Math.random = () => { seedNow = (seedNow*1664525 + 1013904223) >>> 0; return seedNow/4294967296; };
+
+// 99 sustain() calls across the gate resolve to 31 distinct renders, and 29 say() calls to 24.
+// Two thirds of the sustain work was the same audio computed again.
+const CACHE = new Map();
+function memo(key, make) {
+  if (CACHE.has(key)) return CACHE.get(key);
+  reseed();
+  const v = make();
+  CACHE.set(key, v);
+  return v;
+}
+
 function makeProcessor(n) {
   global.sampleRate = SR;
   global.AudioWorkletProcessor = class { constructor(){ this.port = { onmessage:null, postMessage(){} }; } };
@@ -35,8 +69,12 @@ function makeProcessor(n) {
   return new Proc({ processorOptions: { n, velar: P.VELAR } });
 }
 
-/** Sustain one phoneme and return the audio. */
-function sustain(sym, { n = 44, seconds = 1.2, voice = null, f0 = 110 } = {}) {
+/** Sustain one phoneme and return the audio. Memoised; see the note above makeProcessor. */
+function sustain(sym, opts = {}) {
+  const { n = 44, seconds = 1.2, voice = null, f0 = 110 } = opts;
+  return memo("s|" + JSON.stringify([sym, n, seconds, f0, voice]), () => sustainRaw(sym, opts));
+}
+function sustainRaw(sym, { n = 44, seconds = 1.2, voice = null, f0 = 110 } = {}) {
   const p = makeProcessor(n);
   const v = { ...P.defaultVoice(), ...(voice || {}) };
   p.port.onmessage({ data: { type: "voice", v } });
@@ -69,8 +107,28 @@ function plan(chain, D, voice, n) {
   return { keys: W.keys, seg: W.seg, end: W.end, v };
 }
 
-/** Speak a word and return audio plus the segment map. */
-function say(chain, { D = null, voice = null, n = 44, extra = 0.9 } = {}) {
+/** Speak a word and return audio plus the segment map. Memoised. */
+// `extra` is trailing silence, and with a seeded engine a short render is a bit-exact PREFIX
+// of a long one. So it is kept OUT of the cache key: render once at the longest tail anyone
+// asks for and hand back a slice. Three checks walk the same word list and differ only in how
+// much tail they want; without this, one of them pays full price for audio the other two have
+// already computed.
+function say(chain, opts = {}) {
+  const { D = null, voice = null, n = 44, extra = 0.9 } = opts;
+  const key = "w|" + JSON.stringify([chain, D, n, voice]);
+  let ent = CACHE.get(key);
+  if (!ent || ent.extra < extra) {
+    const need = Math.max(extra, ent ? ent.extra : 0.9);
+    reseed();
+    ent = { ...sayRaw(chain, { ...opts, extra: need }), extra: need };
+    CACHE.set(key, ent);
+  }
+  // Reproduce sayRaw's block rounding exactly, or the slice is not the render.
+  const want = Math.ceil((ent.end + extra) * SR / 128) * 128;
+  return { buf: ent.buf.length <= want ? ent.buf : ent.buf.subarray(0, want),
+           seg: ent.seg, end: ent.end };
+}
+function sayRaw(chain, { D = null, voice = null, n = 44, extra = 0.9 } = {}) {
   const vv = { ...P.defaultVoice(), ...(voice || {}) };
   if (n === 44 && vv.sect) n = Math.round(vv.sect);      // follow the voice unless told otherwise
   const dur = D !== null ? D : Math.max(0.5, Math.min(2.2, chain.length*(vv.per||0.17)));
@@ -185,4 +243,4 @@ function outlier(x, from = 0.3, to = 0.6) {
   return { ratio: mx, at };
 }
 
-module.exports = { P, SR, sustain, say, plan, rms, spectrum, peakOf, centroid, bandOf, bandShare, formants, outlier, makeProcessor };
+module.exports = { P, SR, sustain, say, plan, setSeed, BASE_SEED, rms, spectrum, peakOf, centroid, bandOf, bandShare, formants, outlier, makeProcessor };

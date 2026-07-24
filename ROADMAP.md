@@ -884,6 +884,16 @@ The rule: **any check measuring a random process averages, over windows long eno
 several cycles of whatever makes it random.** Five consecutive runs must agree before it counts
 as stable.
 
+**The root cause is now gone, and the rule still stands.** The harness seeds `Math.random` and
+reseeds before every render, so a render is a pure function of its arguments — bit-identical
+across runs and across job scheduling. Nothing in the gate can be a coin flip any more.
+
+Two things that does NOT excuse. A check can still pass on one seed and fail on another, so
+`HOLLER_SEEDS=k` re-runs everything across k seeds and requires agreement; that is the "five
+consecutive runs" rule, made cheap. And a short window still measures the wrong thing whether or
+not it is reproducible — the VOT probe below was measuring one pitch period, and seeding it
+would only have made it reliably wrong. Determinism buys repeatability, not correctness.
+
 ---
 
 ## The harness
