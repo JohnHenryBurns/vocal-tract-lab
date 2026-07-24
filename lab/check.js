@@ -157,6 +157,35 @@ check("every fricative actually sounds", () => {
            note: weak.length ? "too quiet: " + weak.join(" ") : notes.join(" ") + " (% of a vowel)" };
 });
 
+check("nothing the speller produces gets silently dropped", () => {
+  // "name" spelled correctly to n eɪ m and then came out as "n m", because the app filtered
+  // the result against ART — where diphthongs do not live. A sound that vanishes between
+  // the speller and the chain is invisible unless something checks for it.
+  const html = require("fs").readFileSync(__dirname + "/../index.html", "utf8");
+  const main = html.match(/<script>([\s\S]*)<\/script>/g).pop();
+  const known = new Set([...Object.keys(H.P.ART), ...Object.keys(H.P.DIPH), " "]);
+  const g2p = new Function("localStorage",
+    main.match(/const PAUSE=[\s\S]*?\nfunction g2pWord/)[0].replace(/\nfunction g2pWord$/, "") + "\n" +
+    main.match(/function g2pWord\(word\)\{[\s\S]*?\n\}/)[0] + "\n" +
+    main.match(/const G2P_RULES = \[[\s\S]*?\n\];/)[0] + "\n" +
+    main.match(/const BUILTIN_DICT = \{[\s\S]*?\n\};/)[0] + "\n" +
+    main.match(/function loadDict\(\)\{[\s\S]*?\n\}/)[0] + "\n" +
+    main.match(/function saveWord\([\s\S]*?\n\}/)[0] + "\nreturn g2p;")(
+      { getItem: () => null, setItem: () => {} });
+  const words = ["name","high","how","boy","bay","boat","thin","then","chin","gin","measure",
+                 "goal","bulldog","maximus","solana","rachel","orion","jupiter","atlas",
+                 "this","mother","wed","you","zoo","hey sexy lady"];
+  const bad = [];
+  for (const w of words) {
+    const ph = g2p(w).ph;
+    const lost = ph.filter(x => !known.has(x));
+    if (lost.length) bad.push(`${w}:${[...new Set(lost)].join("")}`);
+  }
+  return { ok: bad.length === 0,
+           note: bad.length ? "would be dropped — " + bad.join(" ")
+                            : `${words.length} words, nothing unspeakable` };
+});
+
 // ── words behave ───────────────────────────────────────────────────────────
 const WORDS = [["g","o","ɑ","l"], ["b","ʊ","l","d","ɔ","g"], ["m","æ","k","s","ɪ","m","ə","s"],
                ["d","æ","d"], ["s","o","l","ɑ","n","ə"]];

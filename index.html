@@ -2012,7 +2012,10 @@ function soundOut(raw){
   if(!raw) return;
   lastTyped=raw;
   const r=g2p(raw);
-  const known=new Set(Object.keys(ART));
+  // A sound the model can say is not only a posture in ART — diphthongs live in DIPH and a
+  // pause is its own thing. Filtering on ART alone silently dropped every diphthong, which
+  // is why "name" came out as n m.
+  const known=new Set([...Object.keys(ART), ...Object.keys(DIPH), PAUSE]);
   const missing=[...new Set(r.ph.filter(x=>!known.has(x)))];
   chain=r.ph.filter(x=>known.has(x));
   chainSource=r.from;
