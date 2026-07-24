@@ -235,6 +235,37 @@ check("output stays finite and unclipped", () => {
   return { ok: bad.length === 0, note: bad.length ? bad.join(" ") : "clean" };
 });
 
+check("a pause is silent, but the tract keeps moving", () => {
+  // Two words joined by a gap should sound like a phrase, not two recordings. That means
+  // silence with MOVEMENT — the articulators travelling to the next target while no air
+  // flows, which is what anticipatory coarticulation is.
+  const chain = ["h", "eɪ", " ", "d", "ɑ", "d"];
+  const { buf, seg } = H.say(chain, { D: 1.5, extra: 0.2 });
+  const pz = seg.find(g => g.sym === " ");
+  if (!pz) return { ok: false, note: "no pause segment produced" };
+  const quiet = H.rms(buf, pz.a + 0.02, pz.b - 0.02);
+
+  const P = H.makeProcessor(44);
+  const plan = H.plan(chain, 1.5, null, 44);
+  P.port.onmessage({ data: { type: "voice", v: plan.v } });
+  P.port.onmessage({ data: { type: "goal",
+    seq: { keys: plan.keys, f0: [[0, plan.v.f0a], [plan.end, plan.v.f0c]], end: plan.end } } });
+  const out = [new Float32Array(128)];
+  let firstAt = null, lastAt = null;
+  for (let b = 0; b * 128 < H.SR * (plan.end + 0.2); b++) {
+    P.process([], [out]);
+    if (P.silNow) {
+      let mn = 9, mi = 0;
+      for (let i = 1; i < 43; i++) if (P.diam[i] < mn) { mn = P.diam[i]; mi = i; }
+      if (firstAt === null) firstAt = mi;
+      lastAt = mi;
+    }
+  }
+  const moved = (firstAt !== null && lastAt !== null) ? Math.abs(lastAt - firstAt) : 0;
+  return { ok: quiet < 0.005 && moved >= 2,
+           note: `pause ${quiet.toFixed(5)} loud, constriction travelled ${moved} sections` };
+});
+
 // ── the voice ──────────────────────────────────────────────────────────────
 check("Rd spans breathy to pressed", () => {
   const h1h2 = (rd) => {

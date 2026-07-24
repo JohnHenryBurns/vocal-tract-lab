@@ -132,6 +132,9 @@ input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
   padding:.2rem .5rem;font-size:1.05rem;transition:transform .08s ease,background .08s ease}
 .chip.now{background:var(--ink);color:#0f1316;border-color:var(--ink);
   transform:translateY(-5px) scale(1.14)}
+.gap{display:inline-block;width:.9rem;height:1.4rem;position:relative}
+.gap:after{content:"";position:absolute;left:50%;top:35%;width:3px;height:3px;
+  border-radius:50%;background:var(--line)}
 .crow{display:flex;gap:.45rem}
 .btn:disabled{opacity:.32;cursor:default;border-color:var(--rule)}
 .btn:disabled:hover{background:transparent;border-color:var(--rule)}
@@ -316,7 +319,7 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
       <div class="group">
         <p class="hint" id="voiceNote" style="margin:0 0 .9rem"></p>
         <div class="crow">
-          <input id="wordIn" type="text" value="goal" placeholder="type a word"
+          <input id="wordIn" type="text" value="goal" placeholder="a word or a phrase"
                  autocomplete="off" autocapitalize="off" spellcheck="false">
           <button class="btn primary" id="spellBtn">Sound it out</button>
         </div>
@@ -434,7 +437,7 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 <div id="quick" hidden>
   <div class="qbox">
   <div class="qcard">
-    <input id="quickIn" type="text" value="goal" placeholder="type a word"
+    <input id="quickIn" type="text" value="goal" placeholder="a word or a phrase"
            autocomplete="off" autocapitalize="off" spellcheck="false"
            enterkeyhint="go" aria-label="Word to say">
     <button class="icn play" id="quickPlay" title="Say it" aria-label="Say it">&#9654;</button>
@@ -454,6 +457,7 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
     <div class="keys" id="ckeys"></div>
   </div>
   <div class="kbdfoot">
+    <button class="btn" id="kbdSpace" title="Pause between words">␣</button>
     <button class="btn" id="kbdBack">⌫</button>
     <button class="btn dim" id="kbdClear">Clear</button>
     <button class="btn solid" id="kbdDone">Done</button>
@@ -1012,7 +1016,7 @@ class TractProcessor extends AudioWorkletProcessor {
     this.dcX=0; this.dcY=0; this.tick=0;
     this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1; this.bnz=0; this.bn1=0; this.bn2=0;
     this.voiceless=0; this.nasalOut=0; this.fric=0; this.fz=0; this.hiss=1; this.fy1=0; this.fy2=0; this.fcLast=0;
-    this.asp=0; this.ah=0;
+    this.asp=0; this.ah=0; this.silNow=0;
     this.flow=0; this.flowT=0; this.turb=1; this.turbT=1; this.turbCd=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;
     this.seqFrom=null; this.seqFromB=0; this.blend=0.03;
     this.seq=null; this.seqT=0; this.prevClose=1;
@@ -1185,6 +1189,9 @@ class TractProcessor extends AudioWorkletProcessor {
             this.voiceless=(u<0.5?(a.vl||0):(b.vl||0));
             this.fric=((a.fr||0)+((b.fr||0)-(a.fr||0))*u)*(this.hiss===undefined?1:this.hiss);
             this.asp=(a.as||0)+((b.as||0)-(a.as||0))*u;
+            // A pause is silence, not stillness — the tract goes on moving toward the next
+            // sound while no air flows. That movement IS anticipatory coarticulation.
+            this.silNow=(u<0.5?(a.sil||0):(b.sil||0));
             done=false; break;
           }
         }
@@ -1199,7 +1206,7 @@ class TractProcessor extends AudioWorkletProcessor {
                  for(let i=0;i<n;i++) this.diam[i]=last.d[i];
                  this.bOpen=last.b||0; this.nasal=last.nz||0; this.voiceless=last.vl||0;
                  this.fric=(last.fr||0)*(this.hiss===undefined?1:this.hiss);
-                 this.asp=last.as||0; }
+                 this.asp=last.as||0; this.silNow=last.sil||0; }
         }
         if(this.seq){                        // only read the contour while one exists
           const F=this.seq.f0;
@@ -1250,6 +1257,7 @@ class TractProcessor extends AudioWorkletProcessor {
         if(this.seqT<spin) flow*=this.seqT/spin;
         const tail=this.seq.end-this.seqT;
         if(tail<0.16) flow*=Math.max(0,tail/0.16);   // short, or it eats a final consonant
+        if(this.silNow) flow=0;
         this.flowT=flow;
         amp = this.voiceless ? 0 : flow*voiceBar*squeeze;
       } else {
@@ -1600,16 +1608,19 @@ function applyPhoneme(sym){
                                    nz:nasalFor(sym), fr:fricFor(sym), vl:voicelessFor(sym),
                                    as:aspFor(sym)});
 }
+const chipHTML = c => c===' '
+  ? '<span class="gap" aria-label="pause"></span>'
+  : `<span class="chip">${c}</span>`;
 function drawChain(){
   const html = chain.length
-    ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
-    : '<span class="empty">type a word above, or tap Edit sounds</span>';
+    ? chain.map(chipHTML).join('')
+    : '<span class="empty">type a word or a phrase</span>';
   const el=document.getElementById('chain');    if(el) el.innerHTML=html;
   const sc=document.getElementById('stageChain');
-  if(sc) sc.innerHTML = chain.map(c=>`<span class="chip">${c}</span>`).join('');
+  if(sc) sc.innerHTML = chain.map(chipHTML).join('');
   const kc=document.getElementById('kbdChain');
   if(kc) kc.innerHTML = chain.length
-    ? chain.map(c=>`<span class="chip">${c}</span>`).join('')
+    ? chain.map(chipHTML).join('')
     : '<span class="empty">tap sounds to build a word</span>';
   const w=document.getElementById('chainWord');
   if(w) w.innerHTML = lastTyped ? `<b>${lastTyped}</b> sounds like` : '';
@@ -1704,7 +1715,23 @@ const G2P_RULES = [
   [/^p/, ['p']], [/^r/, ['r']], [/^s/, ['s']], [/^t/, ['t']], [/^v/, ['v']],
   [/^w/, ['w']], [/^z/, ['z']],
 ];
-function g2p(word){
+const PAUSE=' ';                    // a word boundary in the sound chain
+function g2p(phrase){
+  // A space is a word boundary. Each word is looked up on its own, then joined by a pause.
+  const words=String(phrase||'').trim().split(/\s+/).filter(Boolean);
+  if(words.length>1){
+    const out=[]; let from='rules';
+    words.forEach((w,i)=>{
+      const r=g2pWord(w);
+      if(r.from==='remembered'||r.from==='built in') from=r.from;
+      if(i) out.push(PAUSE);
+      out.push(...r.ph);
+    });
+    return {ph:out, from: words.length+' words'};
+  }
+  return g2pWord(words[0]||'');
+}
+function g2pWord(word){
   let w=String(word||'').toLowerCase().replace(/[^a-z]/g,'');
   const dict=loadDict();
   if(dict[w]) return {ph:dict[w].slice(), from: BUILTIN_DICT[w]?'built in':'remembered'};
@@ -2038,6 +2065,10 @@ document.getElementById('quickMore').addEventListener('click', ()=>{
 document.getElementById('editSounds').addEventListener('click', ()=>openKbd(true));
 document.getElementById('chain').addEventListener('click', ()=>openKbd(true));
 document.getElementById('kbdDone').addEventListener('click', ()=>openKbd(false));
+document.getElementById('kbdSpace').addEventListener('click', ()=>{
+  if(!chain.length || chain[chain.length-1]===' ') return;
+  chain.push(' '); chainSource='built by hand'; applyDelivery(); drawChain();
+});
 document.getElementById('kbdBack').addEventListener('click', ()=>{
   chain.pop(); chainSource=chain.length?'edited by hand':''; applyDelivery(); drawChain();
 });
@@ -2165,6 +2196,7 @@ const GOAL_WORD=['g','o','l'];   // one gliding vowel, not two — the opening d
 // Stops get a short seal + release. Whatever time is left is shared among the
 // sustainable sounds, weighted by Drawl so the first one can be stretched.
 const APPROX=['l','m','n','ŋ','w','j','r'];   // sustainable consonants: short and quick
+const isPause=sym=>sym===' ';
 // A diphthong is ONE vowel gesture that moves, not two vowels in a row. Same mechanism as
 // the shouted vowel that opens as it is held — generalised to any pair.
 const DIPH={ 'aɪ':['ɑ','i'], 'aʊ':['ɑ','ʊ'], 'ɔɪ':['ɔ','i'], 'eɪ':['ɛ','i'], 'oʊ':['o','ʊ'] };
@@ -2174,19 +2206,37 @@ function buildWord(chain, D, drawl, glide, stopHold, open){
   const isStop=c=>STOP_KEYS.includes(c), isAp=c=>APPROX.includes(c);
   const stops=chain.filter(isStop).length;
   // transitions into a consonant are fast; a slow approach to /l/ just sounds like /w/
-  const glideFor=(i)=> (i>0 && (isStop(chain[i])||isAp(chain[i]))) ? glide*0.45 : glide;
+  const glideFor=(i)=> (i>0 && isPause(chain[i-1])) ? 0
+                     : (i>0 && (isStop(chain[i])||isAp(chain[i]))) ? glide*0.45 : glide;
   let glides=0; for(let i=1;i<chain.length;i++) glides+=glideFor(i);
   const vw=[];                            // weights over everything that is held
   let first=true;
-  chain.forEach(c=>{ if(isStop(c)) return;
+  chain.forEach(c=>{ if(isStop(c)||isPause(c)) return;
     if(isAp(c)) vw.push(0.34);            // a lateral is a beat, not a vowel
     else { vw.push(first ? 1+drawl*2.6 : 1); first=false; }
   });
   const wsum=vw.reduce((a,b)=>a+b,0)||1;
-  const held=chain.filter(c=>!isStop(c)).length;
+  const held=chain.filter(c=>!isStop(c)&&!isPause(c)).length;
   let pool=Math.max(0.12*Math.max(held,1), D-stops*stopHold-glides);
   const keys=[], art=[], seg=[]; let t=0, k=0;
   chain.forEach((sym,i)=>{
+    if(isPause(sym)){
+      // Hold the previous shape briefly, then GLIDE to the next sound while silent. The
+      // articulators travel during the gap, which is what makes two words sound like a
+      // phrase rather than two recordings played back to back.
+      const nextSym=chain[i+1];
+      const gap=Math.max(0.09, Math.min(0.30, 0.14*(1+drawl)));
+      const prev=chain[i-1];
+      const pd=prev?Array.from(shapeFor(prev)):Array.from(shapeFor('ə'));
+      const nd=nextSym?Array.from(shapeFor(nextSym)):pd;
+      const pA=prev?baseFor(prev):baseFor('ə');
+      const nA=nextSym?baseFor(nextSym):pA;
+      keys.push({t,d:pd,b:0,nz:0,vl:1,fr:0,as:0,sil:1}); art.push({t,A:pA});
+      seg.push({sym:' ', a:t, b:t+gap});
+      t+=gap;
+      keys.push({t,d:nd,b:0,nz:0,vl:1,fr:0,as:0,sil:1}); art.push({t,A:nA});
+      return;
+    }
     const d=Array.from(shapeFor(sym));
     const A=baseFor(sym);
     const b=branchFor(sym), nz=nasalFor(sym), vl=voicelessFor(sym),
@@ -2378,7 +2428,13 @@ function bounceWord(){
   for(const host of ['chain','kbdChain','stageChain']){
     const el=document.getElementById(host);
     if(!el) continue;
-    el.querySelectorAll('.chip').forEach((c,i)=>c.classList.toggle('now', i===idx));
+    // chips and gaps share the index space, so walk the children rather than the chips
+    let k=-1;
+    el.querySelectorAll('.chip,.gap').forEach(c=>{
+      k++;
+      if(c.classList.contains('gap')) return;
+      c.classList.toggle('now', k===idx);
+    });
   }
 }
 function drawMouth(){
