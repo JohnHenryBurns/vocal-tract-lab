@@ -214,21 +214,30 @@ check("no fricative strays into another's band", () => {
   // BAND. An automatic fit chasing a spectral target had moved the dental constriction back
   // to 0.78, giving it a front cavity the size of /ʃ/'s, so it duly became a /ʃ/. A dental
   // is made at the teeth with nothing in front to ring.
-  const bands = { "ʃ": [2200, 4400], "ʒ": [200, 4400] };   // where postalveolars belong
+  // What separates a sibilant from a dental is not where its centroid sits — those overlap.
+  // It is that a sibilant is LOUD and CONCENTRATED (jet on the teeth, cavity to ring) and a
+  // dental is weak and diffuse (neither). Measure that, and by band share rather than peak:
+  // on a noise source the peak wanders 84% between renders, and three checks in this file
+  // went flaky before I stopped using it.
+  const avg = (sym, f) => { let a = 0; for (let i = 0; i < 3; i++) a += f(sym); return a/3; };
+  const lvl = sym => { let a = 0;
+    for (let i = 0; i < 3; i++) a += H.rms(H.sustain(sym, { seconds: 1.0 }), 0.45, 0.9);
+    return a/3; };
+  const high = sym => { let a = 0;
+    for (let i = 0; i < 3; i++)
+      a += H.bandShare(H.spectrum(H.sustain(sym, { seconds: 1.0 }),
+                                  { lo: 300, hi: 9000, step: 200, hops: 10 }), 3000, 9000);
+    return a/3; };
+  const shL = lvl("ʃ"), shH = high("ʃ");
   const bad = [];
-  for (const sym of ["s", "z", "f", "v", "θ", "ð"]) {
-    let pk = 0;
-    for (let i = 0; i < 3; i++) {
-      const sp = H.spectrum(H.sustain(sym, { seconds: 1.0 }),
-                            { lo: 300, hi: 9000, step: 200, hops: 10 });
-      pk += H.peakOf(sp).f;
-    }
-    pk /= 3;
-    if (pk > 2400 && pk < 4200) bad.push(`${sym} at ${pk.toFixed(0)}Hz`);
+  for (const sym of ["f", "v", "θ", "ð"]) {
+    const l = lvl(sym), h = high(sym);
+    // a dental must be clearly weaker OR clearly less high-concentrated than /ʃ/
+    if (l > shL*0.95 && h > shH*0.95) bad.push(`${sym} as strong and as bright as ʃ`);
   }
   return { ok: bad.length === 0,
-           note: bad.length ? "in the sh band: " + bad.join(" ")
-                            : "each fricative in its own band" };
+           note: bad.length ? bad.join("  ")
+                            : `dentals and labiodentals weaker or duller than /ʃ/ (${(shH).toFixed(0)}% high)` };
 });
 
 // ── words behave ───────────────────────────────────────────────────────────

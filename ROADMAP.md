@@ -10,6 +10,25 @@ seal-and-release. But the word currently comes out, in the project's own field n
 
 ---
 
+## Where it stands
+
+| | |
+|---|---|
+| **Sounds** | 39 — 12 vowels, 5 diphthongs, 22 consonants |
+| **Voices** | 9 presets plus Custom, two of them measured from a real speaker |
+| **Voice vector** | 18 parameters, **36-character seeds**, carrying source, timing, tract length and fold model |
+| **Gate** | 20 checks, `node lab/check.js` |
+| **Live** | johnhenryburns.github.io/vocal-tract-lab |
+
+Built: the A/B tournament, the lateral branch, the articulatory layer, the LF source,
+nasals, voiceless stops, fricatives, spelling-to-sound, the voice library, per-voice
+articulation, source–tract interaction, and two-mass folds.
+
+Not built: prosody beyond a pitch arc (Phase 4), finer sections (7c), and frequency-dependent
+losses — which was attempted, measured, and reverted.
+
+---
+
 ## The problem behind the problem
 
 Every iteration so far has run on the same loop: change a parameter, render, listen, describe
@@ -112,7 +131,7 @@ stops rising into *w* territory at the end of the word.
 
 ---
 
-## Phase 2b — the articulatory layer
+## Phase 2b — the articulatory layer  ✅ built
 
 The tract is currently parameterised abstractly: *a constriction somewhere, this wide, this
 tight.* It reaches the vowels, but it does not know what a tongue is — which is how the solver
@@ -188,7 +207,7 @@ breathy to pressed without the tract changing.
 
 ---
 
-## Phase 4 — prosody
+## Phase 4 — prosody  ◐ partial
 
 The shape of the shout over time: the onset, the climb, the sustained strain at the top, the
 fall at the end. Roughly six parameters — pitch arc, effort arc, drawl distribution, final
@@ -201,7 +220,7 @@ tournament is for.
 
 ---
 
-## Phase 5 — the rest of English  (nasals and voiceless stops ✅ built)
+## Phase 5 — the rest of English  ✅ built
 
 **5a built.** The nasal tract is a second branch — 11 cm, open at the nostrils — coupled by a
 velum parameter. /m n ŋ/ are the /b d g/ closures with the velum open, and they measure as
@@ -258,6 +277,21 @@ source (Rd, effort, jitter, breath), radiation, timing (seconds per sound, drawl
 hold), the burst and hiss, the vowel opening, and **tract length in sections**. Thirty-four
 characters. Every preset round-trips exactly, which means a tuned voice can be handed back as a
 string and baked in as a default.
+
+Current preset seeds. Paste one into the Lab to restore that voice exactly, or hand a tuned
+one back to be baked in as a new default:
+
+```
+    Goal announcer  2aulgsqnawl6gpc67imbafci4ad9se26qq00
+    John            fz6hc0qnawk41514192wafci4ad9om1t1j00
+    John shouting   3issflqnawnab87g3xllafci4ad9om26qq00
+    Man             aj6hc0qnawj22b2q272wafci4ad9ub1t3m00
+    Woman           ft5ec0qnawm8hahmgw2wafci4ad9ls1t3m00
+    Child           hk4bflqnawnar2rar82wafci4ad9g31t3300
+    Helium          aj6hc0qnawj22b2q272wafci4ad94q1t3m00
+    Whisper         z300llqnawri77777u3mafci4ad9se135500
+    Barry White     7k7xd7wiawj200000051afci4ad9w73m5500
+```
 
 Presets ship as complete vectors; **Custom** is what you get the moment you touch a slider or
 choose in the Lab, and it reveals the timing and tract-length editors. Everything else stays
@@ -678,6 +712,34 @@ reasonable, all wrong, and none of them findable without a recording.
 
 That is the argument for measuring rather than reasoning, stated as plainly as this project
 can state it.
+
+---
+
+## Open faults
+
+Things known to be wrong, so they are not rediscovered as surprises.
+
+**The dental fricatives hiss.** /ð/ in *mother* and *father* comes out as a staticy "sh"
+rather than a soft voiced buzz. The measured target is a peak near 500 Hz with the energy
+spread; the model puts it higher and noisier. Suspected cause: the aspiration raised across all
+voices to fix the harmonic-to-noise problem also lands on the dentals, where there is very
+little voicing to mask it. Not yet diagnosed properly.
+
+**Consonant postures are fitted from one speaker.** The fricatives were refitted at the default
+tract length with the targets scaled, but everything else — stops, nasals, approximants —
+carries hand-placed generic postures, with only the measured voice getting fitted ones.
+
+**Stop bursts are still tuned rather than derived.** A release is a pressure transient whose
+strength should follow from the pressure built behind the closure and the speed of the opening.
+It is currently a level parameter with a place-of-articulation scaling.
+
+**The two-mass oscillator sounds more robotic than the waveform it replaced.** A symmetric
+oscillator settles into a limit cycle more perfectly periodic than the LF path with jitter
+applied. It is off by default. Making it sound better probably means asymmetry between the two
+folds, which real larynges have and this model does not.
+
+**No prosody above the word.** Pitch is an arc across a single word, and a phrase is words with
+pauses between them. Real speech has phrase-level contours, stress, and final lengthening.
 
 ---
 

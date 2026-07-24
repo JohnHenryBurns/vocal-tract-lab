@@ -162,6 +162,28 @@ function spectrum(x, { from = 0.4, lo = 500, hi = 10000, step = 250, win = 2048,
 }
 
 const peakOf = (sp) => { const mx = Math.max(...sp.map(a=>a[1])); return { f: sp.find(a=>a[1]===mx)[0], db: mx }; };
+
+/** Energy-weighted mean frequency. On a NOISE source the peak is close to useless — one bin
+ *  wins by chance, and /θ/ measured anywhere from 1100 to 3500 Hz across twelve renders. The
+ *  centroid averages the whole spectrum and barely moves. Use it for anything stochastic. */
+const centroid = (sp, lo = 0, hi = 1e9) => {
+  let num = 0, den = 0;
+  for (const [f, db] of sp) {
+    if (f < lo || f > hi) continue;
+    const p = Math.pow(10, db/10);
+    num += f*p; den += p;
+  }
+  return den > 0 ? num/den : 0;
+};
+
+/** Averaged centroid — the stable way to ask "where does this sound sit". */
+function bandOf(sym, { n = 44, k = 3, seconds = 1.0, lo = 300, hi = 9000 } = {}) {
+  let a = 0;
+  for (let i = 0; i < k; i++) {
+    a += centroid(spectrum(sustain(sym, { n, seconds }), { lo, hi, step: 200, hops: 10 }), lo, hi);
+  }
+  return a/k;
+}
 const bandShare = (sp, lo, hi) => {
   let inb = 0, tot = 0;
   for (const [f, m] of sp) { const p = Math.pow(10, m/10); tot += p; if (f >= lo && f <= hi) inb += p; }
@@ -208,4 +230,4 @@ function outlier(x, from = 0.3, to = 0.6) {
   return { ratio: mx, at };
 }
 
-module.exports = { P, SR, sustain, say, plan, rms, spectrum, peakOf, bandShare, formants, outlier, makeProcessor };
+module.exports = { P, SR, sustain, say, plan, rms, spectrum, peakOf, centroid, bandOf, bandShare, formants, outlier, makeProcessor };
