@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Consonant bench — Vocal Tract Lab</title>
+<style>
+:root{ --bg:#0e1113; --fg:#e8e6e1; --dim:#8a908f; --line:#242a2d; --hot:#e2b13c; --good:#5aa469; --bad:#c05a4e; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+     padding:12px 12px calc(12px + env(safe-area-inset-bottom));-webkit-text-size-adjust:100%}
+h1{font-size:15px;margin:0 0 2px;font-weight:600;letter-spacing:.02em}
+.sub{color:var(--dim);font-size:12px;margin-bottom:10px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+button{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--line);border-radius:9px;
+       padding:9px 12px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:active{transform:translateY(1px)}
+button.on{background:var(--hot);color:#111;border-color:var(--hot)}
+button:disabled{opacity:.35}
+.tab{flex:1;min-width:70px;text-align:center}
+.card{border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0;background:#12161800}
+.token{font-size:44px;text-align:center;margin:4px 0 2px;letter-spacing:.06em}
+.ctx{text-align:center;color:var(--dim);font-size:12px;margin-bottom:10px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.grid button{text-align:left;padding:10px;font-size:13.5px}
+.k{color:var(--dim);font-size:11px;margin-right:5px}
+.pill{display:inline-block;border:1px solid var(--line);border-radius:20px;padding:3px 9px;font-size:12px;color:var(--dim)}
+.bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;background:var(--hot)}
+pre{white-space:pre-wrap;word-break:break-word;background:#0a0d0e;border:1px solid var(--line);
+    border-radius:9px;padding:10px;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;max-height:44vh;overflow:auto}
+.mini{font-size:12px;color:var(--dim)}
+.sym{display:inline-block;min-width:26px}
+select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--line);border-radius:9px;padding:8px}
+.hidden{display:none}
+.hearas{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:8px}
+.hearas button{text-align:center;padding:8px 2px;font-size:15px}
+.status{color:var(--dim);font-size:12px;min-height:16px;margin-top:6px}
+</style>
+
+<h1>Consonant bench</h1>
+<div class="sub" id="boot">loading the shipping engine…</div>
+<div id="pick" class="hidden" style="margin-bottom:10px">
+  <input type="file" id="file" accept=".html,text/html" class="mini">
+</div>
+
+<div class="row" style="margin-bottom:8px">
+  <button class="tab" data-mode="sweep">Sweep</button>
+  <button class="tab" data-mode="blind">Blind</button>
+  <button class="tab" data-mode="pairs">Pairs</button>
+  <button class="tab" data-mode="out">Results</button>
+</div>
+
+<div class="row" style="margin-bottom:4px">
+  <select id="voiceSel"></select>
+  <select id="ctxSel">
+    <option value="VCV">ɑCɑ</option>
+    <option value="CV">Cɑ</option>
+    <option value="CVi">Ci</option>
+    <option value="iso">isolated</option>
+  </select>
+  <span class="pill" id="prog">0 / 0</span>
+</div>
+<div class="bar"><i id="progbar" style="width:0%"></i></div>
+
+<!-- ── SWEEP / BLIND ────────────────────────────────────────── -->
+<section id="paneTrial" class="card">
+  <div class="token" id="tok">—</div>
+  <div class="ctx" id="tokctx"></div>
+  <div class="row">
+    <button id="play" style="flex:2">▶ Play <span class="k">space</span></button>
+    <button id="back">←</button>
+    <button id="skip">skip →</button>
+  </div>
+
+  <div id="sweepCtl">
+    <div class="grid" style="margin-top:10px" id="classes"></div>
+    <div class="mini" style="margin-top:8px">…heard instead as (optional):</div>
+    <div class="hearas" id="hearas"></div>
+  </div>
+
+  <div id="blindCtl" class="hidden">
+    <div class="mini" style="margin-top:10px">What did you hear? (no peeking — the label is hidden)</div>
+    <div class="hearas" id="blindpick"></div>
+  </div>
+  <div class="status" id="st"></div>
+</section>
+
+<!-- ── PAIRS ────────────────────────────────────────────────── -->
+<section id="panePairs" class="card hidden">
+  <div class="token" id="pairTok">—</div>
+  <div class="ctx">minimal pair · <span id="pairWhat"></span></div>
+  <div class="row">
+    <button id="pa" style="flex:1">Hear A</button>
+    <button id="pb" style="flex:1">Hear B</button>
+    <button id="pab" style="flex:1">A B A B</button>
+  </div>
+  <div class="grid" style="margin-top:10px">
+    <button data-pv="clear">Clearly different <span class="k">1</span></button>
+    <button data-pv="faint">Different but faint <span class="k">2</span></button>
+    <button data-pv="same">Can't tell them apart <span class="k">3</span></button>
+    <button data-pv="swap">Different — but backwards <span class="k">4</span></button>
+  </div>
+  <div class="status" id="pst"></div>
+</section>
+
+<!-- ── RESULTS ──────────────────────────────────────────────── -->
+<section id="paneOut" class="card hidden">
+  <div class="row">
+    <button id="copy">Copy summary</button>
+    <button id="wav">Render all → WAV</button>
+    <button id="reset">Reset</button>
+  </div>
+  <div class="mini" style="margin:8px 0 4px">Paste the block below into the chat. The WAV is one file,
+    tokens in the order listed, 400 ms of silence between — upload it and it can be measured directly.</div>
+  <pre id="out">nothing recorded yet</pre>
+</section>
+
+<script>
+/* ─────────────────────────────────────────────────────────────
+   The bench never re-implements the model. It pulls the worklet
+   and the phoneme tables straight out of index.html at run time,
+   exactly as lab/harness.js does, so it cannot drift from the app.
+   ───────────────────────────────────────────────────────────── */
+/* Where to read the engine from, in order of preference:
+     1. ?src=<url>                       — explicit override
+     2. ../index.html                    — the sibling app, when served over http(s)
+     3. raw.githubusercontent.com/main   — works from any origin, sends CORS
+     4. a file the user picks            — for testing an uncommitted index.html
+   The bench renders inside sandboxed previews too, where location.href is
+   `about:srcdoc` and has no base, so step 2 must be allowed to fail quietly. */
+const RAW = 'https://raw.githubusercontent.com/JohnHenryBurns/vocal-tract-lab/main/index.html';
+function relSrc(){
+  try{
+    if(!/^https?:$/.test(location.protocol)) return null;
+    return new URL('../index.html', location.href).href;
+  }catch(e){ return null; }
+}
+async function findSource(){
+  let q=null; try{ q = new URLSearchParams(location.search).get('src'); }catch(e){}
+  for(const u of [q, relSrc(), RAW].filter(Boolean)){
+    try{
+      const r = await fetch(u, {cache:'no-store'});
+      if(!r.ok) continue;
+      const t = await r.text();
+      if(/const workletSrc/.test(t)) return {text:t, from:u};
+    }catch(e){ /* CORS, 404, offline — try the next one */ }
+  }
+  return null;
+}
+let ENGSRC = '';
+let ENG = null, ctx = null, node = null, N = 44, VOICE = null;
+
+const CONS = ['b','d','g','p','t','k','s','z','ʃ','ʒ','θ','ð','f','v','h','m','n','ŋ','l','r','w','j'];
+
+const CLASSES = [
+  ['ok',     'Correct'],
+  ['silent', 'Nothing there'],
+  ['pop',    'Click / thump'],
+  ['hiss',   'Hiss, no identity'],
+  ['place',  'Wrong place'],
+  ['voice',  'Voicing flipped'],
+  ['manner', 'Wrong manner'],
+  ['vowelly','Sounds like a vowel'],
+  ['weak',   'Right but too quiet'],
+  ['harsh',  'Right but too loud']
+];
+
+const PAIRS = [
+  ['b','p','voicing'],['d','t','voicing'],['g','k','voicing'],
+  ['s','z','voicing'],['ʃ','ʒ','voicing'],['f','v','voicing'],['θ','ð','voicing'],
+  ['b','d','place · stop'],['d','g','place · stop'],['b','g','place · stop'],
+  ['s','ʃ','place · sibilant'],['f','θ','place · non-sibilant'],['s','f','place · fricative'],
+  ['b','m','manner · nasality'],['d','n','manner · nasality'],['g','ŋ','manner · nasality'],
+  ['l','r','manner · liquid'],['l','w','manner · liquid'],['r','w','manner · liquid'],
+  ['d','z','manner · stop vs fric'],['t','s','manner · stop vs fric']
+];
+
+/* ── load and boot ───────────────────────────────────────── */
+async function boot(html){
+  const grab1 = re => { const m = html.match(re); if(!m) throw new Error('could not find '+re); return m[1]; };
+
+  const STOPSg = grab1(/const STOPS\s*=\s*\{[^}]*?\bg\s*:\s*([0-9.]+)/);
+  const worklet = grab1(/const workletSrc = `([\s\S]*?)`;/).replace(/\$\{VELAR\}/g, STOPSg);
+
+  const ART   = JSON.parse(grab1(/const ART = (\{[\s\S]*?\n\});/));
+  const main  = html.match(/<script>([\s\S]*)<\/script>/g).pop();
+  const ev    = src => new Function('return ('+src+')')();
+  const VOICE_SPEC = new Function(main.match(/const VOICE_SPEC=\[[\s\S]*?\];/)[0]+';return VOICE_SPEC;')();
+  const VOICES     = new Function(main.match(/const VOICES = \{[\s\S]*?\n\};/)[0]+';return VOICES;')();
+  const DIPH  = ev(main.match(/const DIPH\s*=\s*(\{[^}]*\})/)[1]);
+  const APPROX= ev(main.match(/const APPROX\s*=\s*(\[[^\]]*\])/)[1]);
+  const STOP_KEYS = ev(main.match(/const STOP_KEYS\s*=\s*(\[[^\]]*\])/)[1]);
+  const tbl = n => ev(main.match(new RegExp('const '+n+'\\s*=\\s*(\\{[^}]*\\})'))[1]);
+  const BRANCHED=tbl('BRANCHED'), NASAL=tbl('NASAL'), VOICELESS=tbl('VOICELESS'),
+        FRICATIVE=tbl('FRICATIVE'), ASPIRATE=tbl('ASPIRATE');
+
+  // articulate() and buildWord() lifted verbatim, given the scope they expect
+  const src =
+    html.match(/function restingDiam[\s\S]*?\n\}/)[0] + '\n' +
+    html.match(/function hump[\s\S]*?\n\}/)[0] + '\n' +
+    html.match(/function articulate\(A,n\)\{[\s\S]*?\n\}/)[0] + '\n' +
+    html.match(/function openedShape[\s\S]*?\n\}/)[0] + '\n' +
+    html.match(/function buildWord[\s\S]*?\n  return \{keys, art, seg, end:t\+0\.22\};\n\}/)[0] + '\n' +
+    'return {articulate, buildWord};';
+  // buildWord expects a scope: the phoneme tables, the little class predicates, and N.
+  // Everything it actually computes with is lifted verbatim above, so the arithmetic is the app's.
+  const scope = new Function('ART','DIPH','APPROX','STOP_KEYS','BRANCHED','NASAL','VOICELESS',
+    'FRICATIVE','ASPIRATE','getN','getVoiceArt',
+    `const isPause=s=>s===' ', isDiph=s=>!!DIPH[s];
+     const branchFor=s=>BRANCHED[s]||0, nasalFor=s=>NASAL[s]||0, voicelessFor=s=>VOICELESS[s]||0,
+           fricFor=s=>FRICATIVE[s]||0, aspFor=s=>ASPIRATE[s]||0;
+     function baseFor(sym){ const own=getVoiceArt();
+       if(own&&own[sym]) return own[sym];
+       if(DIPH[sym]){ const f=DIPH[sym][0]; return (own&&own[f])||ART[f]; }
+       return ART[sym]||ART['ə']; }
+     function shapeFor(sym){ return articulate(baseFor(sym), getN()); }
+     ${src.replace(/\barticulate\(A2,N\)/g, 'articulate(A2,getN())')}`);
+
+  const fns = scope(ART,DIPH,APPROX,STOP_KEYS,BRANCHED,NASAL,VOICELESS,FRICATIVE,ASPIRATE,
+                    ()=>N, ()=>VOICE && VOICE.art);
+  ENG = {worklet, ART, VOICE_SPEC, VOICES, DIPH, APPROX, STOP_KEYS,
+         BRANCHED, NASAL, VOICELESS, FRICATIVE, ASPIRATE, ...fns};
+
+  const sel = document.getElementById('voiceSel');
+  Object.keys(VOICES).forEach(k=>{
+    const o=document.createElement('option'); o.value=k; o.textContent=VOICES[k].label||k; sel.appendChild(o);
+  });
+  sel.value = VOICES.john ? 'john' : Object.keys(VOICES)[0];
+  setVoice(sel.value);
+  sel.onchange = ()=>setVoice(sel.value);
+  document.getElementById('boot').textContent =
+    'engine from ' + (ENGSRC.length>52 ? '…'+ENGSRC.slice(-49) : ENGSRC) +
+    ' · ' + Object.keys(VOICES).length + ' voices · ' + CONS.length + ' consonants';
+  document.getElementById('pick').classList.add('hidden');
+  build();
+}
+function setVoice(k){
+  const d = Object.fromEntries(ENG.VOICE_SPEC.map(p=>[p.k,p.d]));
+  VOICE = {...d, ...(ENG.VOICES[k].v||{}), art:ENG.VOICES[k].art||null, name:k};
+}
+
+async function audioUp(){
+  if(node) return;
+  ctx = new (window.AudioContext||window.webkitAudioContext)();
+  N = Math.max(24, Math.round(ctx.sampleRate*2*0.175/350));
+  const url = URL.createObjectURL(new Blob([ENG.worklet],{type:'application/javascript'}));
+  await ctx.audioWorklet.addModule(url);
+  node = new AudioWorkletNode(ctx,'tract',{processorOptions:{n:N}});
+  const g = ctx.createGain(); g.gain.value = 0.9;
+  node.connect(g); g.connect(ctx.destination);
+}
+
+/* ── one token → the same keyframes the app builds ───────── */
+function planFor(chain){
+  if(VOICE.sect) N = Math.round(VOICE.sect);
+  const D = Math.max(0.45, chain.length*(VOICE.per||0.17));
+  const W = ENG.buildWord(chain, D, VOICE.drawl, VOICE.glide, VOICE.stopT, VOICE.open||0);
+  const end = W.end;
+  const f0 = [[0,VOICE.f0a],[Math.min(0.12,end*0.1),VOICE.f0b],[end*0.55,VOICE.f0b],
+              [end*0.82,(VOICE.f0b+VOICE.f0c)/2],[end,VOICE.f0c],[end+0.2,VOICE.f0c*0.92]];
+  return {keys:W.keys, f0, end};
+}
+function chainFor(c, mode){
+  return mode==='VCV' ? ['ɑ',c,'ɑ'] : mode==='CV' ? [c,'ɑ'] : mode==='CVi' ? [c,'i'] : [c];
+}
+async function speak(chain){
+  await audioUp();
+  if(ctx.state==='suspended') await ctx.resume();
+  const v = {...VOICE}; delete v.art; delete v.name;
+  node.port.postMessage({type:'voice', v});
+  node.port.postMessage({type:'goal', seq:planFor(chain)});
+}
+
+/* ── state ───────────────────────────────────────────────── */
+let mode='sweep', i=0, order=[], blindOrder=[], pairI=0;
+const R = { sweep:{}, blind:[], pairs:{} };
+const ctxMode = ()=>document.getElementById('ctxSel').value;
+
+function build(){
+  order = CONS.slice();
+  blindOrder = shuffle(CONS.concat(CONS));      // two passes, randomised
+  i=0; pairI=0; draw();
+}
+const shuffle = a => a.map(v=>[Math.random(),v]).sort((x,y)=>x[0]-y[0]).map(x=>x[1]);
+
+/* class buttons */
+CLASSES.forEach(([k,label],n)=>{
+  const b=document.createElement('button');
+  b.innerHTML=`<span class="k">${(n+1)%10}</span>${label}`;
+  b.onclick=()=>record(k);
+  document.getElementById('classes').appendChild(b);
+});
+CONS.forEach(c=>{
+  ['hearas','blindpick'].forEach(host=>{
+    const b=document.createElement('button'); b.textContent=c;
+    b.onclick = host==='hearas' ? ()=>heardAs(c) : ()=>blindPick(c);
+    document.getElementById(host).appendChild(b);
+  });
+});
+
+function cur(){ return mode==='blind' ? blindOrder[i] : order[i]; }
+function draw(){
+  const total = mode==='blind' ? blindOrder.length : mode==='pairs' ? PAIRS.length : order.length;
+  const at    = mode==='pairs' ? pairI : i;
+  document.getElementById('prog').textContent = Math.min(at+1,total)+' / '+total;
+  document.getElementById('progbar').style.width = (100*at/total)+'%';
+
+  if(mode==='pairs'){
+    const p=PAIRS[pairI];
+    document.getElementById('pairTok').textContent = p ? `${p[0]}  ·  ${p[1]}` : '✓ done';
+    document.getElementById('pairWhat').textContent = p ? p[2] : '';
+    return;
+  }
+  const c=cur();
+  document.getElementById('tok').textContent = mode==='blind' ? '?' : (c||'✓ done');
+  document.getElementById('tokctx').textContent = c
+    ? (mode==='blind' ? 'listen, then pick what you heard' : chainFor(c,ctxMode()).join(' '))
+    : 'finished — open Results';
+  const done = R.sweep[c];
+  document.getElementById('st').textContent = done ? 'recorded: '+done.cls+(done.as?' → '+done.as:'') : '';
+}
+
+function record(cls){
+  const c=cur(); if(!c) return;
+  R.sweep[c] = {cls, as:(R.sweep[c]||{}).as||'', ctx:ctxMode()};
+  if(cls==='ok'||cls==='silent'||cls==='pop'||cls==='hiss') next(); else draw();
+}
+function heardAs(x){ const c=cur(); if(!c) return; R.sweep[c]=R.sweep[c]||{cls:'?',ctx:ctxMode()}; R.sweep[c].as=x; next(); }
+function blindPick(x){ const c=cur(); if(!c) return; R.blind.push([c,x]); next(); }
+function next(){ i++; if(i>=(mode==='blind'?blindOrder.length:order.length)) i=(mode==='blind'?blindOrder.length:order.length); draw(); render(); }
+
+document.getElementById('play').onclick = ()=>{ const c=cur(); if(c) speak(chainFor(c,ctxMode())); };
+document.getElementById('back').onclick = ()=>{ i=Math.max(0,i-1); draw(); };
+document.getElementById('skip').onclick = ()=>next();
+
+/* pairs */
+const pairChain = c => chainFor(c, ctxMode());
+document.getElementById('pa').onclick = ()=>{ const p=PAIRS[pairI]; if(p) speak(pairChain(p[0])); };
+document.getElementById('pb').onclick = ()=>{ const p=PAIRS[pairI]; if(p) speak(pairChain(p[1])); };
+document.getElementById('pab').onclick = async ()=>{
+  const p=PAIRS[pairI]; if(!p) return;
+  for(const s of [p[0],p[1],p[0],p[1]]){ await speak(pairChain(s)); await new Promise(r=>setTimeout(r,900)); }
+};
+document.querySelectorAll('[data-pv]').forEach(b=>b.onclick=()=>{
+  const p=PAIRS[pairI]; if(!p) return;
+  R.pairs[p[0]+'/'+p[1]] = b.dataset.pv;
+  pairI=Math.min(PAIRS.length,pairI+1); draw(); render();
+});
+
+/* tabs */
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  mode=b.dataset.mode;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));
+  document.getElementById('paneTrial').classList.toggle('hidden', mode==='pairs'||mode==='out');
+  document.getElementById('panePairs').classList.toggle('hidden', mode!=='pairs');
+  document.getElementById('paneOut').classList.toggle('hidden', mode!=='out');
+  document.getElementById('sweepCtl').classList.toggle('hidden', mode!=='sweep');
+  document.getElementById('blindCtl').classList.toggle('hidden', mode!=='blind');
+  if(mode!=='pairs') i=0;
+  draw(); render();
+});
+document.querySelector('.tab').classList.add('on');
+
+/* keyboard — the whole point is speed */
+addEventListener('keydown',e=>{
+  if(e.key===' '){ e.preventDefault();
+    if(mode==='pairs') document.getElementById('pab').click(); else document.getElementById('play').click(); return; }
+  if(mode==='sweep' && /^[0-9]$/.test(e.key)){ const n=(+e.key||10)-1; if(CLASSES[n]) record(CLASSES[n][0]); }
+  if(mode==='pairs' && /^[1-4]$/.test(e.key)) document.querySelectorAll('[data-pv]')[+e.key-1].click();
+  if(e.key==='ArrowRight') next();
+  if(e.key==='ArrowLeft'){ i=Math.max(0,i-1); draw(); }
+});
+
+/* ── summary ─────────────────────────────────────────────── */
+function render(){
+  const L=[];
+  L.push(`VTL BENCH · ${new Date().toISOString().slice(0,16).replace('T',' ')} · voice=${VOICE.name} · sect=${Math.round(VOICE.sect||N)} · ctx=${ctxMode()}`);
+  const sk=Object.keys(R.sweep);
+  if(sk.length){
+    L.push('','SWEEP');
+    CONS.filter(c=>R.sweep[c]).forEach(c=>{
+      const r=R.sweep[c];
+      L.push(`  ${c.padEnd(3)} ${r.cls}${r.as?'  → heard as '+r.as:''}`);
+    });
+  }
+  if(R.blind.length){
+    const ok=R.blind.filter(([a,b])=>a===b).length;
+    L.push('',`BLIND  ${ok}/${R.blind.length} correct`);
+    const conf={};
+    R.blind.filter(([a,b])=>a!==b).forEach(([a,b])=>{ const k=a+'→'+b; conf[k]=(conf[k]||0)+1; });
+    const rows=Object.entries(conf).sort((x,y)=>y[1]-x[1]).map(([k,v])=>k+(v>1?' ×'+v:''));
+    if(rows.length) L.push('  '+rows.join(', '));
+  }
+  const pk=Object.keys(R.pairs);
+  if(pk.length){
+    L.push('','PAIRS');
+    PAIRS.filter(p=>R.pairs[p[0]+'/'+p[1]]).forEach(p=>{
+      L.push(`  ${(p[0]+'/'+p[1]).padEnd(7)} ${R.pairs[p[0]+'/'+p[1]].padEnd(6)} ${p[2]}`);
+    });
+  }
+  document.getElementById('out').textContent = L.length>1 ? L.join('\n') : 'nothing recorded yet';
+}
+document.getElementById('copy').onclick = async ()=>{
+  try{ await navigator.clipboard.writeText(document.getElementById('out').textContent);
+       document.getElementById('copy').textContent='copied ✓'; setTimeout(()=>document.getElementById('copy').textContent='Copy summary',1200);
+  }catch(e){ const r=document.createRange(); r.selectNode(document.getElementById('out'));
+             getSelection().removeAllRanges(); getSelection().addRange(r); }
+};
+document.getElementById('reset').onclick = ()=>{ R.sweep={}; R.blind=[]; R.pairs={}; build(); render(); };
+
+/* ── offline render: every token, one WAV, known order ───── */
+document.getElementById('wav').onclick = async ()=>{
+  const btn=document.getElementById('wav'); btn.textContent='rendering…'; btn.disabled=true;
+  try{
+    const SR=44100, gap=Math.round(0.4*SR), chunks=[], names=[];
+    for(const c of CONS){
+      const chain=chainFor(c,ctxMode());
+      if(VOICE.sect) N=Math.round(VOICE.sect);
+      const p=planFor(chain);
+      const oc=new OfflineAudioContext(1, Math.ceil((p.end+0.6)*SR), SR);
+      const url=URL.createObjectURL(new Blob([ENG.worklet],{type:'application/javascript'}));
+      await oc.audioWorklet.addModule(url);
+      const n2=new AudioWorkletNode(oc,'tract',{processorOptions:{n:N}});
+      const v={...VOICE}; delete v.art; delete v.name;
+      n2.port.postMessage({type:'voice', v});
+      n2.port.postMessage({type:'goal', seq:p});
+      n2.connect(oc.destination);
+      const buf=await oc.startRendering();
+      chunks.push(buf.getChannelData(0)); names.push(c);
+    }
+    const total=chunks.reduce((a,b)=>a+b.length+gap,0);
+    const all=new Float32Array(total); let o=0;
+    chunks.forEach(ch=>{ all.set(ch,o); o+=ch.length+gap; });
+    dl(wavOf(all,SR), `vtl-${VOICE.name}-${ctxMode()}.wav`);
+    document.getElementById('out').textContent += `\n\nWAV order: ${names.join(' ')}  (${ctxMode()}, 400 ms gaps)`;
+  }catch(e){ alert('render failed: '+e.message); }
+  btn.textContent='Render all → WAV'; btn.disabled=false;
+};
+function wavOf(f32, sr){
+  const b=new ArrayBuffer(44+f32.length*2), v=new DataView(b);
+  const s=(o,t)=>{ for(let i=0;i<t.length;i++) v.setUint8(o+i,t.charCodeAt(i)); };
+  s(0,'RIFF'); v.setUint32(4,36+f32.length*2,true); s(8,'WAVEfmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+  s(36,'data'); v.setUint32(40,f32.length*2,true);
+  for(let i=0;i<f32.length;i++) v.setInt16(44+i*2, Math.max(-1,Math.min(1,f32[i]))*32767, true);
+  return new Blob([b],{type:'audio/wav'});
+}
+function dl(blob,name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); }
+
+document.getElementById('file').onchange = async e => {
+  const f = e.target.files[0]; if(!f) return;
+  const t = await f.text();
+  if(!/const workletSrc/.test(t)){ document.getElementById('boot').textContent = "that file has no workletSrc in it — pick the app's index.html"; return; }
+  ENGSRC = f.name;
+  boot(t).catch(err=>{ document.getElementById('boot').textContent='boot failed: '+err.message; console.error(err); });
+};
+
+(async ()=>{
+  const s = await findSource();
+  if(!s){
+    document.getElementById('boot').textContent = "couldn't reach index.html — pick it from disk:";
+    document.getElementById('pick').classList.remove('hidden');
+    return;
+  }
+  ENGSRC = s.from;
+  try{ await boot(s.text); }
+  catch(err){
+    document.getElementById('boot').textContent = 'boot failed: '+err.message+' — try picking index.html:';
+    document.getElementById('pick').classList.remove('hidden');
+    console.error(err);
+  }
+})();
+</script>
