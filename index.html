@@ -401,26 +401,10 @@ table.mini .dimtd{color:var(--dim);font-size:.84em}
 
       <div class="group">
         <div class="glabel">A/B tournament</div>
-        <p class="hint" style="margin-top:0">Hear both, keep the better one. Each round mutates
-        around your winner, so the voice converges on what your ear prefers — the feedback the
-        model has never had.</p>
-        <div class="roundbar">
-          <span class="rnum">Round <b id="vRound">1</b></span>
-          <span class="rwhat" id="labWhat">both new</span>
-        </div>
-        <div class="crow" style="margin-top:.7rem">
-          <button class="btn primary" id="playA">Hear A</button>
-          <button class="btn primary" id="playB">Hear B</button>
-        </div>
-        <p class="prompt" id="labNote">Hear both, then choose.</p>
-        <div class="crow">
-          <button class="btn" id="pickA" disabled>Keep A</button>
-          <button class="btn" id="pickB" disabled>Keep B</button>
-        </div>
-        <div class="crow" style="margin-top:.4rem">
-          <button class="btn dim" id="pickNone" disabled>Neither — search wider</button>
-        </div>
-        <div class="row" style="margin-top:.9rem"><span>Search width</span><span class="v" id="vStep">100%</span></div>
+        <p class="hint" style="margin-top:0">Moved to the <b>lab bench</b>, under <b>Tournament</b>.
+        It belongs where the other listening tests are, it can run against a whole phrase rather
+        than one word, and it can now mutate <i>one group of parameters at a time</i> — twenty-eight
+        at once told your ear almost nothing per round. Paste the seed it gives you below.</p>
       </div>
 
       <div class="group">
@@ -807,14 +791,20 @@ function paintBtn(){
   if(ab) ab.classList.toggle('solid', !!open && shown==='adv');
 
 }
-function setVoice(v){
+// Named setVoicing, not setVoice. There were TWO top-level `function setVoice` declarations
+// in this one script — this one, and the preset switcher near the bottom. The later
+// declaration wins, so every `setVoice(1)` here was calling the PRESET setter with the number
+// 1, looking up VOICES[1], and throwing on `V.v`. The Hold button and the space bar — two of
+// the four controls the README documents — did nothing but raise a TypeError. `setVoice2`
+// further down was a half-finished rename that never reached its callers.
+function setVoicing(v){
   voicing=v;
   if(node) node.port.postMessage({type:'voicing', value:v});
   paintBtn();
 }
 holdBtn.addEventListener('click', async ()=>{
-  if(!started){ await start(); setVoice(1); }   // any control may unlock the audio
-  else setVoice(voicing?0:1);
+  if(!started){ await start(); setVoicing(1); }   // any control may unlock the audio
+  else setVoicing(voicing?0:1);
 });
 // space bar is the obvious thing to reach for
 addEventListener('keydown', e=>{
@@ -822,7 +812,7 @@ addEventListener('keydown', e=>{
   const tag=(e.target.tagName||'').toLowerCase();
   if(tag==='input'||tag==='button') return;
   e.preventDefault();
-  if(started) setVoice(voicing?0:1);
+  if(started) setVoicing(voicing?0:1);
 });
 
 // ── controls ────────────────────────────────────────────────────────────────
@@ -1024,45 +1014,10 @@ function saveWord(word,ph){ return HOLLER_SPELL.saveWord(word,ph); }
 // Word-independent by design. A voice tuned on "goal" speaks "bulldog" the same way.
 const VOICE_SPEC = HOLLER.VOICE_SPEC;
 const defaultVoice=()=>Object.fromEntries(VOICE_SPEC.map(p=>[p.k,p.d]));
-let champion=defaultVoice(), challenger=null, round=1, step=1.0;
+let champion=defaultVoice();
 
-function clampV(v){
-  const o={};
-  for(const p of VOICE_SPEC) o[p.k]=Math.max(p.lo,Math.min(p.hi, v[p.k]));
-  return o;
-}
-function mutate(v,amount){
-  const o={...v};
-  for(const p of VOICE_SPEC){
-    const span=(p.hi-p.lo)*0.28*amount;
-    o[p.k]=v[p.k]+(Math.random()*2-1)*span;
-  }
-  return clampV(o);
-}
-// seed = each parameter as two base-36 digits of its position in range
-function encodeVoice(v){
-  return VOICE_SPEC.map(p=>{
-    // clamp: a value outside its range would encode negative or overlong and corrupt the seed
-    const t=Math.max(0, Math.min(1295, Math.round((v[p.k]-p.lo)/(p.hi-p.lo)*1295)));
-    return t.toString(36).padStart(2,'0');
-  }).join('');
-}
-function decodeVoice(str){
-  // Seeds are read positionally, so a seed saved before a parameter existed still loads —
-  // the newer parameters simply take their defaults. A voice you liked is never stranded.
-  if(typeof str!=='string') return null;
-  str=str.trim().toLowerCase();
-  if(!/^[0-9a-z]+$/.test(str) || str.length<8 || str.length%2) return null;
-  const have=Math.min(VOICE_SPEC.length, str.length/2);
-  const v=defaultVoice();
-  for(let i=0;i<have;i++){
-    const p=VOICE_SPEC[i];
-    const t=parseInt(str.substr(i*2,2),36);
-    if(!Number.isFinite(t)) return null;
-    v[p.k]=p.lo+(t/1295)*(p.hi-p.lo);
-  }
-  return clampV(v);
-}
+// One copy of each, in phonemes.js beside VOICE_SPEC, because they are pure functions over it.
+const encodeVoice=HOLLER.encodeVoice, decodeVoice=HOLLER.decodeVoice;
 
 function applyVoice(v){
   if(!node) return;
@@ -1081,15 +1036,10 @@ async function speakWith(v){
   playSeg={t0:performance.now(), seg:W.seg};         // the word follows the same clock   // the picture follows the same plan
   sequencing=true; paintBtn();
 }
-let heardA=false, heardB=false, lastPick=null;
 function paintLab(){
-  const r=document.getElementById('vRound'), st=document.getElementById('vStep'),
-        sb=document.getElementById('seedBox'), note=document.getElementById('labNote'),
-        what=document.getElementById('labWhat'),
-        pa=document.getElementById('playA'), pb=document.getElementById('playB'),
-        ka=document.getElementById('pickA'), kb=document.getElementById('pickB');
-  if(r)  r.textContent=round;
-  if(st) st.textContent=Math.round(step*100)+'%';
+  // What is left after the tournament moved to the bench: the seed, and the three sliders that
+  // read back off the voice.
+  const sb=document.getElementById('seedBox');
   if(sb) sb.textContent=encodeVoice(champion);
   const so=document.getElementById('sOpen'), ss=document.getElementById('sSect');
   if(so){ so.value=champion.open; document.getElementById('vOpen').textContent=(+champion.open).toFixed(2); }
@@ -1097,60 +1047,10 @@ function paintLab(){
   const sf=document.getElementById('sFolds');
   if(sf){ sf.value=Math.round(champion.folds||0);
           document.getElementById('vFolds').textContent = (champion.folds>0.5)?'oscillator':'waveform'; }
-  if(pa){ pa.textContent = heardA ? 'A ✓ again' : 'Hear A'; pa.classList.toggle('heard',heardA); }
-  if(pb){ pb.textContent = heardB ? 'B ✓ again' : 'Hear B'; pb.classList.toggle('heard',heardB); }
-  const ready = heardA && heardB;
-  if(ka) ka.disabled = !ready;
-  if(kb) kb.disabled = !ready;
-  const kn=document.getElementById('pickNone');
-  if(kn) kn.disabled = !ready;
-  if(note) note.textContent = ready ? 'Which one?'
-    : (heardA||heardB) ? 'Now hear the other one.' : 'Hear both, then choose.';
-  // say plainly whether A is the same voice as last round
-  if(what) what.textContent = round===1 ? 'both new'
-    : lastPick==='B' ? 'A is your last pick · B is new'
-    : lastPick==='N' ? 'both rejected · searching wider'
-    : 'A unchanged · B is new';
 }
-function nextRound(){
-  challenger=mutate(champion, step);
-  heardA=false; heardB=false;          // nothing is heard until it is heard again
-  const bar=document.querySelector('.roundbar');
-  if(bar){ bar.classList.remove('bump'); void bar.offsetWidth; bar.classList.add('bump'); }
-  paintLab();
-}
-nextRound();
 
-document.getElementById('playA').addEventListener('click',()=>{
-  heardA=true; paintLab(); speakWith(champion);
-});
-document.getElementById('playB').addEventListener('click',()=>{
-  heardB=true; paintLab(); speakWith(challenger);
-});
-document.getElementById('pickA').addEventListener('click',()=>{
-  if(!(heardA&&heardB)) return;
-  goCustom();                       // choosing by ear makes the voice yours
-  lastPick='A';
-  step=Math.max(0.12, step*0.82);      // champion held: search closer in
-  round++; nextRound();
-});
-document.getElementById('pickB').addEventListener('click',()=>{
-  if(!(heardA&&heardB)) return;
-  goCustom();                       // choosing by ear makes the voice yours
-  lastPick='B';
-  champion=challenger;                 // new champion: keep exploring at this width
-  round++; nextRound();
-});
-document.getElementById('pickNone').addEventListener('click',()=>{
-  if(!(heardA&&heardB)) return;
-  goCustom();                       // choosing by ear makes the voice yours
-  lastPick='N';
-  step=Math.min(1.4, step*1.5);        // both bad: this neighbourhood is wrong, jump further
-  champion=mutate(champion, step);     // and move on — do not sit on a voice you rejected
-  round++; nextRound();
-});
 document.getElementById('resetVoice').addEventListener('click',()=>{
-  champion=defaultVoice(); step=1.0; round=1; lastPick=null; nextRound(); applyVoice(champion);
+  champion=defaultVoice(); applyVoice(champion); paintLab();
 });
 document.getElementById('copySeed').addEventListener('click',()=>{
   const s=encodeVoice(champion);
@@ -1164,7 +1064,7 @@ document.getElementById('loadSeed').addEventListener('click',()=>{
   const v=decodeVoice(s);
   if(!v){ alert('That does not look like a seed.'); return; }
   const short=s.trim().length < VOICE_SPEC.length*2;
-  champion=v; step=0.5; round=1; lastPick=null; nextRound(); applyVoice(champion);
+  champion=v; applyVoice(champion); paintLab();
   if(short) alert('Loaded an older seed. Newer settings took their defaults.');
 });
 
@@ -1341,11 +1241,10 @@ async function audition(sym){
   if(sequencing) return;
   if(!started) await start();
   if(!node) return;
-  setVoice2(voicing?voicing:1);
+  setVoicing(voicing?voicing:1);
   clearTimeout(auditionTimer);
-  auditionTimer=setTimeout(()=>{ if(!sequencing) setVoice2(0); }, 420);
+  auditionTimer=setTimeout(()=>{ if(!sequencing) setVoicing(0); }, 420);
 }
-function setVoice2(v){ voicing=v; if(node) node.port.postMessage({type:'voicing', value:v}); paintBtn(); }
 function setVoice(name){
   voiceName=name;
   const V=VOICES[name];
@@ -1359,7 +1258,17 @@ function setVoice(name){
   drawChain();
 }
 // Any hand tuning makes the voice yours, and reveals the editors.
-function goCustom(){ if(voiceName!=='custom') setVoice('custom'); }
+function goCustom(){
+  if(voiceName==='custom') return;
+  // Carry the measured postures across. The seed cannot: it is 28 scalars, and `art` is 26
+  // postures of six numbers each. So without this, nudging any slider while John was selected
+  // silently swapped his measured tract for the shared one, and the voice changed character
+  // with nothing on screen to explain why — including for anyone tuning in the bench and
+  // pasting the seed back.
+  const from=VOICES[voiceName];
+  VOICES.custom.art=(from && from.art) || null;
+  setVoice('custom');
+}
 function setTiming(dur,drawl){
   sDur.value=dur.toFixed(1); sHold.value=drawl.toFixed(2);
   document.getElementById('vDur').textContent=(+sDur.value).toFixed(1)+' s';

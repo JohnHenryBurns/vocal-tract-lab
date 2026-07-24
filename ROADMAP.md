@@ -124,7 +124,56 @@ things that have objective answers:
 This prunes the parameter space without a human hearing a single rendering. Anything that fails
 these never reaches the ear.
 
-### 1b. In-browser A/B tournament
+### 1b. In-browser A/B tournament  ✅ built, and moved to the bench
+
+It lived in `index.html`, which was the wrong place twice over. The app is a demonstration; the
+bench is where the listening tests are. But tidiness was not the reason:
+
+- **It could only say one word.** Tuning prosody on a single word cannot show you what prosody
+  does, and half the parameters it can now reach — accent depth, unstressed level, final
+  lengthening, polysyllabic shortening — do nothing measurable inside one syllable. It now runs
+  against any of the twelve bench phrases.
+- **It mutated every parameter at once.** That was already a lot at eighteen and is twenty-eight
+  now. Change all of them and ask an ear "was that better" and the answer cannot be attributed
+  to anything; you learn almost nothing per round. It now mutates **one named group**.
+
+The groups partition the spec — every parameter in exactly one, gated. A parameter in no group
+is unreachable and would never be tuned; a parameter in two would move twice as far per round as
+its neighbours and nobody would work out why.
+
+| group | | |
+|---|---|---|
+| `source` | 7 | rd press jit brth folds damp lipR |
+| `pitch` | 4 | f0a f0b f0c pert |
+| `stress` | 3 | wkdur wklev acc |
+| `rhythm` | 10 | per drawl glide stopT vlen coda fnl poly stopVc apw |
+| `tract` | 4 | sect open burst hiss |
+
+**`stress` is deliberately the three cues together** — duration, level and pitch accent. Those
+are exactly the three that confound each other, and dialling any one alone means over-dialling
+it to cover for the other two. That is the sweep this roadmap said to run once accent alignment
+landed, and it is now one selection in a dropdown.
+
+**The phrase rotates by default.** Tuning against one phrase overfits to it: the `stress` values
+that win on *banana and a tomato* — three weak syllables around one strong — are not the ones
+that win on *bad bat bed bet*, which has no unstressed syllable in it at all. With a human in the
+loop and twenty rounds you would not find that out until everything else sounded worse. A and B
+stay on the same phrase **within** a round, so the comparison is still fair; the champion just
+has to keep winning across the inventory. A single phrase is still selectable when you are
+chasing one specific fault.
+
+Changing group resets the search width, because a narrow setting earned by converging on one
+group is meaningless in a space nothing has been heard in yet. The panel also prints **what
+moved** each round; without that a round is a black box, and you would be picking a winner with
+no idea which knob won it.
+
+`clampVoice`, `mutateVoice`, `encodeVoice` and `decodeVoice` moved to `phonemes.js` beside
+`VOICE_SPEC`, since they are pure functions over it. The seed codec had **two** copies — the
+page's and one this gate had written for itself, which is a gate testing its own
+reimplementation rather than the thing. Structurally asserted now, because that is the only
+kind of check that stops it recurring.
+
+### 1b. Original note
 
 Hear variant A. Hear variant B. Tap the better one. The app mutates around the winner and
 serves the next pair. Eight to ten taps converges somewhere slider-dragging never would.
@@ -1315,6 +1364,27 @@ and deliberately not after a vowel, because there the spelling predicts nothing:
 as, was* are /z/ while *bus, gas, yes, us, plus, thus* are /s/, and the four function words are
 in the dictionary instead. Plurals of magic-e words are a second gap in the same place:
 "hopes" spells to `h·ɑ·p·ɛ·s`, because the trailing `s` stops the magic-e lookahead matching.
+
+**Two bugs in `index.html`, found on the way to letting a tuned seed come home.**  ✅ both fixed
+
+*`setVoice` was declared twice.* A voicing setter near the top of the script and the preset
+switcher near the bottom, both top level, both named the same. The later declaration wins, so
+every `setVoice(1)` in the first half was calling the **preset** setter with the number 1,
+looking up `VOICES[1]`, and throwing on `V.v`. **Hold and the space bar — two of the four
+controls the README documents — raised a TypeError and did nothing else.** A half-finished
+rename to `setVoice2` sat two lines above the collision and had never reached its callers.
+
+Nothing caught it because the file parses perfectly and the failure is at call time, in a
+handler, in a browser. The gate now refuses any duplicate top-level `function` declaration in
+that script, and that assertion was checked by putting the bug back and watching it fail.
+
+*`goCustom()` silently dropped the measured tract.* `voiceArt()` reads postures off the
+currently selected preset, and `custom` had none — so nudging any slider while John was selected
+swapped his 26 measured postures for the shared ones, and the voice changed character with
+nothing on screen to explain why. It matters more now than it did: a seed carries 28 scalars and
+`art` is 26 postures of six numbers each, so a voice tuned in the bench and pasted back relies
+entirely on the preset to supply them. `custom` now inherits `art` from whatever it was derived
+from.
 
 **Consonant postures are fitted from one speaker.** The fricatives were refitted at the default
 tract length with the targets scaled, but everything else — stops, nasals, approximants —
