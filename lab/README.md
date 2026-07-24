@@ -5,7 +5,8 @@ Everything that is not the app. Nothing here ships; it exists to keep the app ho
 ## Layout
 
     engine/tract-worklet.js   THE ENGINE. One copy, loaded by URL.
-    index.html                the app: UI, phoneme tables, articulation, buildWord
+    engine/phonemes.js        THE PHONEME LAYER. One copy: shapes, classes, voices, buildWord.
+    index.html                the app: UI, rendering, delivery — it aliases the layer above
     lab/                      the gate and the instruments
     lab/bench.html            the consonant bench (served, but not part of the app)
 
@@ -15,7 +16,17 @@ now: the page calls `audioWorklet.addModule()` on it, `harness.js` reads the sam
 and construction parameters arrive in `processorOptions: { n, velar }`. When you change
 the engine there is one place to change it.
 
-`tract.js` is still a hand-written mirror and still the remaining drift risk. It is used
+The phoneme layer went the same way as the engine, and for the same reason. It lived inside
+`index.html`, so `bench.html` pulled ART, the class tables, the voices and `articulate` back out
+of the page with fifteen regular expressions, and `harness.js` did the same and then kept its
+**own near-copy of `buildWord`** called `plan()` — with a comment admitting that a harness
+carrying its own slightly different copy is exactly how a gate ends up testing the wrong thing.
+It was right. `buildWord` could not be shared because it closed over `N` and the selected voice;
+it now takes them as arguments, and all three consumers call it. Before the copy was deleted the
+two were compared over **64 word x voice combinations — keyframes and segments identical to
+1e-12**.
+
+`tract.js` is still a hand-written mirror and is now the ONLY remaining drift risk. It is used
 only for transfer-function work (the uniform-tube check and `formants()`); everything that
 must match the app goes through `harness.js`.
 
@@ -92,7 +103,7 @@ broken build reached production through a masked exit code.
 | file | what it is |
 |---|---|
 | `check.js` | the gate. Twenty-two checks with calibrated bands |
-| `harness.js` | drives the shipping engine — extracts the worklet and the phoneme tables from `index.html` at run time |
+| `harness.js` | drives the shipping engine and the shipping phoneme layer — both are files it reads, not text it re-derives |
 | `tract.js` | a standalone Kelly–Lochbaum tract, **mirrors the worklet**. Used for transfer-function work where running the whole engine is overkill |
 | `ship.sh` | the deploy gate |
 | `voice-fit.py` | measure a real recording: segment it, then F0, formants, H1–H2, spectral tilt per segment |

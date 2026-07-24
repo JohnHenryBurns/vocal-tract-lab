@@ -16,24 +16,12 @@ function loadPage() {
     if (!worklet.includes(find)) throw new Error("VTL_PATCH found nothing: " + find);
     worklet = worklet.split(find).join(repl);
   }
-  const ART = JSON.parse(html.match(/const ART = (\{[\s\S]*?\n\});/)[1]);
-  const articulate = new Function(
-    html.match(/function restingDiam[\s\S]*?\n\}/)[0] + "\n" +
-    html.match(/function hump[\s\S]*?\n\}/)[0] + "\n" +
-    html.match(/function articulate\(A,n\)\{[\s\S]*?\n\}/)[0] + "\nreturn articulate;")();
-  const main = html.match(/<script>([\s\S]*)<\/script>/g).pop();
-  const VOICE_SPEC = new Function(main.match(/const VOICE_SPEC=\[[\s\S]*?\];/)[0] + "; return VOICE_SPEC;")();
-  const VOICES = new Function(main.match(/const VOICES = \{[\s\S]*?\n\};/)[0] + "; return VOICES;")();
-  const defaultVoice = () => Object.fromEntries(VOICE_SPEC.map(p => [p.k, p.d]));
-  // phoneme classes, read from the page so they cannot drift from it
-  const grab = (name) => new Function("return " + main.match(new RegExp("const " + name + "\\s*=\\s*(\\{[^}]*\\})"))[1])();
-  const arr  = (name) => new Function("return " + main.match(new RegExp("const " + name + "\\s*=\\s*(\\[[^\\]]*\\])"))[1])();
-  const DIPH = new Function("return " + main.match(/const DIPH\s*=\s*(\{[^}]*\})/)[1])();
-  const VELAR = Number(html.match(/const STOPS\s*=\s*\{[^}]*?\bg\s*:\s*([0-9.]+)/)[1]);
-  return { html, worklet, VELAR, ART, articulate, VOICE_SPEC, VOICES, defaultVoice, DIPH,
-           STOP_KEYS: arr("STOP_KEYS"), APPROX: arr("APPROX"),
-           NASAL: grab("NASAL"), VOICELESS: grab("VOICELESS"), FRICATIVE: grab("FRICATIVE"), ASPIRATE: grab("ASPIRATE"),
-           BRANCHED: grab("BRANCHED") };
+  // The phoneme layer is a file too. This used to be fifteen regular expressions pulling ART,
+  // the class tables, the voices and articulate() back out of index.html — and then plan()
+  // below re-implemented buildWord on top of them. Both are gone: same file, same objects,
+  // same code path as the page.
+  const PH = require(path.join(__dirname, "..", "engine", "phonemes.js"));
+  return { html, worklet, ...PH };
 }
 
 const P = loadPage();
@@ -70,50 +58,15 @@ function plan(chain, D, voice, n) {
   // n MUST match the processor. Hardcoding 44 while the tract was 50 left the last six
   // diameters undefined and the whole voice came out NaN.
   n = n || Math.round(v.sect || 44);
-  const glide = v.glide, stopHold = v.stopT, drawl = v.drawl;
-  // Mirrors buildWord in the page. Pauses and diphthongs included — the harness having its
-  // own slightly different copy of this is exactly how a gate ends up testing the wrong thing.
-  const isS = c => P.STOP_KEYS.includes(c), isA = c => P.APPROX.includes(c);
-  const isP = c => c === " ";
-  const post = sym => P.ART[sym] || (P.DIPH[sym] && P.ART[P.DIPH[sym][0]]) || P.ART["ə"];
-  const shape = sym => P.articulate(post(sym), n);
-  const gf = i => (i > 0 && isP(chain[i-1])) ? 0
-                : (i > 0 && (isS(chain[i]) || isA(chain[i]))) ? glide*0.45 : glide;
-  let gl = 0; for (let i = 1; i < chain.length; i++) gl += gf(i);
-  const vw = []; let first = true;
-  chain.forEach(c => { if (isS(c) || isP(c)) return;
-    if (isA(c)) vw.push(0.34); else { vw.push(first ? 1+drawl*2.6 : 1); first = false; } });
-  const ws = vw.reduce((a,b)=>a+b, 0) || 1;
-  const held = chain.filter(c => !isS(c) && !isP(c)).length;
-  const pool = Math.max(0.12*Math.max(held,1), D - chain.filter(isS).length*stopHold - gl);
-  const keys = []; const seg = []; let t = 0, k = 0;
-  chain.forEach((sym, i) => {
-    if (isP(sym)) {
-      const gap = Math.max(0.09, Math.min(0.30, 0.14*(1+drawl)));
-      const pd = Array.from(shape(chain[i-1] || "ə"));
-      const nd = Array.from(shape(chain[i+1] || chain[i-1] || "ə"));
-      keys.push({ t, d: pd, b:0, nz:0, vl:1, fr:0, as:0, sil:1 });
-      seg.push({ sym: " ", a: t, b: t + gap });
-      t += gap;
-      keys.push({ t, d: nd, b:0, nz:0, vl:1, fr:0, as:0, sil:1 });
-      return;
-    }
-    const d = Array.from(shape(sym));
-    const o = { b: P.BRANCHED[sym]||0, nz: P.NASAL[sym]||0,
-                vl: P.VOICELESS[sym]||0, fr: P.FRICATIVE[sym]||0, as: P.ASPIRATE[sym]||0 };
-    const dur = isS(sym) ? stopHold : pool*vw[k++]/ws;
-    if (i > 0) t += gf(i);
-    keys.push({ t, d, ...o });
-    seg.push({ sym, a: t, b: t + dur });
-    t += dur;
-    if (P.DIPH[sym]) {                       // a diphthong glides to its second target
-      const d2 = Array.from(P.articulate(P.ART[P.DIPH[sym][1]], n));
-      keys.push({ t, d: d2, ...o });
-    } else {
-      keys.push({ t, d, ...o });
-    }
-  });
-  return { keys, seg, end: t + 0.22, v };
+  // This used to be a hand-written copy of buildWord, and the comment here used to say that
+  // the harness having its own slightly different copy was exactly how a gate ends up testing
+  // the wrong thing. It now calls the same buildWord the page calls. Verified before the copy
+  // was deleted: 64 word x voice combinations, keyframes and segments identical to 1e-12.
+  // open is 0 because plan never modelled the shouted vowel opening; that is unchanged here
+  // deliberately, so no gate band moves. The app still passes its own open.
+  const W = P.buildWord(chain, { D, drawl: v.drawl, glide: v.glide, stopHold: v.stopT,
+                                 open: 0, n, art: null });
+  return { keys: W.keys, seg: W.seg, end: W.end, v };
 }
 
 /** Speak a word and return audio plus the segment map. */

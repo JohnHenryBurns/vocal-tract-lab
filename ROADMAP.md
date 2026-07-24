@@ -19,6 +19,7 @@ seal-and-release. But the word currently comes out, in the project's own field n
 | **Voice vector** | 18 parameters, **36-character seeds**, carrying source, timing, tract length and fold model |
 | **Gate** | 22 checks, `node lab/check.js` — subsettable, streaming, parallel |
 | **Engine** | one copy, `engine/tract-worklet.js`, loaded by URL and read by the harness |
+| **Phonemes** | one copy, `engine/phonemes.js` — shared by the app, the bench and the gate |
 | **Bench** | `lab/bench.html` — sweep, blind test, minimal pairs, render-all-to-WAV |
 | **Live** | johnhenryburns.github.io/vocal-tract-lab |
 

@@ -122,9 +122,11 @@ select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--li
 
 <script>
 /* ─────────────────────────────────────────────────────────────
-   The bench never re-implements the model. It pulls the worklet
-   and the phoneme tables straight out of index.html at run time,
-   exactly as lab/harness.js does, so it cannot drift from the app.
+   The bench never re-implements the model. It loads the SAME
+   phoneme layer the app loads — engine/phonemes.js — and the same
+   worklet, so it cannot drift from what ships. It used to pull the
+   tables out of index.html with fifteen regular expressions and
+   then rebuild the scope buildWord expected; that is all gone.
    ───────────────────────────────────────────────────────────── */
 /* Where to read the engine from, in order of preference:
      1. ?src=<url>                       — explicit override
@@ -133,11 +135,11 @@ select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--li
      4. a file the user picks            — for testing an uncommitted index.html
    The bench renders inside sandboxed previews too, where location.href is
    `about:srcdoc` and has no base, so step 2 must be allowed to fail quietly. */
-const RAW = 'https://raw.githubusercontent.com/JohnHenryBurns/vocal-tract-lab/main/index.html';
+const RAW = 'https://raw.githubusercontent.com/JohnHenryBurns/vocal-tract-lab/main/engine/phonemes.js';
 function relSrc(){
   try{
     if(!/^https?:$/.test(location.protocol)) return null;
-    return new URL('../index.html', location.href).href;
+    return new URL('../engine/phonemes.js', location.href).href;
   }catch(e){ return null; }
 }
 async function findSource(){
@@ -147,7 +149,7 @@ async function findSource(){
       const r = await fetch(u, {cache:'no-store'});
       if(!r.ok) continue;
       const t = await r.text();
-      if(/const ART = \{/.test(t)) return {text:t, from:u};
+      if(/root\.VTL/.test(t)) return {text:t, from:u};
     }catch(e){ /* CORS, 404, offline — try the next one */ }
   }
   return null;
@@ -181,52 +183,29 @@ const PAIRS = [
 ];
 
 /* ── load and boot ───────────────────────────────────────── */
-async function boot(html){
-  const grab1 = re => { const m = html.match(re); if(!m) throw new Error('could not find '+re); return m[1]; };
+async function boot(src){
+  // Evaluate the shared phoneme layer. It is a classic script that assigns window.VTL, so
+  // running its text is all that is required — no parsing, no reconstruction, no scope faking.
+  new Function(src)();
+  const P = window.VTL;
+  if(!P) throw new Error('phonemes.js did not define VTL');
+  const VOICES = P.VOICES;
 
-  // The engine is a file. Load it by URL — addModule wants one anyway, and raw
-  // .githubusercontent sends CORS, so the fallback path works cross-origin too.
-  const VELAR = Number(grab1(/const STOPS\s*=\s*\{[^}]*?\bg\s*:\s*([0-9.]+)/));
-  const engineUrl = ENGSRC.replace(/index\.html(\?.*)?$/, 'engine/tract-worklet.js');
+  // The engine sits beside the phoneme layer, whatever origin that came from.
+  const engineUrl = ENGSRC.replace(/phonemes\.js(\?.*)?$/, 'tract-worklet.js');
 
-  const ART   = JSON.parse(grab1(/const ART = (\{[\s\S]*?\n\});/));
-  const main  = html.match(/<script>([\s\S]*)<\/script>/g).pop();
-  const ev    = src => new Function('return ('+src+')')();
-  const VOICE_SPEC = new Function(main.match(/const VOICE_SPEC=\[[\s\S]*?\];/)[0]+';return VOICE_SPEC;')();
-  const VOICES     = new Function(main.match(/const VOICES = \{[\s\S]*?\n\};/)[0]+';return VOICES;')();
-  const DIPH  = ev(main.match(/const DIPH\s*=\s*(\{[^}]*\})/)[1]);
-  const APPROX= ev(main.match(/const APPROX\s*=\s*(\[[^\]]*\])/)[1]);
-  const STOP_KEYS = ev(main.match(/const STOP_KEYS\s*=\s*(\[[^\]]*\])/)[1]);
-  const tbl = n => ev(main.match(new RegExp('const '+n+'\\s*=\\s*(\\{[^}]*\\})'))[1]);
-  const BRANCHED=tbl('BRANCHED'), NASAL=tbl('NASAL'), VOICELESS=tbl('VOICELESS'),
-        FRICATIVE=tbl('FRICATIVE'), ASPIRATE=tbl('ASPIRATE');
-
-  // articulate() and buildWord() lifted verbatim, given the scope they expect
-  const src =
-    html.match(/function restingDiam[\s\S]*?\n\}/)[0] + '\n' +
-    html.match(/function hump[\s\S]*?\n\}/)[0] + '\n' +
-    html.match(/function articulate\(A,n\)\{[\s\S]*?\n\}/)[0] + '\n' +
-    html.match(/function openedShape[\s\S]*?\n\}/)[0] + '\n' +
-    html.match(/function buildWord[\s\S]*?\n  return \{keys, art, seg, end:t\+0\.22\};\n\}/)[0] + '\n' +
-    'return {articulate, buildWord};';
-  // buildWord expects a scope: the phoneme tables, the little class predicates, and N.
-  // Everything it actually computes with is lifted verbatim above, so the arithmetic is the app's.
-  const scope = new Function('ART','DIPH','APPROX','STOP_KEYS','BRANCHED','NASAL','VOICELESS',
-    'FRICATIVE','ASPIRATE','getN','getVoiceArt',
-    `const isPause=s=>s===' ', isDiph=s=>!!DIPH[s];
-     const branchFor=s=>BRANCHED[s]||0, nasalFor=s=>NASAL[s]||0, voicelessFor=s=>VOICELESS[s]||0,
-           fricFor=s=>FRICATIVE[s]||0, aspFor=s=>ASPIRATE[s]||0;
-     function baseFor(sym){ const own=getVoiceArt();
-       if(own&&own[sym]) return own[sym];
-       if(DIPH[sym]){ const f=DIPH[sym][0]; return (own&&own[f])||ART[f]; }
-       return ART[sym]||ART['ə']; }
-     function shapeFor(sym){ return articulate(baseFor(sym), getN()); }
-     ${src.replace(/\barticulate\((A2|A),\s*N\)/g, (m,a)=>'articulate('+a+',getN())')}`);
-
-  const fns = scope(ART,DIPH,APPROX,STOP_KEYS,BRANCHED,NASAL,VOICELESS,FRICATIVE,ASPIRATE,
-                    ()=>N, ()=>VOICE && VOICE.art);
-  ENG = {engineUrl, VELAR, ART, VOICE_SPEC, VOICES, DIPH, APPROX, STOP_KEYS,
-         BRANCHED, NASAL, VOICELESS, FRICATIVE, ASPIRATE, ...fns};
+  // buildWord now takes its parameters explicitly, so there is nothing to inject: the bench
+  // passes the section count and the voice's postures the same way the page does.
+  ENG = {
+    engineUrl, VELAR: P.VELAR, ART: P.ART, VOICE_SPEC: P.VOICE_SPEC, VOICES: P.VOICES,
+    DIPH: P.DIPH, APPROX: P.APPROX, STOP_KEYS: P.STOP_KEYS,
+    BRANCHED: P.BRANCHED, NASAL: P.NASAL, VOICELESS: P.VOICELESS,
+    FRICATIVE: P.FRICATIVE, ASPIRATE: P.ASPIRATE,
+    articulate: P.articulate,
+    buildWord: (chain, D) => P.buildWord(chain, {
+      D, drawl: VOICE.drawl, glide: VOICE.glide, stopHold: VOICE.stopT,
+      open: VOICE.open || 0, n: N, art: VOICE.art || null })
+  };
 
   const sel = document.getElementById('voiceSel');
   Object.keys(VOICES).forEach(k=>{
@@ -277,7 +256,7 @@ function syncTract(){
 /* ── one token → the same keyframes the app builds ───────── */
 function planFor(chain){
   const D = Math.max(0.45, chain.length*(VOICE.per||0.17));
-  const W = ENG.buildWord(chain, D, VOICE.drawl, VOICE.glide, VOICE.stopT, VOICE.open||0);
+  const W = ENG.buildWord(chain, D);
   const end = W.end;
   const f0 = [[0,VOICE.f0a],[Math.min(0.12,end*0.1),VOICE.f0b],[end*0.55,VOICE.f0b],
               [end*0.82,(VOICE.f0b+VOICE.f0c)/2],[end,VOICE.f0c],[end+0.2,VOICE.f0c*0.92]];
@@ -549,7 +528,7 @@ function dl(blob,name){ const a=document.createElement('a'); a.href=URL.createOb
 document.getElementById('file').onchange = async e => {
   const f = e.target.files[0]; if(!f) return;
   const t = await f.text();
-  if(!/const ART = \{/.test(t)){ document.getElementById('boot').textContent = "that file has no phoneme tables in it — pick the app's index.html"; return; }
+  if(!/root\.VTL/.test(t)){ document.getElementById('boot').textContent = "that is not the phoneme layer — pick engine/phonemes.js"; return; }
   ENGSRC = f.name;
   boot(t).catch(err=>{ document.getElementById('boot').textContent='boot failed: '+err.message; console.error(err); });
 };
@@ -557,14 +536,14 @@ document.getElementById('file').onchange = async e => {
 (async ()=>{
   const s = await findSource();
   if(!s){
-    document.getElementById('boot').textContent = "couldn't reach index.html — pick it from disk:";
+    document.getElementById('boot').textContent = "couldn't reach engine/phonemes.js — pick it from disk:";
     document.getElementById('pick').classList.remove('hidden');
     return;
   }
   ENGSRC = s.from;
   try{ await boot(s.text); }
   catch(err){
-    document.getElementById('boot').textContent = 'boot failed: '+err.message+' — try picking index.html:';
+    document.getElementById('boot').textContent = 'boot failed: '+err.message+' — try picking engine/phonemes.js:';
     document.getElementById('pick').classList.remove('hidden');
     console.error(err);
   }
