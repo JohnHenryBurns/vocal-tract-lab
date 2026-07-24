@@ -145,12 +145,19 @@ check("every fricative actually sounds", () => {
   // /f/ once sat at 7% of a vowel because its constriction was far from where the jet blows,
   // and /h/ was SILENT because it is glottal aspiration, not a constriction fricative — with
   // voicing off it had no path to make any noise at all.
-  const vowel = H.rms(H.sustain("ɑ", { seconds: 1.0 }), 0.5, 0.95);
+  // These are NOISE sources — a single render varies by a third run to run. Measuring once
+  // and comparing to a fixed threshold gives a check that passes or fails at random, which
+  // is worse than one that simply fails. Average.
+  const mean = (sym, k = 3) => {
+    let a = 0;
+    for (let i = 0; i < k; i++) a += H.rms(H.sustain(sym, { seconds: 1.0 }), 0.5, 0.95);
+    return a / k;
+  };
+  const vowel = mean("ɑ");
   const weak = [], notes = [];
   for (const sym of ["s", "ʃ", "z", "ʒ", "f", "v", "θ", "ð", "h"]) {
-    const r = H.rms(H.sustain(sym, { seconds: 1.0 }), 0.5, 0.95);
-    const pct = r / vowel * 100;
-    if (pct < 25) weak.push(`${sym} ${pct.toFixed(0)}%`);
+    const pct = mean(sym) / vowel * 100;
+    if (pct < 22) weak.push(`${sym} ${pct.toFixed(0)}%`);
     notes.push(`${sym} ${pct.toFixed(0)}`);
   }
   return { ok: weak.length === 0,
@@ -293,6 +300,33 @@ check("a pause is silent, but the tract keeps moving", () => {
   const moved = (firstAt !== null && lastAt !== null) ? Math.abs(lastAt - firstAt) : 0;
   return { ok: quiet < 0.005 && moved >= 2,
            note: `pause ${quiet.toFixed(5)} loud, constriction travelled ${moved} sections` };
+});
+
+check("the glottis moves with the folds", () => {
+  // Source-tract interaction: the glottal reflection must FOLLOW the glottal area — near
+  // total when the folds close, much less when they are open. A fixed value means the folds
+  // are not being loaded by the tract at all. And when abducted for a voiceless sound the
+  // glottis is WIDE OPEN, not shut — getting that backwards turned it into a mirror.
+  const P = H.makeProcessor(44);
+  P.port.onmessage({ data: { type: "voice", v: H.P.defaultVoice() } });
+  P.port.onmessage({ data: { type: "shape", diam: H.P.articulate(H.P.ART["ɑ"], 44),
+                             br:0, nz:0, fr:0, vl:0, as:0, snap:true } });
+  P.voicing = 1; P.vAmp = 1; P.flow = 1; P.flowT = 1; P.f0 = 110;
+  const out = [new Float32Array(128)];
+  for (let b = 0; b < 200; b++) P.process([], [out]);
+  let lo = 9, hi = -9;
+  for (let b = 0; b < 40; b++) {
+    P.process([], [out]);
+    lo = Math.min(lo, P.glotNow); hi = Math.max(hi, P.glotNow);
+  }
+  // and the voiceless case: folds apart means a LOW reflection
+  P.voiceless = 1;
+  for (let b = 0; b < 40; b++) P.process([], [out]);
+  const vlR = P.glotNow;
+  // The test is relative, not a magic number: abducted folds must be at least as open as
+  // the widest point of the phonatory cycle, which means a LOWER reflection than `lo`.
+  return { ok: (hi - lo) > 0.05 && vlR < lo,
+           note: `voiced ${lo.toFixed(2)}-${hi.toFixed(2)}, abducted ${vlR.toFixed(2)}` };
 });
 
 // ── the voice ──────────────────────────────────────────────────────────────

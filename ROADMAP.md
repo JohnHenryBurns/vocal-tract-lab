@@ -383,6 +383,73 @@ something already known to be broken:
 
 ---
 
+## Phase 7 — pushing the physics
+
+Measured against a real recording, the model is within 5–8 dB below 3 kHz and **10–17 dB
+short above 5 kHz**. It is duller than the speaker. That deficit is the sound of missing
+physics, and most of it can be named.
+
+Ordered by expected payoff:
+
+### 7a. Source–tract interaction  ✅ built
+
+The glottis is not a fixed boundary. It is a hole whose area changes over every cycle — wide
+open at peak flow, sealed at closure — so the reflection coefficient at that end should change
+with it. Ours is a constant 0.75. Real folds are also *loaded* by the tract: the pressure wave
+returning from above pushes back on them and skews the flow pulse. This is the difference
+between a source that plays into a tube and a source that is part of one, and it is the most
+likely single cause of the missing high end.
+
+**Built.** The reflection now follows the glottal area, `r = (A1 − Ag)/(A1 + Ag)`: **0.99
+when the folds seal, 0.88 at peak flow, 0.68 when they are abducted** for a voiceless sound.
+Previously a flat 0.75 — the folds were not being loaded by the tract at all.
+
+Two things fell out of building it. The first attempt derived glottal area from flow alone,
+which made it *zero* during voiceless sounds — modelling abducted folds as sealed, the exact
+opposite of the truth, and turning the glottis into a mirror. The gate caught it as a broken
+sibilant at one tract length. The second is that abduction opens the glottis *wider* than the
+phonatory cycle ever does, so the voiceless case needed its own value rather than a scaled one.
+
+And a measurement worth keeping: the model's high-frequency deficit against a real recording
+turned out to be **aspiration**, not losses or radiation. Every preset had breath set at
+0.02–0.045; real modal phonation leaks considerably more, because the folds never seal
+perfectly and there is always turbulence riding on the voice. Raising it closed most of a
+10–17 dB gap above 5 kHz.
+
+### 7b. Frequency-dependent losses
+
+One damping constant is applied everywhere. Real losses are not flat: viscous and thermal
+boundary-layer losses scale roughly with √f and with the inverse of the radius, and soft walls
+absorb low frequencies through compliance. The audible consequence is **formant bandwidth** —
+a real F1 is narrow and a real F3 is wide, where ours are all much the same. Flat bandwidths
+are a large part of what makes synthetic speech sound like a filter bank.
+
+### 7c. Finer sections
+
+At 44.1 kHz with two scattering steps per sample the sections are 3.97 mm. A vowel resonance
+spans dozens of them; the front cavity that gives /s/ its character spans **six**. Four steps
+per sample halves the section length and roughly doubles the cost. This is the one that would
+most improve fricatives.
+
+### 7d. Two-mass folds
+
+Replace the prescribed LF waveform with an oscillator: two coupled masses driven by
+subglottal pressure, with the mucosal wave as a phase delay between them. Jitter, shimmer,
+diplophonia and register breaks stop being parameters and become *emergent*. Every attempt in
+this project to add irregularity by hand has made it sound less human, which is the argument
+for making it come out of the physics instead.
+
+### What this will not achieve
+
+It will not sound like a specific person. Sixty years of articulatory synthesis, up to and
+including 3D MRI-derived models, has not managed that — while neural synthesis reached
+human-indistinguishable a decade ago by learning a mapping and modelling nothing. The
+achievable target here is *clearly intelligible, well-articulated speech that reads as a man
+with roughly the right tract and pitch*. The value is that every part of it can be explained,
+and you can watch it happen.
+
+---
+
 ## The harness
 
 `node lab/check.js` — one command, one verdict, exit 0 means shippable. It drives the
