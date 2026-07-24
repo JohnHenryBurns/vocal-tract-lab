@@ -11,13 +11,12 @@ const VOICES_UNDER_TEST = process.env.VTL_ALL
   ? null
   : (process.env.VTL_VOICES || "john,man").split(",").map(s => s.trim());
 
-const results = [];
-function check(name, fn) {
-  let ok = false, note = "";
-  try { const r = fn(); ok = r.ok; note = r.note; }
-  catch (e) { ok = false; note = "threw: " + e.message; }
-  results.push({ name, ok, note });
-}
+// Checks REGISTER here; they do not run on registration. Running them at registration time
+// meant the gate was all-or-nothing: no way to run the three stop checks while working on
+// stops, no output until all twenty-two had finished, and no way to spread them over cores.
+// A check body is unchanged by this — it is still a function returning {ok, note}.
+const REG = [];
+function check(name, fn) { REG.push({ name, fn }); }
 
 // ── the tube is still a tube ───────────────────────────────────────────────
 check("uniform tube resonates at c/4L", () => {
@@ -543,12 +542,87 @@ check("voiceless stops are aspirated", () => {
                : `b${vot.b.toFixed(0)} d${vot.d.toFixed(0)} g${vot.g.toFixed(0)} vs p${vot.p.toFixed(0)} t${vot.t.toFixed(0)} k${vot.k.toFixed(0)} ms` };
 });
 
-// ── report ─────────────────────────────────────────────────────────────────
-console.log("\nVOCAL TRACT LAB — checks\n");
-let failed = 0;
-for (const r of results) {
-  if (!r.ok) failed++;
-  console.log(`  ${r.ok ? "✅" : "❌"} ${r.name.padEnd(42)} ${r.note}`);
+// ── the runner ─────────────────────────────────────────────────────────────
+// The gate gates correctness. It should not gate iteration. Three things follow:
+//   a subset can be run while working   node lab/check.js stops
+//   results appear as they finish       (they used to print only after all 22)
+//   independent checks use idle cores   VTL_JOBS=n, defaults to the core count
+// The FULL gate is still what ships:  ./lab/ship.sh runs it with no filter, and a filtered
+// run says so loudly in its verdict so a partial pass can never be mistaken for a green gate.
+const os = require("os");
+const { isMainThread, parentPort, workerData, Worker } = require("worker_threads");
+
+function runOne(i) {
+  const c = REG[i], t0 = Date.now();
+  let ok = false, note = "";
+  try { const r = c.fn(); ok = r.ok; note = r.note; }
+  catch (e) { ok = false; note = "threw: " + e.message; }
+  return { i, name: c.name, ok, note, ms: Date.now() - t0 };
 }
-console.log(failed ? `\n🔴 ${failed} failing\n` : "\n🟢 all clear\n");
-process.exit(failed ? 1 : 0);
+
+if (!isMainThread && workerData && workerData.idx) {
+  // Report each result the moment it lands. Posting the whole slice at the end would put the
+  // streaming property back where it started — nothing visible until a worker is completely
+  // done — which is the thing this runner exists to fix.
+  for (const i of workerData.idx) parentPort.postMessage([runOne(i)]);
+} else {
+  const args  = process.argv.slice(2).filter(a => a !== "--list");
+  const query = (process.env.VTL_ONLY || args.join(" ")).trim().toLowerCase();
+  const terms = query ? query.split(/[,\s]+/).filter(Boolean) : [];
+  const idx = REG.map((_, i) => i)
+                 .filter(i => !terms.length || terms.some(t => REG[i].name.toLowerCase().includes(t)));
+
+  if (process.argv.includes("--list")) {
+    REG.forEach((c, i) => console.log(`  ${String(i).padStart(2)}  ${c.name}`));
+    process.exit(0);
+  }
+  if (!idx.length) {
+    console.log(`\nno check matches "${query}" — run with --list to see the names\n`);
+    process.exit(2);
+  }
+
+  const bail = !!process.env.VTL_BAIL;
+  const jobs = Math.max(1, Math.min(
+    parseInt(process.env.VTL_JOBS || "", 10) || os.cpus().length, idx.length));
+  const t0 = Date.now();
+  const done = [];
+
+  console.log(`\nVOCAL TRACT LAB — checks   ${idx.length}/${REG.length}` +
+              `${terms.length ? ` matching "${query}"` : ""}` +
+              `${jobs > 1 && !bail ? `, ${jobs} jobs` : ""}\n`);
+
+  const line = r => console.log(`  ${r.ok ? "✅" : "❌"} ${r.name.padEnd(42)} ${String(r.note).padEnd(46)} ${(r.ms/1000).toFixed(1)}s`);
+
+  const verdict = () => {
+    done.sort((a, b) => a.i - b.i);
+    const failed = done.filter(r => !r.ok);
+    const partial = idx.length !== REG.length;
+    console.log(failed.length
+      ? `\n🔴 ${failed.length} failing   (${((Date.now()-t0)/1000).toFixed(0)}s)\n`
+      : partial
+        ? `\n🟡 ${done.length} passed, but this was a SUBSET — not a green gate. Run the full gate before pushing.   (${((Date.now()-t0)/1000).toFixed(0)}s)\n`
+        : `\n🟢 all clear   (${((Date.now()-t0)/1000).toFixed(0)}s)\n`);
+    process.exit(failed.length ? 1 : 0);
+  };
+
+  // Sequential when asked to stop at the first failure, or when there is one core to use.
+  if (jobs === 1 || bail) {
+    for (const i of idx) {
+      const r = runOne(i); done.push(r); line(r);
+      if (!r.ok && bail) { console.log("\n🔴 stopped at first failure (VTL_BAIL)\n"); process.exit(1); }
+    }
+    verdict();
+  } else {
+    // Deal the checks round-robin so one slow check does not leave a core idle at the end.
+    const slices = Array.from({ length: jobs }, () => []);
+    idx.forEach((c, k) => slices[k % jobs].push(c));
+    let live = 0;
+    slices.filter(s => s.length).forEach(slice => {
+      live++;
+      const w = new Worker(__filename, { workerData: { idx: slice } });
+      w.on("message", rs => { rs.forEach(r => { done.push(r); line(r); }); });
+      w.on("error", e => { slice.forEach(i => done.push({ i, name: REG[i].name, ok: false, note: "worker died: " + e.message, ms: 0 })); });
+      w.on("exit", () => { if (--live === 0) verdict(); });
+    });
+  }
+}

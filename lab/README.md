@@ -36,6 +36,52 @@ One command, one verdict, exit 0 means shippable. Twenty-two checks, each with a
 because something once broke that way. It drives the **shipping engine**, extracted straight
 out of `index.html`, so it cannot drift from what actually runs.
 
+### Running less than all of it
+
+The gate gates **correctness**. It should not gate **iteration**. Checks register rather than
+running on registration, so a subset can be selected by substring:
+
+    node lab/check.js --list             # the 22 names, instantly
+    node lab/check.js stops              # just the stop checks — ~5s, not ~90
+    node lab/check.js fricative,sibilant # comma or space separated
+    VTL_ONLY=nasal node lab/check.js     # same thing via the environment
+
+    VTL_JOBS=4 node lab/check.js         # spread over cores (defaults to the core count)
+    VTL_JOBS=1 node lab/check.js         # force sequential
+    VTL_BAIL=1  node lab/check.js        # stop at the first failure
+
+Results print **as they finish** rather than after all twenty-two, so a run can be watched and
+abandoned. A filtered run ends in a yellow verdict that says explicitly that it was a subset —
+a partial pass must never be mistaken for a green gate. `ship.sh` runs the whole thing unfiltered.
+
+### Why it costs what it costs
+
+Measured, before optimising anything, because the obvious suspect was wrong:
+
+| | |
+|---|---|
+| `say()` sequenced render | **724 ms per second of audio** |
+| `sustain()` render | 377 ms/s |
+| render with no sequence running | 87 ms/s |
+| `spectrum()`, the full DFT | 44 ms |
+| `makeProcessor()` — evals the whole 34 KB engine | 1 ms |
+
+**Measurement is about 5% of the gate; synthesis is the other 95%.** The naive per-bin DFT
+probes look like the villain and are not — do not spend effort there. Nor on the `eval`.
+
+A *sequenced* render costs eight times an idle one because `process()` does three O(n)
+articulation passes per sample — an O(K) rescan of the keyframe list, an O(n) interpolation of
+every diameter (from plain `Array.from` arrays, not typed ones), and an unconditional
+`calcRefl()` — to move articulators that change at about 20 Hz. The tract shape is recomputed
+44,100 times a second. Moving that to a control rate was measured at **1.4–1.6×, at a cost of
+1.7 dB of spectral movement** — which would mean recalibrating the bands, so it is not worth
+taking on its own. Take it when the nasal branch forces a recalibration anyway.
+
+Two instruments lied on the way to those numbers, in the house style: a bit-exact buffer
+comparison, which cannot work because the engine calls `Math.random()` on every sample, and a
+control-rate patch that accidentally gated the sequence clock as well and reported a fake 5×.
+Seed the RNG before comparing two builds.
+
     ./lab/ship.sh "commit message"       # syntax -> checks -> deploy, stops on any failure
 
 `ship.sh` uses `set -euo pipefail` and no `&&` chaining, because three separate times a

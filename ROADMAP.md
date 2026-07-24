@@ -17,8 +17,40 @@ seal-and-release. But the word currently comes out, in the project's own field n
 | **Sounds** | 39 — 12 vowels, 5 diphthongs, 22 consonants |
 | **Voices** | 9 presets plus Custom, two of them measured from a real speaker |
 | **Voice vector** | 18 parameters, **36-character seeds**, carrying source, timing, tract length and fold model |
-| **Gate** | 20 checks, `node lab/check.js` |
+| **Gate** | 22 checks, `node lab/check.js` — subsettable, streaming, parallel |
+| **Engine** | one copy, `engine/tract-worklet.js`, loaded by URL and read by the harness |
+| **Bench** | `lab/bench.html` — sweep, blind test, minimal pairs, render-all-to-WAV |
 | **Live** | johnhenryburns.github.io/vocal-tract-lab |
+
+### Vowels are solved. Consonants are the work.
+
+Vowels land within 12% of Peterson & Barney. A labelled ɑCɑ sweep on voice=john scored
+**1 / 22** on consonants. That is four root causes, not twenty-two:
+
+| # | fault | state |
+|---|---|---|
+| 1 | No VOT — p/t/k heard as their voiced partners | ✅ fixed in `ee87eea` |
+| 2 | Velar bursts fronting: g→d, k→t | ✅ fixed in `ee87eea` |
+| 3 | Every fricative reads as undifferentiated hiss although the centroids are right (/s/ 4700 Hz, /ʃ/ 3000). Likely **level** — /s/ peaks around 3× the vowels | open |
+| 4 | The nasal side branch is ~1.6 cm where a real nasal tract is 10–12, so there is no antiformant. /m n ŋ/ collapse to a generic voiced continuant and drag /z ð l r j w/ with them | open — biggest job, do it last and alone |
+
+**Re-swept against `ee87eea`**, ɑCɑ, voice=john, 16 renders averaged:
+
+*Voicing (VOT, ms).* Voiced stops unmoved at 10–15; voiceless were bunched at ~43 ms, inside
+the voiced band, which is exactly why they were heard as /b d g/. They now sit at **75 / 80 /
+105** for p/t/k, and in the right order — labial < alveolar < velar — so VOT now carries place
+as well as voicing.
+
+*Place (burst peak, Hz).* Before, all three voiceless bursts pinned to the bottom of the scan:
+one dark thump, place erased. After: /p/ diffuse and low, **/t/ 4400**, **/k/ 2000**. The three
+places separate.
+
+Both fixes hold. What has *not* been done is the blind re-listen in `bench.html` — the ear is
+still the judge, and the sweep score has not been re-taken.
+
+*(An instrument note, because this project keeps being misled by its own: the first burst
+measurement read 400 Hz for every stop on both builds. That was F0 and the voice bar swamping
+the window, not a burst. Measure burst place above 800 Hz.)*
 
 Built: the A/B tournament, the lateral branch, the articulatory layer, the LF source,
 nasals, voiceless stops, fricatives, spelling-to-sound, the voice library, per-voice
