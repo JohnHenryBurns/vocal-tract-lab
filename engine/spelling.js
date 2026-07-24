@@ -29,6 +29,14 @@ const G2P_RULES = [
   [/^tion/,      ['ʃ','ə','n']],
   [/^sion/,      ['ʃ','ə','n']],
   [/^ought/,     ['ɔ','t']],
+  // "augh" is two different vowels and NOTHING in the spelling says which: "daughter" is
+  // /dɔtɝ/ and "laughter" is /læftɝ/. The rule used to be /æf/ unconditionally, so daughter
+  // came out d-æ-f-t-ɝ and "taught" came out "taft". Before a /t/ the majority is /ɔ/ —
+  // taught, caught, naught, fraught, naughty, slaughter, onslaught, daughter — so that is
+  // the rule, and the /æf/ side of it is a closed set of five words that goes in the
+  // dictionary where lexical facts belong. Longest pattern first, so this must precede
+  // the bare "augh" that still serves "laugh" and "laughing".
+  [/^aught/,     ['ɔ','t']],
   [/^augh/,      ['æ','f']],
   [/^igh/,       ['aɪ']],
   [/^tch/,       ['t','ʃ']],
@@ -160,6 +168,9 @@ const BUILTIN_DICT = {
   // voiced ones are almost all function words — a short list covers most of the language.
   // The words English simply does not spell phonetically. Rules reach about 60%; the rest
   // is memorised, by people as much as by programs.
+  // "augh" is /ɔ/ by rule; these are the words where it is not. See the aught rule above.
+  laughter:['l','æ','f','t','ɝ'], laughed:['l','æ','f','t'], draught:['d','r','æ','f','t'],
+  draughts:['d','r','æ','f','t','s'], laughs:['l','æ','f','s'],
   hello:['h','ə','l','oʊ'], hi:['h','aɪ'], hey:['h','eɪ'],
   because:['b','ɪ','k','ɔ','z'], again:['ə','g','ɛ','n'], any:['ɛ','n','i'],
   many:['m','ɛ','n','i'], said:['s','ɛ','d'], says:['s','ɛ','z'],
