@@ -34,6 +34,9 @@ select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--li
 .hearas{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:8px}
 .hearas button{text-align:center;padding:8px 2px;font-size:15px}
 .tags{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
+.acc{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+.acc button{text-align:center;padding:9px 2px;font-size:12.5px}
+.step{font-size:12px;color:var(--dim);margin-top:12px;font-weight:600}
 .tags button{text-align:center;padding:9px 2px;font-size:13px}
 .status{color:var(--dim);font-size:12px;min-height:16px;margin-top:6px}
 </style>
@@ -74,11 +77,17 @@ select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--li
   </div>
 
   <div id="sweepCtl">
-    <div class="grid" style="margin-top:10px" id="classes"></div>
-    <div class="mini" style="margin-top:8px">…heard instead as (optional):</div>
+    <div class="step">1 · what did you hear?</div>
     <div class="hearas" id="hearas"></div>
-    <div class="mini" style="margin-top:10px">quality — independent of whether it was the right sound, tap any that apply:</div>
+    <div class="grid" id="hearother" style="margin-top:6px"></div>
+    <div class="step">2 · how good was it, as that sound?</div>
+    <div class="acc" id="acc"></div>
+    <div class="step">3 · audio quality — tap any that apply</div>
     <div class="tags" id="tags"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="navPrev">← back</button>
+      <button id="navNext" style="flex:2">next →<span class="k" style="margin-left:6px">enter</span></button>
+    </div>
   </div>
 
   <div id="blindCtl" class="hidden">
@@ -159,18 +168,46 @@ let ENG = null, ctx = null, node = null, N = 44, VOICE = null;
 
 const CONS = ['b','d','g','p','t','k','s','z','ʃ','ʒ','θ','ð','f','v','h','m','n','ŋ','l','r','w','j'];
 
-const CLASSES = [
-  ['ok',     'Correct'],
-  ['silent', 'Nothing there'],
-  ['pop',    'Click only — no identity'],
-  ['hiss',   'Hiss only — no identity'],
-  ['place',  'Wrong place'],
-  ['voice',  'Voicing flipped'],
-  ['manner', 'Wrong manner'],
-  ['vowelly','Sounds like a vowel'],
-  ['weak',   'Right but too quiet'],
-  ['harsh',  'Right but too loud']
+/* THE THREE DIMENSIONS. They were one. A single-choice verdict mixed "what was it",
+   "how good was it" and "what was wrong with it" into one tap, which is why the sheet could
+   say "ok" and "heard as d" at the same time and mean nothing definite.
+
+   Note what is NOT asked any more: wrong place, wrong manner, voicing flipped. Those are not
+   observations, they are ANALYSIS — and they are derivable. If a /g/ is heard as /d/ that IS
+   a place error, and the summary works it out from the feature table below. Asking the ear to
+   classify it added work and a second chance to be wrong. The ear reports what it heard. */
+
+/* 2 · how good, as the sound it was heard as. Only meaningful when the identity is right,
+   which is the whole point: "correct" is not a finish line, and this is the room left. */
+const ACC = [
+  ['natural', 'would pass as a person'],
+  ['clear',   'right, but obviously synthetic'],
+  ['rough',   'recognisable, poor'],
+  ['barely',  'only just identifiable']
 ];
+
+/* Articulatory features, used only to EXPLAIN a confusion after the fact. */
+const FEAT = {
+  b:['bilabial','stop','+'],      p:['bilabial','stop','-'],      m:['bilabial','nasal','+'],
+  w:['bilabial','approx','+'],    f:['labiodental','fricative','-'], v:['labiodental','fricative','+'],
+  'θ':['dental','fricative','-'], 'ð':['dental','fricative','+'],
+  d:['alveolar','stop','+'],      t:['alveolar','stop','-'],      n:['alveolar','nasal','+'],
+  s:['alveolar','fricative','-'], z:['alveolar','fricative','+'],
+  l:['alveolar','lateral','+'],   r:['alveolar','approx','+'],
+  'ʃ':['postalveolar','fricative','-'], 'ʒ':['postalveolar','fricative','+'],
+  j:['palatal','approx','+'],
+  g:['velar','stop','+'],         k:['velar','stop','-'],         'ŋ':['velar','nasal','+'],
+  h:['glottal','fricative','-']
+};
+function whyConfused(target, heard){
+  const a=FEAT[target], b=FEAT[heard];
+  if(!a||!b) return '';
+  const d=[];
+  if(a[0]!==b[0]) d.push('place');
+  if(a[1]!==b[1]) d.push('manner');
+  if(a[2]!==b[2]) d.push('voicing');
+  return d.length ? d.join('+') : 'same features';
+}
 
 const PAIRS = [
   ['b','p','voicing'],['d','t','voicing'],['g','k','voicing'],
@@ -297,7 +334,8 @@ const NONSPEECH = [
   ['#hiss', 'Hiss — noise, no identity'],
   ['#blip', 'Blip — a click or thump only'],
   ['#buzz', 'Buzz — voiced, but no consonant'],
-  ['#none', 'Nothing — silence']
+  ['#none', 'Nothing — silence'],
+  ['#?',    "Can't tell — heard something, can't name it"]
 ];
 
 /* QUALITY TAGS. Correctness and quality are different measurements and were sharing one
@@ -322,27 +360,26 @@ TAGS.forEach(([k,key])=>{
   document.getElementById('tags').appendChild(b);
 });
 
-function toggleTag(t){
-  const c=cur(); if(!c) return;
-  const r = R.sweep[c] = R.sweep[c] || {cls:'?', as:'', ctx:ctxMode()};
-  r.tags = r.tags || [];
-  const at = r.tags.indexOf(t);
-  if(at<0) r.tags.push(t); else r.tags.splice(at,1);
-  draw(); render();          // deliberately does NOT advance — a tag is not a verdict
-}
 
-CLASSES.forEach(([k,label],n)=>{
+ACC.forEach(([k,label],n)=>{
   const b=document.createElement('button');
-  b.innerHTML=`<span class="k">${(n+1)%10}</span>${label}`;
-  b.onclick=()=>record(k);
-  document.getElementById('classes').appendChild(b);
+  b.dataset.acc=k;
+  b.innerHTML=`<span class="k">${n+1}</span>${k}<br><span class="mini">${label}</span>`;
+  b.onclick=()=>setAcc(k);
+  document.getElementById('acc').appendChild(b);
 });
 CONS.forEach(c=>{
   ['hearas','blindpick'].forEach(host=>{
-    const b=document.createElement('button'); b.textContent=c;
-    b.onclick = host==='hearas' ? ()=>heardAs(c) : ()=>blindPick(c);
+    const b=document.createElement('button'); b.textContent=c; b.dataset.heard=c;
+    b.onclick = host==='hearas' ? ()=>setHeard(c) : ()=>blindPick(c);
     document.getElementById(host).appendChild(b);
   });
+});
+NONSPEECH.forEach(([k,label])=>{
+  const b=document.createElement('button'); b.dataset.heard=k;
+  b.textContent=label;
+  b.onclick=()=>setHeard(k);
+  document.getElementById('hearother').appendChild(b);
 });
 NONSPEECH.forEach(([k,label],n)=>{
   const b=document.createElement('button');
@@ -369,30 +406,42 @@ function draw(){
   document.getElementById('tokctx').textContent = c
     ? (mode==='blind' ? 'listen, then pick what you heard' : chainFor(c,ctxMode()).join(' '))
     : 'finished — open Results';
-  const done = R.sweep[c];
-  const tg = (done && done.tags) || [];
+  const done = R.sweep[c] || {};
+  const tg = done.tags || [];
   document.querySelectorAll('#tags button').forEach(b=>b.classList.toggle('on', tg.includes(b.dataset.tag)));
-  document.getElementById('st').textContent = done
-    ? 'recorded: '+done.cls+(done.as?' → '+done.as:'')+(tg.length?'  ['+tg.join(' ')+']':'')
-    : '';
+  document.querySelectorAll('[data-heard]').forEach(b=>b.classList.toggle('on', done.heard===b.dataset.heard));
+  document.querySelectorAll('[data-acc]').forEach(b=>b.classList.toggle('on', done.acc===b.dataset.acc));
+  const bits=[];
+  if(done.heard) bits.push('heard ' + (done.heard===c ? 'correctly' : 'as '+done.heard.replace('#','')));
+  if(done.acc)   bits.push(done.acc);
+  if(tg.length)  bits.push('['+tg.join(' ')+']');
+  document.getElementById('st').textContent = bits.length ? bits.join(' · ') : 'nothing recorded for this one yet';
 }
 
-function record(cls){
-  const c=cur(); if(!c) return;
-  const prev = R.sweep[c] || {};
-  // Tags survive the verdict. Rebuilding this object without them silently dropped every
-  // quality note the moment a verdict was tapped — which is the wrong way round, since the
-  // tags are usually decided first, while the sound is still in the ear.
-  R.sweep[c] = {cls, as:prev.as||'', tags:prev.tags||[], ctx:ctxMode()};
-  if(cls==='ok'||cls==='silent'||cls==='pop'||cls==='hiss') next(); else draw();
+/* NOTHING IN THE SWEEP ADVANCES. Auto-advance is what made the old sheet ambiguous: tapping
+   a verdict jumped to the next token, so a follow-up tap landed on the WRONG phoneme, and the
+   only way to record a second dimension was to notice and press back. Three dimensions cannot
+   be recorded by an instrument that leaves after the first one. You move on when you say so. */
+function entry(){
+  const c=cur(); if(!c) return null;
+  return R.sweep[c] = R.sweep[c] || {heard:'', acc:'', tags:[], ctx:ctxMode()};
 }
-function heardAs(x){ const c=cur(); if(!c) return; R.sweep[c]=R.sweep[c]||{cls:'?',ctx:ctxMode()}; R.sweep[c].as=x; next(); }
+function setHeard(x){ const e=entry(); if(!e) return; e.heard = (e.heard===x) ? '' : x; e.ctx=ctxMode(); draw(); render(); }
+function setAcc(a){   const e=entry(); if(!e) return; e.acc   = (e.acc===a)   ? '' : a; draw(); render(); }
+function toggleTag(t){
+  const e=entry(); if(!e) return;
+  const at=e.tags.indexOf(t);
+  if(at<0) e.tags.push(t); else e.tags.splice(at,1);
+  draw(); render();
+}
 function blindPick(x){ const c=cur(); if(!c) return; R.blind.push([c,x]); next(); }
 function next(){ i++; if(i>=(mode==='blind'?blindOrder.length:order.length)) i=(mode==='blind'?blindOrder.length:order.length); draw(); render(); }
 
 document.getElementById('play').onclick = ()=>{ const c=cur(); if(c) speak(chainFor(c,ctxMode())); };
 document.getElementById('back').onclick = ()=>{ i=Math.max(0,i-1); draw(); };
 document.getElementById('skip').onclick = ()=>next();
+document.getElementById('navNext').onclick = ()=>next();
+document.getElementById('navPrev').onclick = ()=>{ i=Math.max(0,i-1); draw(); };
 
 /* pairs */
 const pairChain = c => chainFor(c, ctxMode());
@@ -426,8 +475,9 @@ document.querySelector('.tab').classList.add('on');
 addEventListener('keydown',e=>{
   if(e.key===' '){ e.preventDefault();
     if(mode==='pairs') document.getElementById('pab').click(); else document.getElementById('play').click(); return; }
-  if(mode==='sweep' && /^[0-9]$/.test(e.key)){ const n=(+e.key||10)-1; if(CLASSES[n]) record(CLASSES[n][0]); }
+  if(mode==='sweep' && /^[1-4]$/.test(e.key)) setAcc(ACC[+e.key-1][0]);
   if(mode==='sweep' && /^[hps]$/.test(e.key)) toggleTag({h:'hiss',p:'pop',s:'static'}[e.key]);
+  if(mode==='sweep' && (e.key==='Enter')) next();
   if(mode==='blind' && /^[1-4]$/.test(e.key)) blindPick(NONSPEECH[+e.key-1][0]);
   if(mode==='pairs' && /^[1-4]$/.test(e.key)) document.querySelectorAll('[data-pv]')[+e.key-1].click();
   if(e.key==='ArrowRight') next();
@@ -440,14 +490,38 @@ function render(){
   L.push(`VTL BENCH · ${new Date().toISOString().slice(0,16).replace('T',' ')} · voice=${VOICE.name} · sect=${Math.round(VOICE.sect||N)} · ctx=${ctxMode()}`);
   const sk=Object.keys(R.sweep);
   if(sk.length){
-    L.push('','SWEEP');
+    const done = CONS.filter(c=>R.sweep[c] && R.sweep[c].heard);
+    const right = done.filter(c=>R.sweep[c].heard===c);
+    L.push('', `SWEEP  ${right.length}/${done.length} identified` +
+               (sk.length>done.length ? `  (${sk.length-done.length} started, not identified)` : ''));
     CONS.filter(c=>R.sweep[c]).forEach(c=>{
       const r=R.sweep[c];
+      const id = !r.heard ? '—'
+               : r.heard===c ? 'ok'
+               : r.heard[0]==='#' ? r.heard.slice(1)
+               : '→ '+r.heard;
       const tg=(r.tags&&r.tags.length)?'   ['+r.tags.join(' ')+']':'';
-      L.push(`  ${c.padEnd(3)} ${(r.cls+(r.as?'  → heard as '+r.as:'')).padEnd(22)}${tg}`.trimEnd());
+      L.push(`  ${c.padEnd(3)} ${id.padEnd(6)} ${(r.acc||'').padEnd(8)}${tg}`.trimEnd());
     });
-    // Tallied as well as listed, because the pattern is the finding: a tag landing on five
-    // sounds at once is one fault in the engine, not five faults in five phonemes.
+    // Accuracy is only meaningful where the identity was right — that is what it grades.
+    const graded = right.filter(c=>R.sweep[c].acc);
+    if(graded.length){
+      const by={};
+      graded.forEach(c=>{ (by[R.sweep[c].acc]=by[R.sweep[c].acc]||[]).push(c); });
+      L.push('  quality of correct: ' + ACC.map(([k])=>k).filter(k=>by[k])
+             .map(k=>`${k} ${by[k].length} (${by[k].join(' ')})`).join(', '));
+    }
+    // Place / manner / voicing are COMPUTED from the confusions, not asked for.
+    const conf = done.filter(c=>R.sweep[c].heard!==c && R.sweep[c].heard[0]!=='#');
+    if(conf.length){
+      L.push('  confused: ' + conf.map(c=>`${c}→${R.sweep[c].heard} (${whyConfused(c,R.sweep[c].heard)})`).join(', '));
+      const dims={};
+      conf.forEach(c=>{ whyConfused(c,R.sweep[c].heard).split('+').forEach(d=>{ (dims[d]=dims[d]||[]).push(c); }); });
+      L.push('  error kind: ' + Object.entries(dims).sort((a,b)=>b[1].length-a[1].length)
+             .map(([d,cs])=>`${d} ×${cs.length} (${cs.join(' ')})`).join(', '));
+    }
+    const ns = done.filter(c=>R.sweep[c].heard[0]==='#');
+    if(ns.length) L.push('  not a consonant: ' + ns.map(c=>`${c}=${R.sweep[c].heard.slice(1)}`).join(', '));
     const tally={};
     CONS.filter(c=>R.sweep[c]).forEach(c=>(R.sweep[c].tags||[]).forEach(t=>{ (tally[t]=tally[t]||[]).push(c); }));
     const rows=Object.entries(tally).sort((a,b)=>b[1].length-a[1].length);
