@@ -725,6 +725,41 @@ check("one copy of the voice codec, and the groups cover it exactly", () => {
                : `${Object.keys(P.VOICE_GROUPS).length} groups partition ${spec.length} parameters, one codec` };
 });
 
+// ── two bugs the page had, and the shapes that let them hide ───────────────
+check("no shadowed function declarations, and custom keeps its postures", () => {
+  const fs = require("fs"), bad = [];
+  const src = fs.readFileSync(__dirname + "/../index.html", "utf8")
+                .match(/<script>([\s\S]*)<\/script>/)[1];
+
+  // 1. A DUPLICATE TOP-LEVEL DECLARATION IS SILENT AND FATAL. There were two
+  //    `function setVoice` in this one script — a voicing setter near the top and the preset
+  //    switcher near the bottom. The later declaration wins, so every setVoice(1) was calling
+  //    the PRESET setter with the number 1, looking up VOICES[1], and throwing on `V.v`. Hold
+  //    and the space bar — two of the four controls the README documents — raised a TypeError
+  //    and nothing else. Nothing caught it because the file parses perfectly.
+  //    Braces at column 0 are the whole heuristic, which is enough for a file written this way.
+  const decls = {};
+  for (const m of src.matchAll(/^function\s+([A-Za-z_$][\w$]*)\s*\(/gm))
+    decls[m[1]] = (decls[m[1]] || 0) + 1;
+  const dup = Object.entries(decls).filter(([, n]) => n > 1);
+  if (dup.length) bad.push(`declared twice: ${dup.map(([k, n]) => `${k} x${n}`).join(", ")}`);
+
+  // 2. `custom` MUST INHERIT `art`. A seed carries 28 scalars; `art` is 26 postures of six
+  //    numbers each and cannot go in one. So when goCustom() switches presets it has to carry
+  //    the postures over by hand, or nudging any slider while John was selected silently
+  //    swapped his measured tract for the shared one — and the voice changed character with
+  //    nothing on screen to explain it. That is also the path a seed tuned in the bench takes
+  //    on its way home, which is how it was found.
+  const gc = src.match(/function goCustom\(\)\{[\s\S]*?\n\}/);
+  if (!gc) bad.push("goCustom not found");
+  else if (!/VOICES\.custom\.art\s*=/.test(gc[0]))
+    bad.push("goCustom does not carry art onto custom");
+
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : `${Object.keys(decls).length} top-level functions, no shadowing, custom inherits art` };
+});
+
 check("no word clicks", () => {
   // A stop release is a transient, but an outlier far above the signal's own motion is a
   // click. The white-noise burst once measured 13.5x.

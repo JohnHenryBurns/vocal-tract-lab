@@ -147,6 +147,7 @@ select{font:inherit;background:#171b1e;color:var(--fg);border:1px solid var(--li
     <span class="pill">Round <b id="tRound">1</b></span>
     <span class="pill">width <b id="tStep">100%</b></span>
     <span class="ctx" id="tWhat">both new</span>
+    <span class="ctx" id="tNow" style="opacity:.75"></span>
   </div>
   <div class="row">
     <button id="tA" style="flex:1">Hear A</button>
@@ -457,7 +458,14 @@ document.getElementById('phraseIn').addEventListener('keydown', e=>{
    together, since those three confound each other and dialling any one alone means
    over-dialling it to cover for the other two. */
 let tChamp = null, tChal = null, tRound = 1, tStep = 1.0, tPick = null, tHeardA = false, tHeardB = false;
-let tGroupKey = 'stress', tPhraseIdx = 1;
+let tGroupKey = 'stress';
+// -1 means ROTATE, and it is the default on purpose. Tuning against one phrase overfits to it:
+// the `stress` values that win on "banana and a tomato" — three weak syllables around one
+// strong — are not the ones that win on "bad bat bed bet", which has no unstressed syllable in
+// it at all. With a human in the loop and twenty rounds you would not find that out until
+// everything else sounded worse. A and B stay on the SAME phrase within a round, so the
+// comparison is still fair; the champion just has to keep winning across the inventory.
+let tPhraseIdx = -1, tRoundPhrase = -1;
 
 function tPaint(){
   const g = id => document.getElementById(id);
@@ -480,15 +488,18 @@ function tPaint(){
       return k+' '+tChamp[k].toFixed(2)+' \u2192 '+tChal[k].toFixed(2)
            + (Math.abs(d)<1e-9 ? '' : d>0 ? '  \u2191' : '  \u2193'); })
     .join('<br>');
+  g('tNow').textContent = '\u00b7 ' + (PHRASES[tRoundPhrase]||PHRASES[0])[0]
+    + (tPhraseIdx < 0 ? ' (' + (tRoundPhrase+1) + '/' + PHRASES.length + ')' : '');
   g('tSeed').textContent = ENG.encodeVoice(tChamp);
 }
 function tNext(){
+  tRoundPhrase = tPhraseIdx >= 0 ? tPhraseIdx : (tRoundPhrase + 1) % PHRASES.length;
   tChal = ENG.mutateVoice(tChamp, tStep, ENG.VOICE_GROUPS[tGroupKey]);
   tHeardA = tHeardB = false;
   tPaint();
 }
 async function tSay(v){
-  const txt = PHRASES[tPhraseIdx] ? PHRASES[tPhraseIdx][0] : 'hello world';
+  const txt = (PHRASES[tRoundPhrase] || PHRASES[0])[0];
   const p = spellPhrase(txt);
   if(!p || !p.ph.length) return;
   const keep = VOICE;
@@ -504,6 +515,9 @@ function drawTourney(){
     });
     gs.value = tGroupKey;
     const ps = document.getElementById('tPhrase');
+    const rot = document.createElement('option');
+    rot.value = -1; rot.textContent = '\u21bb rotate through all ' + PHRASES.length;
+    ps.appendChild(rot);
     PHRASES.forEach(([t], i) => { const o=document.createElement('option');
       o.value=i; o.textContent=t; ps.appendChild(o); });
     ps.value = tPhraseIdx;
@@ -516,7 +530,13 @@ document.getElementById('tGroup').addEventListener('change', e => {
   // convergence on other parameters, into a space nothing has been heard in yet.
   tGroupKey = e.target.value; tStep = 1.0; tRound = 1; tPick = null; tNext();
 });
-document.getElementById('tPhrase').addEventListener('change', e => { tPhraseIdx = +e.target.value; });
+document.getElementById('tPhrase').addEventListener('change', e => {
+  tPhraseIdx = +e.target.value;
+  // Take effect now rather than next round, or the label lies about what you are hearing.
+  tRoundPhrase = tPhraseIdx >= 0 ? tPhraseIdx : 0;
+  tHeardA = tHeardB = false;   // what you heard was a different phrase; hear these
+  tPaint();
+});
 document.getElementById('tA').addEventListener('click', ()=>{ tHeardA=true; tPaint(); tSay(tChamp); });
 document.getElementById('tB').addEventListener('click', ()=>{ tHeardB=true; tPaint(); tSay(tChal); });
 document.getElementById('tKeepA').addEventListener('click', ()=>{

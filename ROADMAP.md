@@ -154,6 +154,14 @@ are exactly the three that confound each other, and dialling any one alone means
 it to cover for the other two. That is the sweep this roadmap said to run once accent alignment
 landed, and it is now one selection in a dropdown.
 
+**The phrase rotates by default.** Tuning against one phrase overfits to it: the `stress` values
+that win on *banana and a tomato* — three weak syllables around one strong — are not the ones
+that win on *bad bat bed bet*, which has no unstressed syllable in it at all. With a human in the
+loop and twenty rounds you would not find that out until everything else sounded worse. A and B
+stay on the same phrase **within** a round, so the comparison is still fair; the champion just
+has to keep winning across the inventory. A single phrase is still selectable when you are
+chasing one specific fault.
+
 Changing group resets the search width, because a narrow setting earned by converging on one
 group is meaningless in a space nothing has been heard in yet. The panel also prints **what
 moved** each round; without that a round is a black box, and you would be picking a winner with
@@ -1356,6 +1364,27 @@ and deliberately not after a vowel, because there the spelling predicts nothing:
 as, was* are /z/ while *bus, gas, yes, us, plus, thus* are /s/, and the four function words are
 in the dictionary instead. Plurals of magic-e words are a second gap in the same place:
 "hopes" spells to `h·ɑ·p·ɛ·s`, because the trailing `s` stops the magic-e lookahead matching.
+
+**Two bugs in `index.html`, found on the way to letting a tuned seed come home.**  ✅ both fixed
+
+*`setVoice` was declared twice.* A voicing setter near the top of the script and the preset
+switcher near the bottom, both top level, both named the same. The later declaration wins, so
+every `setVoice(1)` in the first half was calling the **preset** setter with the number 1,
+looking up `VOICES[1]`, and throwing on `V.v`. **Hold and the space bar — two of the four
+controls the README documents — raised a TypeError and did nothing else.** A half-finished
+rename to `setVoice2` sat two lines above the collision and had never reached its callers.
+
+Nothing caught it because the file parses perfectly and the failure is at call time, in a
+handler, in a browser. The gate now refuses any duplicate top-level `function` declaration in
+that script, and that assertion was checked by putting the bug back and watching it fail.
+
+*`goCustom()` silently dropped the measured tract.* `voiceArt()` reads postures off the
+currently selected preset, and `custom` had none — so nudging any slider while John was selected
+swapped his 26 measured postures for the shared ones, and the voice changed character with
+nothing on screen to explain why. It matters more now than it did: a seed carries 28 scalars and
+`art` is 26 postures of six numbers each, so a voice tuned in the bench and pasted back relies
+entirely on the preset to supply them. `custom` now inherits `art` from whatever it was derived
+from.
 
 **Consonant postures are fitted from one speaker.** The fricatives were refitted at the default
 tract length with the targets scaled, but everything else — stops, nasals, approximants —
