@@ -1036,6 +1036,7 @@ class TractProcessor extends AudioWorkletProcessor {
     this.nRin=new Float64Array(this.nN); this.nLin=new Float64Array(this.nN);
     this.dcX=0; this.dcY=0; this.tick=0;
     this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1; this.bnz=0; this.bn1=0; this.bn2=0;
+    this.vot=0; this.sealVl=0; this.bco=0.885; this.bgain=5.0;   // aspiration countdown; burst filter, set per place
     this.voiceless=0; this.nasalOut=0; this.fric=0; this.fz=0; this.hiss=1; this.fy1=0; this.fy2=0; this.fcLast=0;
     this.asp=0; this.ah=0; this.silNow=0;
     this.flow=0; this.flowT=0; this.turb=1; this.turbT=1; this.turbCd=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;
@@ -1065,7 +1066,7 @@ class TractProcessor extends AudioWorkletProcessor {
         // closure — which lets the glottis leak before the stop has formed.
         this.blend = this.vAmp>0.02 ? 0.030 : 0.002;
       }
-      if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; this.fric=0; this.asp=0;
+      if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; this.fric=0; this.asp=0; this.vot=0;
         this.flow=0; this.flowT=0; this.turb=1; this.turbT=1; this.turbCd=0;
         this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0; }
       if(d.type==='tract'){
@@ -1337,10 +1338,10 @@ class TractProcessor extends AudioWorkletProcessor {
         if(tail<0.16) flow*=Math.max(0,tail/0.16);   // short, or it eats a final consonant
         if(this.silNow) flow=0;
         this.flowT=flow;
-        amp = this.voiceless ? 0 : flow*voiceBar*squeeze;
+        amp = (this.voiceless||this.vot>0) ? 0 : flow*voiceBar*squeeze;
       } else {
         this.flowT = this.voicing;
-        amp = this.voiceless ? 0 : this.voicing*voiceBar*squeeze;
+        amp = (this.voiceless||this.vot>0) ? 0 : this.voicing*voiceBar*squeeze;
       }
       this.flow += ((this.flowT||0)-this.flow)*0.004;
       this.vAmp += (amp-this.vAmp)*0.004;
@@ -1376,13 +1377,22 @@ class TractProcessor extends AudioWorkletProcessor {
       // which is the opposite of the truth and turned the glottis into a mirror.
       // Abduction opens the glottis WIDER than the phonatory cycle ever does — the folds are
       // pulled apart and held there, well beyond their peak opening while vibrating.
-      this.gArea = this.voiceless
+      this.gArea = (this.voiceless||this.vot>0)
         ? 2.2
         : Math.max(0, Math.min(1, this.gflow * 0.02));
       let src=(g*0.9 + (Math.random()*2-1)*this.breath*g)*this.vAmp;
       // /h/ is not a constriction fricative — it is turbulence at the GLOTTIS with the tract
       // wide open. It needs a noise path that does not require the folds to be vibrating, or
       // a voiceless /h/ is silent. Which is exactly what it was.
+      // Aspiration after a voiceless release. The tract is already open and moving toward
+      // the vowel, so this noise is filtered by the vowel's own formants — which is exactly
+      // what makes an aspirated /pʰ/ sound aspirated rather than merely late.
+      if(this.vot>0){
+        this.vh1=(this.vh1||0)*0.86+(Math.random()*2-1)*0.14;
+        this.vh =(this.vh ||0)*0.86+this.vh1*0.14;
+        src += this.vh*0.55*Math.min(1,this.vot/(sr*0.012));   // fades as voicing returns
+        this.vot--;
+      }
       if(this.asp>0.001){
         // Aspiration is quiet and takes its colour from the tract it passes through. Loud
         // and broadband is a wall of static, which is what this was.
@@ -1407,6 +1417,12 @@ class TractProcessor extends AudioWorkletProcessor {
       if(cl<0.14){
         this.charge=Math.min(1,(this.charge||0)+1/(sr*0.05));
         this.sealAt=mi;
+        // Latch the glottal state DURING the closure. Read at the release instead, /t/ and
+        // /k/ open after the keyframe midpoint has already handed voicing back, so they
+        // looked voiced and got no aspiration at all while /p/ got 55 ms. Whether a stop is
+        // aspirated is decided by what the folds were doing behind the seal, not by what
+        // they happen to be doing at the instant it breaks.
+        this.sealVl=this.voiceless;
       } else if((this.charge||0)>0.12 && cl>0.22){
         this.burstN=Math.floor(sr*0.014);
         // A release near the lips radiates almost directly; one at the velum has a whole
@@ -1417,6 +1433,27 @@ class TractProcessor extends AudioWorkletProcessor {
                     *(this.voiceless?2.0:1)*(0.35+1.3*frontFrac);
         this.burstAt=this.sealAt||mi;
         this.charge=0;
+        // A burst is coloured by the cavity IN FRONT of the release, so the filter that
+        // shapes it has to follow the place. One fixed lowpass at ~860 Hz sat below every
+        // front-cavity resonance and erased place outright: b, d and g all measured a
+        // 750 Hz peak with ~90% of their energy under 1.5 kHz — the same dark thump three
+        // times. Blind listening duly returned g as d and k as t.
+        const secCm=35000/(sr*this.steps);
+        const frontCm=Math.max(0.45,(n-1-this.burstAt)*secCm);
+        this.bfc=Math.max(900,Math.min(5200,35000/(4*frontCm)*1.45));
+        this.bco=Math.exp(-2*Math.PI*this.bfc/sr);
+        // keep loudness constant as the cutoff moves: a one-pole lowpass passes
+        // (1-a)/(1+a) of unit-variance noise, and 0.0610 is what the old 0.885 passed.
+        this.bgain=5.0*Math.sqrt(0.0610/((1-this.bco)/(1+this.bco)));
+        // VOICE ONSET TIME. English voicing in a stop is carried almost entirely by the gap
+        // between the burst and the return of the folds — roughly 60-80 ms for /p t k/
+        // against ~10 for /b d g/. The keyframe interpolation was handing voicing back at
+        // the midpoint of the glide, about 19 ms, which is squarely in the VOICED range.
+        // So /p/ was heard as /b/, /t/ as /d/, /k/ as /t/. VOT also rises from labial to
+        // velar, which makes it a place cue in its own right.
+        // 58 / 70 / 80 ms labial / alveolar / velar, measured English values. The first
+        // fit ran linear in frontFrac and gave the velar 121 ms, which is a stutter.
+        if(this.sealVl) this.vot=Math.floor(sr*Math.min(0.085,0.052+0.075*frontFrac));
       }
       if(this.burstN>0){
         const tot=sr*0.014, age=tot-this.burstN;
@@ -1425,9 +1462,10 @@ class TractProcessor extends AudioWorkletProcessor {
         // A velar burst is a compact mid-frequency blob, not white noise. Two poles of
         // lowpass keep the energy where the ear expects it and stop the injection from
         // being a broadband spike — which is what was reading as a click.
-        this.bn1=(this.bn1||0)*0.885+(Math.random()*2-1)*0.115;
-        this.bn2=(this.bn2||0)*0.885+this.bn1*0.115;
-        const b=this.bn2*this.burstA*k*k*atk*5.0;
+        const a=this.bco, w=1-a;
+        this.bn1=(this.bn1||0)*a+(Math.random()*2-1)*w;
+        this.bn2=(this.bn2||0)*a+this.bn1*w;
+        const b=this.bn2*this.burstA*k*k*atk*this.bgain;
         // pressure escapes toward the opening, not equally in both directions
         this.R[this.burstAt]+=b; this.L[this.burstAt]+=b*0.28;
         this.burstN--;

@@ -487,6 +487,52 @@ check("every voice speaks at its own tract length", () => {
                : `${Object.keys(V).length} voices at 14-52 sections, keyframes match, quietest /${quietName}/ ${quietest.toFixed(4)}` };
 });
 
+check("voiceless stops are aspirated", () => {
+  // English stop voicing lives almost entirely in the gap between the burst and the return
+  // of the folds: ~58/70/80 ms labial/alveolar/velar for /p t k/ against ~10 for /b d g/.
+  // The keyframe interpolation was handing voicing back at the midpoint of the glide, about
+  // 19 ms, which is squarely in the VOICED range — so a blind listener returned p as b, t as
+  // d and k as t, all three. Measured on the OUTPUT by periodicity, because an energy
+  // threshold is tripped instantly by a loud broadband burst and reports zero every time.
+  const V = H.P.VOICES.john.v, n = Math.round(V.sect);
+  const lowband = (buf, i, L = 512) => {          // the voice bar, 60-350 Hz
+    let s = 0;
+    for (let f = 60; f <= 350; f += 25) {
+      let r = 0, m = 0;
+      for (let j = 0; j < L; j++) {
+        const w = 0.5 - 0.5*Math.cos(2*Math.PI*j/L), a = 2*Math.PI*f*j/H.SR;
+        r += (buf[i+j]||0)*w*Math.cos(a); m -= (buf[i+j]||0)*w*Math.sin(a);
+      }
+      s += r*r + m*m;
+    }
+    return s;
+  };
+  const vot = {};
+  for (const c of ["b","p","d","t","g","k"]) {
+    const { buf, seg } = H.say(["ɑ", c, "ɑ"], { D: 0.9, voice: V, n });
+    const s = seg.find(x => x.sym === c), v2 = seg[2];
+    const ref = lowband(buf, Math.floor((v2.a + v2.b)/2*H.SR));
+    const from = Math.floor(s.b*H.SR), step = Math.floor(H.SR*0.005);
+    // The bar must be SUSTAINED. A single-frame threshold is tripped by the burst itself,
+    // which is loud and broadband, and duly reported 0 ms for every stop in the inventory.
+    let run = 0, on = from + Math.floor(H.SR*0.25);
+    for (let i = from; i < from + Math.floor(H.SR*0.25); i += step) {
+      if (lowband(buf, i) > ref*0.30) { if (++run >= 4) { on = i - 3*step; break; } }
+      else run = 0;
+    }
+    vot[c] = (on - from)/H.SR*1000;
+  }
+  // Calibrated against a build with the VOT line deleted, not guessed. This one reads
+  // 10-15 ms voiced against 75-105 voiceless; with VOT removed every stop falls into the
+  // voiced band. The 35/50 split sits in the empty gap between the two clusters.
+  const bad = [];
+  for (const c of ["b","d","g"]) if (vot[c] > 35) bad.push(`${c} ${vot[c].toFixed(0)}ms (voiced, want <35)`);
+  for (const c of ["p","t","k"]) if (vot[c] < 50) bad.push(`${c} ${vot[c].toFixed(0)}ms (voiceless, want >50)`);
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : `b${vot.b.toFixed(0)} d${vot.d.toFixed(0)} g${vot.g.toFixed(0)} vs p${vot.p.toFixed(0)} t${vot.t.toFixed(0)} k${vot.k.toFixed(0)} ms` };
+});
+
 // ── report ─────────────────────────────────────────────────────────────────
 console.log("\nVOCAL TRACT LAB — checks\n");
 let failed = 0;
