@@ -209,6 +209,28 @@ check("nothing the speller produces gets silently dropped", () => {
                             : `${words.length} words, nothing unspeakable` };
 });
 
+check("no fricative strays into another's band", () => {
+  // /ð/ in "mother" came out as a static sh. Not a bug in the sound — it was in the WRONG
+  // BAND. An automatic fit chasing a spectral target had moved the dental constriction back
+  // to 0.78, giving it a front cavity the size of /ʃ/'s, so it duly became a /ʃ/. A dental
+  // is made at the teeth with nothing in front to ring.
+  const bands = { "ʃ": [2200, 4400], "ʒ": [200, 4400] };   // where postalveolars belong
+  const bad = [];
+  for (const sym of ["s", "z", "f", "v", "θ", "ð"]) {
+    let pk = 0;
+    for (let i = 0; i < 3; i++) {
+      const sp = H.spectrum(H.sustain(sym, { seconds: 1.0 }),
+                            { lo: 300, hi: 9000, step: 200, hops: 10 });
+      pk += H.peakOf(sp).f;
+    }
+    pk /= 3;
+    if (pk > 2400 && pk < 4200) bad.push(`${sym} at ${pk.toFixed(0)}Hz`);
+  }
+  return { ok: bad.length === 0,
+           note: bad.length ? "in the sh band: " + bad.join(" ")
+                            : "each fricative in its own band" };
+});
+
 // ── words behave ───────────────────────────────────────────────────────────
 const WORDS = [["g","o","ɑ","l"], ["b","ʊ","l","d","ɔ","g"], ["m","æ","k","s","ɪ","m","ə","s"],
                ["d","æ","d"], ["s","o","l","ɑ","n","ə"]];

@@ -929,16 +929,16 @@ const ART = {
   "jaw": 0.43,
   "bodyPos": 0.5,
   "bodyHi": 0.2,
-  "tipPos": 0.78,
-  "tipHi": 0.79,
-  "lip": 0.859
+  "tipPos": 0.94,
+  "tipHi": 0.86,
+  "lip": 0.86
  },
  "ð": {
   "jaw": 0.38,
   "bodyPos": 0.5,
   "bodyHi": 0.2,
-  "tipPos": 0.78,
-  "tipHi": 0.89,
+  "tipPos": 0.93,
+  "tipHi": 0.8,
   "lip": 0.759
  }
 };
@@ -1744,7 +1744,9 @@ const VOICELESS={ p:1, t:1, k:1, s:1, 'ʃ':1, f:1, h:1, 'θ':1 };   // folds apa
 // Geometry sets WHERE the jet blows; these set how hard. The dental jet response is steep,
 // Fitted at the default tract length against a real recording, scaled for the
 // length difference. Not guessed.
-const FRICATIVE={ 's':1.05, 'z':0.8, 'ʃ':1, 'ʒ':0.34, 'f':0.73, 'v':0.63, 'θ':0.67, 'ð':0.58 };
+// Dentals are made AT THE TEETH — no front cavity, weak and diffuse. An earlier automatic
+// fit moved them back to a /ʃ/-sized cavity, and they duly sounded like /ʃ/.
+const FRICATIVE={ 's':1.05, 'z':0.8, 'ʃ':1, 'ʒ':0.34, 'f':0.73, 'v':0.63, 'θ':0.16, 'ð':0.20 };
 const ASPIRATE ={ h:1 };                               // turbulence at the glottis instead
 const branchFor=sym=>BRANCHED[sym]||0;
 const nasalFor =sym=>NASAL[sym]||0;
