@@ -893,6 +893,11 @@ const VOWEL_KEYS = HOLLER.VOWEL_KEYS;
 const STOP_KEYS = HOLLER.STOP_KEYS;
 const CONS_KEYS = HOLLER.CONS_KEYS;
 let chain = ['g','o','l'];             // one gliding vowel — the opening does the rest
+// Parallel to `chain`, one entry per sound: 1 stressed, 0 not. null means "no stress
+// information", which buildWord reads as all-stressed — the right default for a chain the
+// speller never saw. It MUST be filtered in lockstep with `chain` wherever that is filtered,
+// or every syllable after a dropped sound is timed as the wrong one.
+let chainStress = null;
 
 function makeKey(sym, host){
   const b=document.createElement('button');
@@ -903,6 +908,7 @@ function makeKey(sym, host){
     applyPhoneme(sym);
     audition(sym);                 // hear the sound you just tapped
     chain.push(sym); chainSource='built by hand'; lastTyped='';
+    chainStress = null;                  // tapped by hand: no syllables to know about
     applyDelivery();
     drawChain();
   });
@@ -1222,7 +1228,12 @@ function soundOut(raw){
   // is why "name" came out as n m.
   const known=new Set([...Object.keys(ART), ...Object.keys(DIPH), PAUSE]);
   const missing=[...new Set(r.ph.filter(x=>!known.has(x)))];
-  chain=r.ph.filter(x=>known.has(x));
+  // LOCKSTEP. r.stress is parallel to r.ph, so filtering one and not the other silently
+  // shifts every syllable after the first dropped sound — and it would surface as a timing
+  // bug nowhere near this line. One mask, both arrays.
+  const keep=r.ph.map(x=>known.has(x));
+  chain=r.ph.filter((_,i)=>keep[i]);
+  chainStress=(r.stress||null) && r.stress.filter((_,i)=>keep[i]);
   chainSource=r.from;
   // A typed word is speech, not a stadium cry. Left on the goal-cry settings it inherits a
   // three-second length and a heavy drawl, and every word turns into one stretched vowel.
@@ -1380,7 +1391,8 @@ const isDiph=sym=>!!DIPH[sym];
 // Delegates to the shared layer. The app's call sites are unchanged; what used to be
 // closed-over state (N, and the voice's own postures) is passed explicitly.
 function buildWord(chain, D, drawl, glide, stopHold, open){
-  return HOLLER.buildWord(chain, {D, drawl, glide, stopHold, open, n:N, art:voiceArt()});
+  return HOLLER.buildWord(chain, {D, drawl, glide, stopHold, open, n:N, art:voiceArt(),
+                                  stress: chainStress});
 }
 async function playWord(){
   if(!chain.length) return;

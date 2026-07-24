@@ -274,6 +274,70 @@ check("the speller marks exactly one stressed syllable", () => {
                             : "parallel, one primary each, 12 known patterns" };
 });
 
+// ── Phase 8.1: the duration weights ────────────────────────────────────────
+check("duration follows the segments, not a flat share", () => {
+  const P = H.P, D = 1.0, n = 44;
+  const S = require(__dirname + "/../engine/spelling.js");
+  const held = (chain, dur, stress) => {
+    const W = P.buildWord(chain, { D: dur, n, stress });
+    return { W, seg: W.seg.filter(s => s.sym !== " " && !P.STOP_KEYS.includes(s.sym)) };
+  };
+  const bad = [];
+  const near = (got, want, tol, what) => {
+    if (Math.abs(got - want)/want > tol) bad.push(`${what} ${got.toFixed(3)} want ~${want}`);
+  };
+
+  // 1. The rules point the right way, at unit level, before any of it is composed.
+  //    Exact equality — this cannot be flaky and it localises a wrong table instantly.
+  const cf = P.codaFactor;
+  if (cf(["æ","d"],0) !== P.CODA_VOICED)    bad.push("coda /d/ not voiced");
+  if (cf(["æ","t"],0) !== P.CODA_VOICELESS) bad.push("coda /t/ not voiceless");
+  if (cf(["æ","n"],0) !== P.CODA_SONORANT)  bad.push("coda /n/ not sonorant");
+  if (cf(["æ","ɑ"],0) !== P.CODA_OPEN)      bad.push("vowel after vowel not open");
+  if (cf(["æ"],0)     !== P.CODA_OPEN)      bad.push("word-final not open");
+  if (cf(["æ"," ","d"],0) !== P.CODA_OPEN)  bad.push("word boundary not open");
+
+  // 2. Voiced-coda lengthening, on a controlled pair: only the coda differs, and the vowel
+  //    is non-final in BOTH so final lengthening cannot confound it. The measured ratio is
+  //    1.20 rather than the table's 1.50 because the weights are normalised against their
+  //    own sum — lengthening the vowel takes time from the schwa. That compression is the
+  //    documented consequence of D being an absolute duration; see 8.1b.
+  const A = held(["b","æ","d","ə"], D), B = held(["b","æ","t","ə"], D);
+  near((A.seg[0].b-A.seg[0].a)/(B.seg[0].b-B.seg[0].a), 1.199, 0.05, "bad/bat vowel ratio");
+  //    ...and the word is the same length either way. The rhythm moves, the rate does not.
+  if (A.W.end !== B.W.end) bad.push(`coda changed word length ${A.W.end} vs ${B.W.end}`);
+
+  // 3. Stress. banana is the case the speller's exception list exists for, so this also
+  //    fails loudly if that lookup regresses.
+  const ban = S.g2p("banana"), N = held(ban.ph, D, ban.stress);
+  const v = N.seg.map(s => s.b - s.a);
+  if (!(v[2]/Math.min(v[0], v[4]) > 1.8))
+    bad.push(`banana stressed/unstressed ${(v[2]/Math.min(v[0],v[4])).toFixed(2)} want >1.8`);
+  //    Stress redistributes; it does not lengthen the word.
+  if (Math.abs(N.W.end - held(ban.ph, D, null).W.end) > 1e-12)
+    bad.push("stress changed word length");
+
+  // 4. RATE INVARIANCE. The point of normalising: change the tempo and every held segment
+  //    keeps its share. Stops are excluded because stopHold is a fixed absolute time and
+  //    always was, so a stop's share genuinely does move with D.
+  const s1 = held(ban.ph, 0.8, ban.stress).seg.map(s => s.b - s.a);
+  const s2 = held(ban.ph, 1.9, ban.stress).seg.map(s => s.b - s.a);
+  let drift = 0;
+  for (let i = 0; i < s1.length; i++) for (let j = 0; j < s1.length; j++)
+    drift = Math.max(drift, Math.abs((s1[i]/s1[j]) - (s2[i]/s2[j]))/(s1[i]/s1[j]));
+  if (drift > 1e-9) bad.push(`ratios drift with D by ${drift.toExponential(1)}`);
+
+  // 5. The approximants must not drift as a side effect of rescaling the vowels. The first
+  //    draft left /l/ at a bare 0.34 while a vowel went from 1 to about 1.5, and the /l/ of
+  //    "goal" quietly lost a third of its length — 204 ms to 134 ms. Nobody asked for that.
+  const G = held(["g","o","l"], D), tot = G.seg.reduce((a,s) => a + (s.b-s.a), 0);
+  near((G.seg[1].b-G.seg[1].a)/tot, 0.231, 0.06, "goal /l/ share");
+
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : "coda 1.20x, stress 2.9x, rate-invariant to 1e-16, /l/ held at 23%" };
+});
+
 check("no fricative strays into another's band", () => {
   // /ð/ in "mother" came out as a static sh. Not a bug in the sound — it was in the WRONG
   // BAND. An automatic fit chasing a spectral target had moved the dental constriction back

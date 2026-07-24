@@ -675,6 +675,7 @@ depends on*. 8.0 has no audible effect on its own and three later steps are bloc
 |---|---|---|---|
 | **8.0** | syllabification and stress marking | — | no |
 | **8.1** | duration weights | 8.0 | **large** |
+| **8.1b** | make `D` a rate rather than an absolute length | 8.1 | medium |
 | **8.2** | stop closure duration, unreleased finals | — | medium |
 | **8.3** | per-segment amplitude | 8.0 | medium |
 | **8.4** | F0: semitones, accent alignment, declination, perturbation | 8.0 | **large** |
@@ -696,7 +697,7 @@ The heuristic is a heuristic and will be wrong: *banana* defaults to initial str
 its entry in `STRESS_DICT`. A real system carries stress in the lexicon. Extending the
 exception list is the cheap fix and the honest one.
 
-### 8.1 Duration weights
+### 8.1 Duration weights  ✅ built
 
 The single largest missing cue, and it is a weight table — no DSP.
 
@@ -708,9 +709,36 @@ The single largest missing cue, and it is a weight table — no DSP.
 - **Polysyllabic shortening.** Syllables shorten as the word lengthens.
 - **Stress.** Unstressed syllables run roughly half a stressed one.
 
-**Ships with a gate check**, or it is unfalsifiable: measure synthesized segment durations and
-assert the *ratios* above, not absolute milliseconds. Ratios survive a change of speaking rate;
-absolute values would pin the gate to one `per` setting.
+Sources: Peterson & Lehiste (1960), JASA 32(6):693-703 for the intrinsic durations; House &
+Fairbanks (1953) for the voiced-coda effect. Shipped with a gate check asserting *ratios*, which
+survive a change of speaking rate where absolute milliseconds would pin the gate to one `per`.
+
+Two things learned building it.
+
+**The approximants had to be rescaled, not left alone.** Their flat 0.34 was calibrated when a
+vowel weighed 1, and a vowel now weighs about 1.5. Left as it was, the /l/ of *goal* silently
+lost a third of its length — 204 ms to 134 ms — as pure accounting. It is now held in ratio to
+a reference vowel, and the gate watches that share. Whether /l/ *should* be longer or shorter is
+a real question and belongs to 8.7, where dark /l/ lives; it is not something a timing step
+should decide by accident.
+
+**The VOT check turned out to have been flaky since it was written**, and 8.1 only exposed it.
+See the entry under Open faults; the short version is that its voice-bar probe used a window one
+pitch period long, so its reference was a coin flip. Fixed separately and first, with the bands
+unmoved.
+
+### 8.1b Make `D` a rate rather than an absolute length
+
+The weights in 8.1 are normalised against their own sum and spent out of `pool`, so they
+redistribute a word's duration without changing it. That means an isolated monosyllable cannot
+lengthen: *bad* alone has one held segment, and one weight over itself is 1 whatever the weight
+is. The effect is real and measured the moment there is something to be long relative to —
+inside a polysyllable, or across a phrase — which is where the comparison lives in connected
+speech anyway. But *bad* and *bat* spoken alone are still the same length, and they should not be.
+
+The fix is to let the summed weights set the word's length and make `D` a rate. It is not hard;
+it is *wide*. The F0 contour is built from `end`, the duration slider changes meaning, and every
+gate band that measures a whole word moves. Its own branch.
 
 ### 8.2 Stop closure and unreleased finals
 
@@ -1003,7 +1031,22 @@ Applying it to `WEAK_FIRST` changes what the speller emits, so it belongs with *
 a step that promises to change nothing. Note the Latin prefixes satisfy the lookahead
 unchanged, since they already end in a consonant.
 
-**The chain filter will silently break the stress channel.** `index.html:1225` does
+**The VOT check was measuring one pitch period.**  ✅ fixed, kept for the record. Its voice-bar
+probe used a 512-sample window — 11.6 ms at 44.1 kHz, about ONE period of John's 95 Hz voice —
+so it measured where the glottal pulse fell inside the window rather than how much voice bar
+there was. Across a single steady vowel it returns 4.9 to 31, a 6× swing. `ref` was one sample
+of that, so the check passed or failed on where the vowel's midpoint happened to land, and it
+had done since it was written. Phase 8.1 moved the midpoint 14 ms and it landed on a peak.
+
+The rule in *On flaky checks* covers it exactly, and this is the third time it has been needed —
+the first where the random process was not a noise source but the pulse train. Measured ripple
+by window length: 512 → 6.2×, 1024 → 1.29×, 1536 → 1.05×, 2048 → 1.05×, 3072 → 1.25× (it rises
+again as the window outgrows the steady part of the vowel). Now 1536, and `ref` is the median
+over the vowel rather than one instant. **The bands did not move**: recalibrated against the
+same VOT-deleted ablation the original used, 35/50 still sits in the empty gap, now with 25 ms
+of margin below and 15 above.
+
+**The chain filter will silently break the stress channel.**  ✅ fixed in 8.1 — `index.html:1225` does
 `chain=r.ph.filter(x=>known.has(x))` — it drops any phone the tract cannot say. Check 9 exists
 to ensure that filter is a no-op in practice, and it currently is. But `stress` is *parallel*
 to `ph`, so the first time that filter removes something while 8.1 is live, every syllable
