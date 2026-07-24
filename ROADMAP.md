@@ -201,6 +201,25 @@ contour is the bare baseline — the engine as it behaved before 8.1. The check 
 opposite, that with Phase 8 *on* none of those hold, because a switch that nulls a layer which
 was doing nothing anyway would pass the first half and mean nothing.
 
+### 1e. Playing from where you are  ✅ built
+
+Tuning by ear is play, tweak, play. The Knobs panel could not play anything, so hearing a knob
+move meant changing tab and coming back — long enough a loop that you stop doing it, which
+defeats the panel. A phrase selector and a **▶ play** now sit at the top of it, and `sayPhrase`
+takes the element to write the chain into so both panels can share it.
+
+Two keyboard bugs found on the way:
+
+**The space bar did nothing in three of six modes.** It clicked `#play` unconditionally, which
+lives in `paneTrial` — hidden in knobs, phrases and tournament. Now routed by mode: `pab` in
+pairs, `kPlay` in knobs, `tA` in tournament, `phraseGo` in phrases.
+
+**And there was no guard against typing.** The global handler called `preventDefault()` on space
+regardless of focus, so the free-text phrase box could not accept a space — *"hello world"* was
+untypeable in it. Guarded now, with range inputs and selects deliberately *excluded* from the
+guard: space does nothing useful on either, and the knobs workflow is move a slider, hit space,
+listen, move it again.
+
 ### 1c. Seed codes
 
 Any cry can be saved, shared and returned to as a short string. Without this, a good result
