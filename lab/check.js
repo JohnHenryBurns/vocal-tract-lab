@@ -4,6 +4,13 @@
 // Every band here exists because something broke that way. The comments say which.
 const H = require("./harness.js");
 
+// Which voices the per-voice checks exercise. Ten presets is slow and most of them are
+// nobody's target; john and man are the two being tuned. VTL_ALL=1 runs the full set
+// before a release, when a preset silently breaking actually matters.
+const VOICES_UNDER_TEST = process.env.VTL_ALL
+  ? null
+  : (process.env.VTL_VOICES || "john,man").split(",").map(s => s.trim());
+
 const results = [];
 function check(name, fn) {
   let ok = false, note = "";
@@ -461,8 +468,11 @@ check("every voice speaks at its own tract length", () => {
   // unresponsive — nothing in the console, every control apparently dead. harness.js has
   // carried a comment warning about it since the day it cost an afternoon.
   const V = H.P.VOICES, word = ["ɑ","g","ɑ","l"], bad = [];
+  const names = VOICES_UNDER_TEST
+    ? VOICES_UNDER_TEST.filter(n => V[n])
+    : Object.keys(V);
   let quietest = Infinity, quietName = "";
-  for (const name of Object.keys(V)) {
+  for (const name of names) {
     const voice = { ...V[name].v };
     const n = Math.round(voice.sect || 44);
     const { keys } = H.plan(word, 0.9, voice, n);
@@ -484,7 +494,7 @@ check("every voice speaks at its own tract length", () => {
   }
   return { ok: bad.length === 0,
            note: bad.length ? bad.join("  ")
-               : `${Object.keys(V).length} voices at 14-52 sections, keyframes match, quietest /${quietName}/ ${quietest.toFixed(4)}` };
+               : `${names.join("+")} — keyframes match the tract, quietest /${quietName}/ ${quietest.toFixed(4)}${VOICES_UNDER_TEST ? "  (VTL_ALL=1 for all " + Object.keys(V).length + ")" : ""}` };
 });
 
 check("voiceless stops are aspirated", () => {

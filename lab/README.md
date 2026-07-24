@@ -2,6 +2,32 @@
 
 Everything that is not the app. Nothing here ships; it exists to keep the app honest.
 
+## Layout
+
+    engine/tract-worklet.js   THE ENGINE. One copy, loaded by URL.
+    index.html                the app: UI, phoneme tables, articulation, buildWord
+    lab/                      the gate and the instruments
+    lab/bench.html            the consonant bench (served, but not part of the app)
+
+The engine used to live inside a template literal in `index.html`, which forced every
+consumer to re-derive it by regex and to fake its one `VELAR` interpolation. It is a file
+now: the page calls `audioWorklet.addModule()` on it, `harness.js` reads the same bytes,
+and construction parameters arrive in `processorOptions: { n, velar }`. When you change
+the engine there is one place to change it.
+
+`tract.js` is still a hand-written mirror and still the remaining drift risk. It is used
+only for transfer-function work (the uniform-tube check and `formants()`); everything that
+must match the app goes through `harness.js`.
+
+## Scope
+
+The per-voice checks run **john** and **man** by default — the two being tuned. Ten presets
+is slow and most of them are nobody's target.
+
+    node lab/check.js                    # john + man
+    VTL_VOICES=woman,child node lab/check.js
+    VTL_ALL=1 node lab/check.js          # all ten, before a release
+
 ## The gate
 
     node lab/check.js

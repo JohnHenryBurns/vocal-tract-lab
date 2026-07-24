@@ -8,8 +8,8 @@ const SR = 44100;
 
 function loadPage() {
   const html = fs.readFileSync(PAGE, "utf8");
-  let worklet = html.match(/const workletSrc = `([\s\S]*?)`;/)[1]
-                      .replace(/\$\{VELAR\}/g, "0.568");
+  // The engine is a file now. Read it; do not re-derive it.
+  let worklet = fs.readFileSync(path.join(__dirname, "..", "engine", "tract-worklet.js"), "utf8");
   // A hook for sweeping a constant without editing the page:  VTL_PATCH="a=>b"
   if (process.env.VTL_PATCH) {
     const [find, repl] = process.env.VTL_PATCH.split("=>");
@@ -29,7 +29,8 @@ function loadPage() {
   const grab = (name) => new Function("return " + main.match(new RegExp("const " + name + "\\s*=\\s*(\\{[^}]*\\})"))[1])();
   const arr  = (name) => new Function("return " + main.match(new RegExp("const " + name + "\\s*=\\s*(\\[[^\\]]*\\])"))[1])();
   const DIPH = new Function("return " + main.match(/const DIPH\s*=\s*(\{[^}]*\})/)[1])();
-  return { html, worklet, ART, articulate, VOICE_SPEC, VOICES, defaultVoice, DIPH,
+  const VELAR = Number(html.match(/const STOPS\s*=\s*\{[^}]*?\bg\s*:\s*([0-9.]+)/)[1]);
+  return { html, worklet, VELAR, ART, articulate, VOICE_SPEC, VOICES, defaultVoice, DIPH,
            STOP_KEYS: arr("STOP_KEYS"), APPROX: arr("APPROX"),
            NASAL: grab("NASAL"), VOICELESS: grab("VOICELESS"), FRICATIVE: grab("FRICATIVE"), ASPIRATE: grab("ASPIRATE"),
            BRANCHED: grab("BRANCHED") };
@@ -43,7 +44,7 @@ function makeProcessor(n) {
   let Proc = null;
   global.registerProcessor = (name, cls) => { Proc = cls; };
   eval(P.worklet);
-  return new Proc({ processorOptions: { n } });
+  return new Proc({ processorOptions: { n, velar: P.VELAR } });
 }
 
 /** Sustain one phoneme and return the audio. */

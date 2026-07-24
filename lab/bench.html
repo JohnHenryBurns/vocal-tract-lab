@@ -143,7 +143,7 @@ async function findSource(){
       const r = await fetch(u, {cache:'no-store'});
       if(!r.ok) continue;
       const t = await r.text();
-      if(/const workletSrc/.test(t)) return {text:t, from:u};
+      if(/const ART = \{/.test(t)) return {text:t, from:u};
     }catch(e){ /* CORS, 404, offline — try the next one */ }
   }
   return null;
@@ -180,8 +180,10 @@ const PAIRS = [
 async function boot(html){
   const grab1 = re => { const m = html.match(re); if(!m) throw new Error('could not find '+re); return m[1]; };
 
-  const STOPSg = grab1(/const STOPS\s*=\s*\{[^}]*?\bg\s*:\s*([0-9.]+)/);
-  const worklet = grab1(/const workletSrc = `([\s\S]*?)`;/).replace(/\$\{VELAR\}/g, STOPSg);
+  // The engine is a file. Load it by URL — addModule wants one anyway, and raw
+  // .githubusercontent sends CORS, so the fallback path works cross-origin too.
+  const VELAR = Number(grab1(/const STOPS\s*=\s*\{[^}]*?\bg\s*:\s*([0-9.]+)/));
+  const engineUrl = ENGSRC.replace(/index\.html(\?.*)?$/, 'engine/tract-worklet.js');
 
   const ART   = JSON.parse(grab1(/const ART = (\{[\s\S]*?\n\});/));
   const main  = html.match(/<script>([\s\S]*)<\/script>/g).pop();
@@ -219,7 +221,7 @@ async function boot(html){
 
   const fns = scope(ART,DIPH,APPROX,STOP_KEYS,BRANCHED,NASAL,VOICELESS,FRICATIVE,ASPIRATE,
                     ()=>N, ()=>VOICE && VOICE.art);
-  ENG = {worklet, ART, VOICE_SPEC, VOICES, DIPH, APPROX, STOP_KEYS,
+  ENG = {engineUrl, VELAR, ART, VOICE_SPEC, VOICES, DIPH, APPROX, STOP_KEYS,
          BRANCHED, NASAL, VOICELESS, FRICATIVE, ASPIRATE, ...fns};
 
   const sel = document.getElementById('voiceSel');
@@ -245,9 +247,8 @@ async function audioUp(){
   ctx = new (window.AudioContext||window.webkitAudioContext)();
   const fromRate = Math.round(ctx.sampleRate*2*0.175/350);
   N = Math.max(14, Math.min(72, Math.round(VOICE.sect || fromRate)));
-  const url = URL.createObjectURL(new Blob([ENG.worklet],{type:'application/javascript'}));
-  await ctx.audioWorklet.addModule(url);
-  node = new AudioWorkletNode(ctx,'tract',{processorOptions:{n:N}});
+  await ctx.audioWorklet.addModule(ENG.engineUrl);
+  node = new AudioWorkletNode(ctx,'tract',{processorOptions:{n:N, velar:ENG.VELAR}});
   workletN = N;
   const g = ctx.createGain(); g.gain.value = 0.9;
   node.connect(g); g.connect(ctx.destination);
@@ -465,9 +466,8 @@ document.getElementById('wav').onclick = async ()=>{
       N = Math.max(14, Math.min(72, Math.round(VOICE.sect || N)));
       const p=planFor(chain);
       const oc=new OfflineAudioContext(1, Math.ceil((p.end+0.6)*SR), SR);
-      const url=URL.createObjectURL(new Blob([ENG.worklet],{type:'application/javascript'}));
-      await oc.audioWorklet.addModule(url);
-      const n2=new AudioWorkletNode(oc,'tract',{processorOptions:{n:N}});
+      await oc.audioWorklet.addModule(ENG.engineUrl);
+      const n2=new AudioWorkletNode(oc,'tract',{processorOptions:{n:N, velar:ENG.VELAR}});
       const v={...VOICE}; delete v.art; delete v.name;
       n2.port.postMessage({type:'voice', v});
       n2.port.postMessage({type:'goal', seq:p});
@@ -498,7 +498,7 @@ function dl(blob,name){ const a=document.createElement('a'); a.href=URL.createOb
 document.getElementById('file').onchange = async e => {
   const f = e.target.files[0]; if(!f) return;
   const t = await f.text();
-  if(!/const workletSrc/.test(t)){ document.getElementById('boot').textContent = "that file has no workletSrc in it — pick the app's index.html"; return; }
+  if(!/const ART = \{/.test(t)){ document.getElementById('boot').textContent = "that file has no phoneme tables in it — pick the app's index.html"; return; }
   ENGSRC = f.name;
   boot(t).catch(err=>{ document.getElementById('boot').textContent='boot failed: '+err.message; console.error(err); });
 };
