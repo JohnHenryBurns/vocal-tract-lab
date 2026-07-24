@@ -358,6 +358,23 @@ const BUILTIN_DICT = {
   leather:['l','ɛ','ð','ɝ'], weather:['w','ɛ','ð','ɝ'], feather:['f','ɛ','ð','ɝ'],
   heather:['h','ɛ','ð','ɝ'], breath:['b','r','ɛ','θ'], head:['h','ɛ','d'],
   bread:['b','r','ɛ','d'], dead:['d','ɛ','d'], ready:['r','ɛ','d','i'],
+  // ---- stressed open syllables, which are NOT derivable ----
+  // "peter" wants /i/, "piper" wants /aɪ/, "lazy" wants /eɪ/ — a stressed syllable with no
+  // coda takes the long vowel. It looks like a rule and it is not one: "city", "river",
+  // "seven", "model", "lemon", "cabin", "robin", "solid", "second", "busy", "many" and
+  // "banana" have exactly the same shape and take the SHORT vowel, and the letters do not
+  // say which. Tested before writing the rule: it would have fixed eleven words and broken
+  // twelve, and the twelve are right today. So this is a list, because the fact is lexical.
+  peter:['p','i','t','ɝ'], piper:['p','aɪ','p','ɝ'], lazy:['l','eɪ','z','i'],
+  baby:['b','eɪ','b','i'], paper:['p','eɪ','p','ɝ'], later:['l','eɪ','t','ɝ'],
+  table:['t','eɪ','b','ə','l'], tiger:['t','aɪ','g','ɝ'], final:['f','aɪ','n','ə','l'],
+  open:['oʊ','p','ə','n'], robot:['r','oʊ','b','ɑ','t'], over:['oʊ','v','ɝ'],
+  total:['t','oʊ','t','ə','l'], moment:['m','oʊ','m','ə','n','t'], even:['i','v','ə','n'],
+  student:['s','t','u','d','ə','n','t'], human:['h','j','u','m','ə','n'],
+  tiny:['t','aɪ','n','i'], lady:['l','eɪ','d','i'], crazy:['k','r','eɪ','z','i'],
+  local:['l','oʊ','k','ə','l'], spider:['s','p','aɪ','d','ɝ'], super:['s','u','p','ɝ'],
+  data:['d','eɪ','t','ə'], photo:['f','oʊ','t','oʊ'], motor:['m','oʊ','t','ɝ'],
+  secret:['s','i','k','r','ə','t'], legal:['l','i','g','ə','l'], silent:['s','aɪ','l','ə','n','t'],
   hello:['h','ə','l','oʊ'], hi:['h','aɪ'], hey:['h','eɪ'],
   because:['b','ɪ','k','ɔ','z'], again:['ə','g','ɛ','n'], any:['ɛ','n','i'],
   many:['m','ɛ','n','i'], said:['s','ɛ','d'], says:['s','ɛ','z'],

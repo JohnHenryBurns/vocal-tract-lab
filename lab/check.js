@@ -290,6 +290,9 @@ check("the speller marks exactly one stressed syllable", () => {
                            ["happy","h.æ.p.i"], ["city","s.ɪ.t.i"],
                            ["be","b.i"], ["she","ʃ.i"], ["we","w.i"], ["me","m.i"],
                            ["I","aɪ"], ["a","ə"],
+                           ["peter","p.i.t.ɝ"], ["piper","p.aɪ.p.ɝ"], ["lazy","l.eɪ.z.i"],
+                           ["city","s.ɪ.t.i"], ["river","r.ɪ.v.ɝ"],
+                           ["banana","b.ə.n.æ.n.ə"], ["cabin","k.æ.b.ɪ.n"],
                            ["sells","s.ɛ.l.z"], ["dogs","d.ɑ.g.z"],
                            ["cats","k.æ.t.s"], ["bus","b.ʌ.s"], ["glass","g.l.æ.s"],
                            ["horse","h.ɔ.r.s"]]) {
