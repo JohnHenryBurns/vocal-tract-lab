@@ -154,6 +154,23 @@ are exactly the three that confound each other, and dialling any one alone means
 it to cover for the other two. That is the sweep this roadmap said to run once accent alignment
 landed, and it is now one selection in a dropdown.
 
+**Reset goes back to where you started, not to the spec defaults.** Reported: *"seems it's not
+going back to the default voice"*. It wasn't. The tournament OPENED on `{...defaults, ...VOICE}`
+— John, if John was selected — and Reset jumped to the bare `defaultVoice()`, which is a voice
+you had never been at. Start and reset disagreed.
+
+Two buttons now. **Reset group** puts only the current group back to where that group's search
+began, so tuning `source` survives resetting `stress`. **Reset all** returns to the voice the
+tournament opened on. `tOrigin` and `tStart` are the two snapshots that makes possible.
+
+**The champion is the bench's voice now.** It used to be restored in a `finally` after every
+preview, so nothing outside the panel ever saw it: you could tune for twenty rounds, switch to
+Phrases to hear it in another context, and get the untuned voice back with nothing on screen
+saying why. Only *Copy seed* reflected the champion. Committing a champion writes it through,
+A/B previews are temporary against it rather than against whatever was there before, and opening
+the panel adopts whatever the voice currently is — so an edit made in Knobs is picked up instead
+of silently discarded.
+
 **The phrase rotates by default.** Tuning against one phrase overfits to it: the `stress` values
 that win on *banana and a tomato* — three weak syllables around one strong — are not the ones
 that win on *bad bat bed bet*, which has no unstressed syllable in it at all. With a human in the
