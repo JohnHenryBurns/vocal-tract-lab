@@ -290,6 +290,9 @@ check("the speller marks exactly one stressed syllable", () => {
                            ["happy","h.æ.p.i"], ["city","s.ɪ.t.i"],
                            ["be","b.i"], ["she","ʃ.i"], ["we","w.i"], ["me","m.i"],
                            ["I","aɪ"], ["a","ə"],
+                           ["peter","p.i.t.ɝ"], ["piper","p.aɪ.p.ɝ"], ["lazy","l.eɪ.z.i"],
+                           ["city","s.ɪ.t.i"], ["river","r.ɪ.v.ɝ"],
+                           ["banana","b.ə.n.æ.n.ə"], ["cabin","k.æ.b.ɪ.n"],
                            ["sells","s.ɛ.l.z"], ["dogs","d.ɑ.g.z"],
                            ["cats","k.æ.t.s"], ["bus","b.ʌ.s"], ["glass","g.l.æ.s"],
                            ["horse","h.ɔ.r.s"]]) {
@@ -574,6 +577,105 @@ check("every prosody knob is swept, seeded and does something", () => {
   return { ok: bad.length === 0,
            note: bad.length ? bad.join("  ")
                : `${KNOBS.length} knobs live, defaults identical, ${SPEC.length*2}-char seed round-trips` };
+});
+
+// ── Phase 8.4: the pitch contour ───────────────────────────────────────────
+check("pitch moves in semitones and accents land on stressed syllables", () => {
+  const P = H.P, S = require(__dirname + "/../engine/spelling.js"), bad = [];
+
+  // 1. ONE COPY. This lived in four places — index.html twice, the harness and the bench — and
+  //    the harness's own near-copy of buildWord is the precedent for why that matters: a gate
+  //    with a slightly different copy tests the wrong thing. Structural, so it stays one.
+  const fs = require("fs");
+  for (const f of ["index.html", "lab/harness.js", "lab/bench.html"]) {
+    const t = fs.readFileSync(__dirname + "/../" + f, "utf8");
+    if (/\[\s*end\s*\*\s*0\.55\s*,/.test(t)) bad.push(`${f} builds its own contour again`);
+  }
+
+  // 2. SEMITONES. Driven through the real processor, not the helper, because the engine does
+  //    its own interpolation and that is the copy that was wrong. A fall from 200 to 100 has
+  //    its perceptual midpoint at the geometric mean, 141.4 — linear-in-Hz gives 150.
+  const n = 44, p = H.makeProcessor(n);
+  p.port.onmessage({ data: { type: "voice", v: P.defaultVoice() } });
+  const keys = [{ t: 0, d: Array.from(P.articulate(P.ART["ɑ"], n)), b: 0, nz: 0, vl: 0, fr: 0, as: 0 },
+                { t: 1, d: Array.from(P.articulate(P.ART["ɑ"], n)), b: 0, nz: 0, vl: 0, fr: 0, as: 0 }];
+  p.port.onmessage({ data: { type: "goal", seq: { keys, f0: [[0,200],[1,100]], end: 1 } } });
+  const out = [new Float32Array(128)];
+  for (let i = 0; i < Math.floor(0.5 * H.SR / 128); i++) p.process([], [out]);
+  const mid = p.f0;
+  if (Math.abs(mid - 141.4) > 3) bad.push(`midpoint of a 200->100 fall is ${mid.toFixed(1)} Hz, want ~141 (150 = still linear in Hz)`);
+
+  // 3. Accents land on stressed NUCLEI and nowhere else. `stress` marks every phone of a
+  //    stressed syllable, so accenting all of them would put three excursions on one syllable
+  //    and read as a wobble rather than an accent.
+  //    Measured against the baseline with perturbation OFF, because the two overlap on a short
+  //    vowel and the question here is only where the accents are. The first version of this
+  //    asserted that every point in the contour sat inside a stressed nucleus, which stopped
+  //    being true the moment perturbation started adding its own breakpoints on unstressed
+  //    ones — the assertion was stale, not the code.
+  const v = P.defaultVoice(), noP = { ...v, pert: 0 };
+  const r = S.g2p("banana and a tomato");
+  const W = P.buildWord(r.ph, { D: 1.6, n: 44, stress: r.stress, pros: v });
+  const base = P.buildF0(W.end, noP);
+  const acc  = P.buildF0(W.end, noP, { stress: r.stress, seg: W.seg });
+  const isNuc = sym => P.VDUR[sym] !== undefined || P.DIPH[sym] !== undefined;
+  const readAt = (pts, t) => {
+    if (t <= pts[0][0]) return pts[0][1];
+    for (let k = 1; k < pts.length; k++) if (t <= pts[k][0]) {
+      const [t0,v0] = pts[k-1], [t1,v1] = pts[k];
+      return t1 === t0 ? v1 : v0*Math.pow(v1/v0, (t-t0)/(t1-t0));
+    }
+    return pts[pts.length-1][1];
+  };
+  let nStressed = 0;
+  W.seg.forEach((sg, i) => {
+    if (sg.sym === " " || !isNuc(sg.sym)) return;
+    const mid = (sg.a + sg.b)/2;
+    const lift = 12*Math.log2(readAt(acc, mid) / readAt(base, mid));
+    if (r.stress[i]) { nStressed++;
+      if (Math.abs(lift - v.acc) > 0.2) bad.push(`stressed /${sg.sym}/ lifted ${lift.toFixed(2)} st, want ${v.acc}`);
+    } else if (Math.abs(lift) > 0.2) bad.push(`UNstressed /${sg.sym}/ lifted ${lift.toFixed(2)} st`);
+  });
+  if (!nStressed) bad.push("no stressed nuclei found to test");
+
+  // 4. CONSONANT PERTURBATION. A vowel after a voiceless obstruent starts high and falls in;
+  //    after a voiced one it starts low and rises. Asymmetric, and gone within ~60 ms.
+  //    Asserted in SEMITONES, not hertz, because that is how it is defined and how it scales:
+  //    1.9 st is 28 Hz on this 250 Hz voice and 11 Hz on John's 95, and the published 10-25 Hz
+  //    is quoted for male voices. In hertz this assertion would be voice-dependent.
+  const onset = ch => {
+    const W2 = P.buildWord(ch, { D: 0.8, n: 44, stress: [1,1,1], pros: v });
+    const f  = P.buildF0(W2.end, v, { stress: [1,1,1], seg: W2.seg });
+    const vw = W2.seg[1];
+    return { on: f.find(x => Math.abs(x[0]-vw.a) < 1e-9)[1],
+             peak: Math.max(...f.filter(x => x[0] >= vw.a && x[0] <= vw.b).map(x => x[1])) };
+  };
+  const vl = onset(["t","ɑ","t"]), vd = onset(["d","ɑ","d"]);
+  const st = 12*Math.log2(vl.on/vd.on);
+  if (Math.abs(st - 1.9) > 0.2) bad.push(`perturbation ${st.toFixed(2)} st, want ~1.9`);
+  // It must DECAY. If it did not, it would be an accent rather than microprosody, and the two
+  // syllables would not reach the same peak.
+  if (Math.abs(vl.peak - vd.peak) > 0.5) bad.push("perturbation does not decay before the accent");
+  // And it must not double-count with the accent that sits on the same vowel. Two ramps meet
+  // at the accent's peak; counting both would give 6 semitones where the knob says 3.
+  const W3 = P.buildWord(["d","ɑ","d"], { D: 0.8, n: 44, stress: [1,1,1], pros: v });
+  const exc = 12*Math.log2(Math.max(...P.buildF0(W3.end, v, { stress:[1,1,1], seg:W3.seg }).map(x=>x[1]))
+                         / Math.max(...P.buildF0(W3.end, v).map(x=>x[1])));
+  if (Math.abs(exc - 3) > 0.15) bad.push(`accent excursion ${exc.toFixed(2)} st, want 3 (6 = double-counted)`);
+  if (JSON.stringify(P.buildF0(W3.end, { ...v, pert: 0, acc: 0 }, { stress:[1,1,1], seg:W3.seg }))
+      !== JSON.stringify(P.buildF0(W3.end, v)))
+    bad.push("pert=0 acc=0 does not return the baseline");
+
+  // 5. Turning BOTH off returns the baseline exactly — asserted in 4. acc=0 alone must NOT,
+  //    because perturbation is a separate effect and switching one knob should not silently
+  //    disable the other. That was the first version's mistake.
+  if (JSON.stringify(P.buildF0(W.end, { ...v, acc: 0 }, { stress: r.stress, seg: W.seg }))
+      === JSON.stringify(P.buildF0(W.end, v)))
+    bad.push("acc=0 also disabled perturbation");
+
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : `one copy, 200->100 midpoint ${mid.toFixed(0)} Hz, ${nStressed} accents at ${v.acc} st, perturbation ${st.toFixed(1)} st, no double-count` };
 });
 
 check("no word clicks", () => {

@@ -394,6 +394,8 @@ const VOICE_SPEC=[
   {k:'poly', lo:0,      hi:0.3,     d:0.12},   // shortening per extra syllable
   {k:'stopVc',lo:1,     hi:2,       d:1.5},    // voiceless/voiced closure ratio
   {k:'apw',  lo:0.15,   hi:0.7,     d:0.34},   // approximant weight against a reference vowel
+  {k:'acc',  lo:0,      hi:8,       d:3},      // accent excursion on a stressed syllable, semitones
+  {k:'pert', lo:0,      hi:2,       d:1},      // consonant perturbation of the following vowel
 ];
 const VOICES = {
   // Measured from a real goal cry: the pitch falls the whole way (158 -> 93 Hz) and the
@@ -692,6 +694,97 @@ function buildWord(chain, opts){
   return {keys, art, seg, end:t+0.22};
 }
 
+// ─── PHASE 8.4: THE PITCH CONTOUR ────────────────────────────────────────────
+// This lived in FOUR places — index.html twice, the harness and the bench — as the same six
+// lines copied out. That is the shape of mistake this project has already paid for once, when
+// the harness kept its own near-copy of buildWord and the comment beside it admitted that a
+// gate with its own slightly different copy is exactly how you end up testing the wrong thing.
+// One copy, before changing anything about it.
+//
+// SEMITONES, NOT HERTZ. The contour was interpolated linearly in Hz, and pitch is not heard
+// that way: a fall from 200 to 100 spends half its time above 150, but the ear puts the
+// midpoint at 141. Every fall in every voice has therefore been the wrong SHAPE — too slow at
+// the top, too fast at the bottom — while hitting all the right endpoints, which is why it
+// never showed up as a wrong note. Interpolating in log frequency and converting back is the
+// whole fix.
+const lerpHz = (a, b, u) => a * Math.pow(b/a, u);      // linear in semitones
+
+function buildF0(end, v, opts){
+  const o = opts || {};
+  const stress = o.stress || null;   // parallel to chain
+  const seg    = o.seg || null;      // buildWord emits exactly one seg per chain symbol, in order
+  const a = v.f0a, b = v.f0b, c = v.f0c;
+  // The shape that was already here: rise to a peak, hold, fall away. It is a good goal cry —
+  // it was measured from one — and it is kept as the BASELINE the whole utterance sits on.
+  // What it never was is a sentence, because its peak lands at a fixed fraction of the word
+  // regardless of which syllable is stressed.
+  const pts = [[0,a],[Math.min(0.12,end*0.1),b],[end*0.55,b],
+               [end*0.82,(b+c)/2],[end,c],[end+0.2,c*0.92]];
+  const at = t => {
+    if(t <= pts[0][0]) return pts[0][1];
+    for(let k=1;k<pts.length;k++) if(t <= pts[k][0]){
+      const [t0,v0]=pts[k-1],[t1,v1]=pts[k];
+      return t1===t0 ? v1 : lerpHz(v0, v1, (t-t0)/(t1-t0));
+    }
+    return pts[pts.length-1][1];
+  };
+  const semis = (v.acc  === undefined ? 3   : v.acc);
+  const pert  = (v.pert === undefined ? 1   : v.pert);
+  if(!stress || !seg) return pts;
+
+  // ---- everything above the baseline is an OFFSET IN SEMITONES ----
+  // Written as summed contributions rather than as points pushed onto the contour, because two
+  // of them land on the same vowel and would otherwise fight over the same instant: a stressed
+  // syllable after a /t/ has BOTH a raised onset and an accent peak, and it really does have
+  // both. Semitones add where hertz would not, which is the other reason this is the right
+  // space to work in.
+  const parts = [];                            // each: {t0, t1, f(t) -> semitones}
+  const ramp = (t0, t1, v0, v1) => ({ t0, t1,
+    f: t => t<=t0 ? v0 : t>=t1 ? v1 : v0 + (v1-v0)*(t-t0)/(t1-t0) });
+
+  const isNuc = sym => VDUR[sym] !== undefined || DIPH[sym] !== undefined;
+  const nuclei = [];
+  seg.forEach((sg, i) => { if(sg.sym !== ' ' && isNuc(sg.sym)) nuclei.push([sg, i]); });
+
+  // ACCENTS, on the stressed nuclei only. `stress` marks every phone of a stressed syllable,
+  // so accenting all of them puts three excursions on one syllable and reads as a wobble.
+  if(semis > 0.01) for(const [sg, i] of nuclei){
+    if(!stress[i]) continue;
+    const mid = (sg.a + sg.b)/2;
+    parts.push(ramp(sg.a, mid, 0, semis));
+    parts.push(ramp(mid, sg.b, semis, 0));
+  }
+
+  // CONSONANT PERTURBATION. A vowel does not start at its own pitch: after a voiceless
+  // obstruent it starts HIGH and falls into place, after a voiced one it starts LOW and rises.
+  // Hombert, Ohala & Ewan (1979); House & Fairbanks (1953). The effect is asymmetric — the
+  // voiceless raising is roughly twice the voiced lowering — and it is gone within about 60 ms,
+  // which is why it is microprosody and not intonation. Small, and its absence is one of the
+  // things that makes synthetic speech sound assembled rather than spoken.
+  if(pert > 0.01) for(const [sg, i] of nuclei){
+    const prev = i > 0 ? seg[i-1].sym : null;
+    if(!prev) continue;
+    const st = VOICELESS_OBS[prev] ? 1.2*pert : VOICED_OBS[prev] ? -0.7*pert : 0;
+    if(!st) continue;
+    const back = Math.min(0.06, (sg.b - sg.a) * 0.6);   // never longer than the vowel it marks
+    parts.push(ramp(sg.a, sg.a + back, st, 0));
+  }
+
+  if(!parts.length) return pts;
+  // Sample where anything changes, and nowhere else.
+  const times = new Set(pts.map(p => p[0]));
+  for(const p of parts){ times.add(p.t0); times.add(p.t1); times.add((p.t0+p.t1)/2); }
+  const out = [...times].filter(t => t >= 0 && t <= end + 0.2).sort((x,y) => x-y);
+  return out.map(t => {
+    let d = 0;
+    // HALF-OPEN, [t0, t1). Strict-on-both-sides missed the value AT a ramp's start, which is
+    // exactly where consonant perturbation lives — it fired on nothing. Closed-on-both-sides
+    // would double-count at an accent's peak, where one ramp ends and the next begins.
+    for(const p of parts) if(t >= p.t0 && t < p.t1) d += p.f(t);
+    return [t, at(t) * Math.pow(2, d/12)];
+  });
+}
+
 const HOLLER = {
   ART, STOPS, VELAR, DIPH, APPROX, STOP_KEYS, VOWEL_KEYS, CONS_KEYS,
   BRANCHED, NASAL, VOICELESS, FRICATIVE, ASPIRATE,
@@ -699,7 +792,7 @@ const HOLLER = {
   restingDiam, hump, articulate, baseFor, shapeFor, openedShape, buildWord,
   VDUR, CODA_VOICED, CODA_SONORANT, CODA_OPEN, CODA_VOICELESS,
   UNSTRESSED, FINAL_LENGTH, POLY_SHORT, APPROX_W, codaFactor, polyShorten,
-  STOP_CLOSE, closureFor, UNSTRESSED_LEVEL,
+  STOP_CLOSE, closureFor, UNSTRESSED_LEVEL, buildF0, lerpHz,
   branchFor, nasalFor, voicelessFor, fricFor, aspFor, isPause, isDiph
 };
 

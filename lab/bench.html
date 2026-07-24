@@ -253,7 +253,7 @@ async function boot(src){
     DIPH: P.DIPH, APPROX: P.APPROX, STOP_KEYS: P.STOP_KEYS,
     BRANCHED: P.BRANCHED, NASAL: P.NASAL, VOICELESS: P.VOICELESS,
     FRICATIVE: P.FRICATIVE, ASPIRATE: P.ASPIRATE,
-    articulate: P.articulate,
+    articulate: P.articulate, buildF0: P.buildF0,
     buildWord: (chain, D, stress) => P.buildWord(chain, {
       D, drawl: VOICE.drawl, glide: VOICE.glide, stopHold: VOICE.stopT,
       open: VOICE.open || 0, n: N, art: VOICE.art || null, stress, pros: VOICE })
@@ -319,8 +319,7 @@ function planFor(chain, stress){
   const D = Math.max(0.45, chain.length*(VOICE.per||0.17));
   const W = ENG.buildWord(chain, D, stress);
   const end = W.end;
-  const f0 = [[0,VOICE.f0a],[Math.min(0.12,end*0.1),VOICE.f0b],[end*0.55,VOICE.f0b],
-              [end*0.82,(VOICE.f0b+VOICE.f0c)/2],[end,VOICE.f0c],[end+0.2,VOICE.f0c*0.92]];
+  const f0 = ENG.buildF0(end, VOICE, {stress, seg:W.seg});
   return {keys:W.keys, f0, end};
 }
 function chainFor(c, mode){

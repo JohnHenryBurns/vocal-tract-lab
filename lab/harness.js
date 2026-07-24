@@ -137,8 +137,7 @@ function sayRaw(chain, { D = null, voice = null, n = 44, extra = 0.9, stress = n
   const { keys, seg, end, v } = plan(chain, dur, voice, n, stress);
   const p = makeProcessor(n);
   p.port.onmessage({ data: { type: "voice", v } });
-  const f0 = [[0,v.f0a],[Math.min(0.12,end*0.1),v.f0b],[end*0.55,v.f0b],
-              [end*0.82,(v.f0b+v.f0c)/2],[end,v.f0c],[end+0.2,v.f0c*0.92]];
+  const f0 = P.buildF0(end, v, { stress, seg });
   p.port.onmessage({ data: { type: "goal", seq: { keys, f0, end } } });
   const blocks = Math.ceil((end + extra) * SR / 128);
   const buf = new Float64Array(blocks*128), out = [new Float32Array(128)];

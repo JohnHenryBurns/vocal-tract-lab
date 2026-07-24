@@ -315,7 +315,14 @@ class TractProcessor extends AudioWorkletProcessor {
           let f=F[F.length-1][1];
           for(let k=1;k<F.length;k++) if(this.seqT<=F[k][0]){
             const [t0,v0]=F[k-1],[t1,v1]=F[k];
-            f=v0+(v1-v0)*(this.seqT-t0)/(t1-t0); break;
+            // SEMITONES, NOT HERTZ. Pitch is heard logarithmically: a fall from 200 to 100
+            // puts its perceptual midpoint at 141, not 150. Interpolating linearly in Hz made
+            // every fall in every voice the wrong SHAPE — too slow at the top, too fast at the
+            // bottom — while still hitting all the right endpoints, which is exactly why it
+            // never showed up as a wrong note.
+            f = (t1===t0 || v0<=0 || v1<=0) ? v1
+              : v0*Math.pow(v1/v0, (this.seqT-t0)/(t1-t0));
+            break;
           }
           this.f0=f;
         }

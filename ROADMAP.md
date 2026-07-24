@@ -678,7 +678,7 @@ depends on*. 8.0 has no audible effect on its own and three later steps are bloc
 | **8.1b** | make `D` a rate rather than an absolute length | 8.1 | medium |
 | **8.2** | stop closure duration, unreleased finals | — | medium |  ✅
 | **8.3** | per-segment amplitude | 8.0 | medium |  ✅
-| **8.4** | F0: semitones, accent alignment, declination, perturbation | 8.0 | **large** |
+| **8.4** | F0: semitones, accent alignment, declination, perturbation | 8.0 | **large** |  ◐
 | **8.5** | pause policy | — | medium |
 | **8.6** | vowel reduction | 8.0 | medium |
 | **8.7** | allophony: flapping, dark /l/, nasal assimilation | 8.0 | medium |
@@ -799,18 +799,63 @@ because its stressed /u/ is intrinsically the quietest vowel there is. Real spee
 The default path is unchanged and gated as such: supply no stress — a chain tapped in by hand,
 anything that never went through the speller — and every level stays 1.
 
-### 8.4 F0
+### 8.4 F0  ◐ 0, 1, 2 and 3 built; 4 blocked
 
 Four changes, smallest first:
 
-1. **Interpolate in semitones, not Hz.** Lines 1072–73 interpolate linearly in Hz, so a fall
-   has the wrong perceptual shape. One `Math.log2`, and it should be taken alone and listened
-   to, because it changes every existing voice.
-2. **Consonant perturbation.** A 10–20 Hz dip after voiced obstruents, a rise after voiceless,
-   over the first ~50 ms of the vowel. Small, cheap, and ears catch its absence.
-3. **Accent alignment.** Excursions belong on stressed syllables, not at `end*0.55`.
-4. **Declination and reset.** A falling baseline across the phrase, reset at boundaries, with
-   the terminal contour chosen by sentence type.
+0. **One copy first.**  ✅ The contour was built in FOUR places — `index.html` twice, the
+   harness and the bench — as the same six lines copied out. That is the mistake this project
+   already paid for once, when the harness kept its own near-copy of `buildWord` and the
+   comment beside it admitted a gate with a slightly different copy is how you end up testing
+   the wrong thing. `buildF0` in `phonemes.js`, and a structural gate assertion that no other
+   file grows one back.
+1. **Interpolate in semitones, not Hz.**  ✅ It was linear in Hz, so a fall from 200 to 100
+   spent half its time above 150 where the ear puts the midpoint at 141. Every fall in every
+   voice was the wrong SHAPE — too slow at the top, too fast at the bottom — while still
+   hitting all the right endpoints, which is exactly why it never showed up as a wrong note.
+   Gated by driving the real processor, since the engine does its own interpolation and that
+   was the copy that mattered.
+2. **Consonant perturbation.**  ✅ A vowel does not start at its own pitch: after a voiceless
+   obstruent it starts high and falls in, after a voiced one it starts low and rises. Hombert,
+   Ohala & Ewan (1979). Asymmetric — the voiceless raising is about twice the voiced lowering —
+   and gone within ~60 ms, which is why it is microprosody rather than intonation.
+
+   Defined and gated in **semitones, not hertz**: 1.9 st is 28 Hz on the default 250 Hz voice
+   and 11 Hz on John's 95, and the published 10–25 Hz is quoted for male voices. In hertz the
+   assertion would have been voice-dependent and the effect would have been wrong on half the
+   presets. Depth is `pert` in `VOICE_SPEC`.
+
+   This forced a rewrite of how the contour is assembled, and the rewrite is the useful part.
+   Accents and perturbation both land on the same vowel — a stressed syllable after a /t/ has a
+   raised onset *and* an accent peak, and really does have both — so pushing points onto the
+   contour made them fight over the same instant. The contour is now a **baseline plus summed
+   offsets in semitones**, sampled where anything changes. Semitones add where hertz would not,
+   which is the other reason that is the right space to work in.
+
+   Two bugs from that rewrite, both caught by the gate: the offsets were evaluated on strictly
+   open intervals, so nothing was active *at* a ramp's start, which is exactly where
+   perturbation lives — it fired on nothing. Closing both ends instead double-counts at an
+   accent's peak, where one ramp ends and the next begins. Half-open, `[t0, t1)`.
+3. **Accent alignment.**  ✅ Excursions now sit on the stressed syllables rather than at
+   `end*0.55`. The old arch is kept as the BASELINE — it is a good goal cry, it was measured
+   from one — and accents ride on top of it. They are **multiplicative**, because pitch is:
+   three semitones is three semitones wherever the baseline happens to be, which is what stops
+   a late accent vanishing into the declination. Only on the NUCLEUS: `stress` marks every
+   phone of a stressed syllable, and accenting all of them puts three excursions on one
+   syllable and reads as a wobble. Depth is `acc` in `VOICE_SPEC`, default 3 semitones, and
+   `acc=0` returns the baseline exactly — gated, because every prosody knob is a bisection tool.
+
+   **Known gap, from the first run:** the speller marks every monosyllable as stressed, so the
+   article *a* in "banana and a tomato" takes an accent. Real phrases destress function words.
+   That is phrase-level stress and it wants its own step; it is not an accent-placement bug.
+4. **Declination and reset.**  ❌ **blocked, and worth naming why.** The baseline already falls
+   across the utterance. What is missing is the *reset* at a phrase boundary — and a phrase
+   boundary is punctuation, which the speller deletes: `replace(/[^a-z]/g,'')` on the way in.
+   Nothing downstream can tell a comma from a space, so there is no boundary to reset at.
+
+   The same missing information blocks the terminal contour, since a question and a statement
+   differ by a mark that never arrives. Punctuation has to survive the speller first, and that
+   pairs naturally with **8.5**, which also needs to know which boundaries are real.
 
 The goal-cry template stays as a voice preset. It is a good shout; it is just not a sentence.
 
@@ -905,6 +950,79 @@ interpolation and consonant perturbation do not create the confound, accent alig
 
 Note that eight more knobs is a much larger space than the tournament was built for. Fix most,
 vary two or three.
+
+---
+
+## What the ear said
+
+A listening pass over the twelve bench phrases, John's voice, defaults. Recorded because the
+notes decompose into far fewer causes than complaints, and because "it sounds robotic" is not
+actionable until you know which eight phrases said it.
+
+**"Robotic", on eight of twelve.** The dominant note by a wide margin. Two known causes, both
+unbuilt: pitch contributes *nothing* to stress — `eff` is a fixed arch across the utterance —
+and every articulator comes to a dead stop at every keyframe, because `u*u*(3-2u)` has zero
+derivative at both ends. That is 8.4 and Phase 9, in that order, which is where they already sat.
+
+**"payter peeper", "lah-zee".**  ✅ fixed — a list, not a rule. See Open faults.
+
+**The lateral is an approximant, and it should be a contact.**  See below; this turned out to be
+the most interesting thing in the notes.
+
+**Pops at word boundaries**, reported in three phrases. Measured: the loudest transient in each
+is only 3-4× the signal's own motion, where a stop burst is 174%. So these are *not* broadband
+clicks and the existing click check is right not to fire. The lead is that `vl` and `sil` are
+**step functions** — `this.voiceless=(u<0.5?a.vl:b.vl)` flips at the keyframe midpoint rather
+than interpolating, and `if(this.silNow) flow=0` is a hard gate. `vAmp` smooths at about 5.7 ms,
+which is fast enough to be heard as a click. That would put pops exactly where they were
+reported: word boundaries, and either side of /f/ and /s/. Cheap to test, not yet tested.
+
+**/dʒ/ heard as a noisy "sh"**, twice. It is spelled `d`+`ʒ` and nothing binds a stop release to
+a following fricative, so no affricate ever forms — two separate sounds in a row.
+
+**/h/ too quiet and the final /oʊ/ of "hello" does not trail off**, twice.
+
+**"world" as "murd", "brown" unintelligible.** Both are liquid clusters. Same family as the
+lateral finding, probably the same cause.
+
+**"the m of *mother* is lost, the m of *my* is fine."** Word-initial nasal after a vowel across a
+boundary. Suspected to be the same pause handling as the pops — 8.5.
+
+---
+
+## The lateral has no contact  ❌ not started
+
+Observed by ear, from outside the project: *when a person says /l/ their tongue flicks against
+the teeth.* It does, and the model has no such thing. Measured, narrowest diameter in the tract:
+
+| | min diameter | position |
+|---|---|---|
+| /d/ /t/ /n/ | **0.020 — sealed** | 81% of the way to the lips |
+| **/l/** | **0.477** | 84% |
+| /w/ | 0.430 | 95% |
+
+**The model's /l/ is less constricted than its /w/.** A real /l/ is a *complete* midline closure
+at the alveolar ridge — the same place /d/, /t/ and /n/ seal — with the sides of the tongue
+lowered so the air escapes laterally. Here the midline stays open at approximant width and the
+side branch is a decoration on top of it rather than the only path the air has.
+
+That single fact explains a lot at once. It is why the lateral "slurs"; it is why *world* comes
+out as *murd* when its /l/ is wider than its /w/; and it is why there is no flick, because there
+is no contact to break. The check that says "the lateral is not a /w/" passes on the static
+transfer function with the branch open, and is measuring the branch rather than the articulation.
+
+**What the fix has to be.** The topology, not the numbers. Today's branches are dead-end pockets
+that tap in and reflect — right for the pocket that gives /l/ its zero, wrong for the channel
+that carries the flow. A lateral wants the main tube SEALED at the tip and a **shunt** that
+leaves the tube before the seal and rejoins it after: a branch with two junctions rather than
+one. The closed pocket stays, for the zero. Then the release is a genuine seal-and-break, which
+is the flick, and it comes free from the same machinery the stops already use.
+
+This also gives dark /l/ somewhere to live (8.7): light and dark differ in the tongue *body*
+while both make the same tip contact, which is not expressible while the tip is an approximant.
+
+Not small. It is the first branch topology change since the nasal tract, and the gate band for
+the lateral will move because the thing being measured will have changed. Its own branch.
 
 ---
 
@@ -1163,6 +1281,18 @@ to `ph`, so the first time that filter removes something while 8.1 is live, ever
 after it is off by one and the symptom will be a duration bug with no obvious cause. **8.1
 must filter both arrays in lockstep, or not filter at all.** Written down now because this is
 exactly the class of bug that costs a weekend.
+
+**Open stressed syllables take the long vowel, and it is not a rule.**  ✅ handled as a list.
+*peter* wants /i/, *piper* /aɪ/, *lazy* /eɪ/ — a stressed syllable with no coda takes the long
+vowel, which is the same mapping magic-e encodes. Tested before writing the rule:
+
+    long   peter piper lazy baby table tiger paper later final open robot
+    short  city river seven model lemon cabin robin solid second busy many banana
+
+Identical shape, opposite answers, nothing in the letters to separate them. The rule would have
+fixed eleven and broken twelve, and the twelve are right today because "short" is what the plain
+letter rules already give. So it is a list of thirty. **Both halves are gated** — the short
+column is asserted unchanged, so a later attempt at the tempting rule fails loudly.
 
 **Three speller faults the phrase list turned up, all left unfixed on purpose.**
 
