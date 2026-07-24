@@ -91,7 +91,7 @@ function sustainRaw(sym, { n = 44, seconds = 1.2, voice = null, f0 = 110 } = {})
 }
 
 /** Build the same keyframes the page builds for a word. */
-function plan(chain, D, voice, n) {
+function plan(chain, D, voice, n, stress) {
   const v = { ...P.defaultVoice(), ...(voice || {}) };
   // n MUST match the processor. Hardcoding 44 while the tract was 50 left the last six
   // diameters undefined and the whole voice came out NaN.
@@ -103,7 +103,7 @@ function plan(chain, D, voice, n) {
   // open is 0 because plan never modelled the shouted vowel opening; that is unchanged here
   // deliberately, so no gate band moves. The app still passes its own open.
   const W = P.buildWord(chain, { D, drawl: v.drawl, glide: v.glide, stopHold: v.stopT,
-                                 open: 0, n, art: null });
+                                 open: 0, n, art: null, stress });
   return { keys: W.keys, seg: W.seg, end: W.end, v };
 }
 
@@ -114,8 +114,10 @@ function plan(chain, D, voice, n) {
 // much tail they want; without this, one of them pays full price for audio the other two have
 // already computed.
 function say(chain, opts = {}) {
-  const { D = null, voice = null, n = 44, extra = 0.9 } = opts;
-  const key = "w|" + JSON.stringify([chain, D, n, voice]);
+  const { D = null, voice = null, n = 44, extra = 0.9, stress = null } = opts;
+  // stress belongs in the key. It changes the audio from 8.3 onward — an unstressed syllable
+  // is quieter — so a render cached without it would come back at the wrong level.
+  const key = "w|" + JSON.stringify([chain, D, n, voice, stress]);
   let ent = CACHE.get(key);
   if (!ent || ent.extra < extra) {
     const need = Math.max(extra, ent ? ent.extra : 0.9);
@@ -128,11 +130,11 @@ function say(chain, opts = {}) {
   return { buf: ent.buf.length <= want ? ent.buf : ent.buf.subarray(0, want),
            seg: ent.seg, end: ent.end };
 }
-function sayRaw(chain, { D = null, voice = null, n = 44, extra = 0.9 } = {}) {
+function sayRaw(chain, { D = null, voice = null, n = 44, extra = 0.9, stress = null } = {}) {
   const vv = { ...P.defaultVoice(), ...(voice || {}) };
   if (n === 44 && vv.sect) n = Math.round(vv.sect);      // follow the voice unless told otherwise
   const dur = D !== null ? D : Math.max(0.5, Math.min(2.2, chain.length*(vv.per||0.17)));
-  const { keys, seg, end, v } = plan(chain, dur, voice, n);
+  const { keys, seg, end, v } = plan(chain, dur, voice, n, stress);
   const p = makeProcessor(n);
   p.port.onmessage({ data: { type: "voice", v } });
   const f0 = [[0,v.f0a],[Math.min(0.12,end*0.1),v.f0b],[end*0.55,v.f0b],

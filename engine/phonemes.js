@@ -527,6 +527,23 @@ const APPROX_W   = 0.34 * APPROX_REF;
 // shortest — but the effect is smaller and the literature less consistent than for voicing,
 // and there is nothing in the bench that would currently catch it going the wrong way. Not
 // done rather than done badly.
+// ─── PHASE 8.3: HOW LOUD EACH SEGMENT IS ─────────────────────────────────────
+// The roadmap listed two things here. One of them turned out to be already done.
+//
+// "Open vowels are 4-6 dB louder than close ones" is TRUE OF THIS ENGINE ALREADY, and not
+// because anything says so — it falls out of the tube. A wide mouth radiates more efficiently
+// than a rounded one, the lip section carries that, and the measured span is 5.6 dB with /ɑ/
+// loudest and /u/ quietest, which is the real ordering. Adding a per-vowel gain table would
+// have double-counted geometry the model already has, in a project whose whole claim is that
+// it has no such tables. Measured before writing any: ɑ 0.0, ɪ -0.7, ɛ -1.0, æ -1.5, ʌ -2.1,
+// o -2.9, ɔ -3.6, ɝ -3.7, i -4.0, ʊ -4.1, u -5.6 dB. Pinned as a report measurement.
+//
+// What is NOT emergent is stress, because nothing in the amplitude path has ever been told
+// which syllable carries it. Measured on "banana": three syllables within 0.9 dB of each
+// other. Real speech puts an unstressed syllable 3-6 dB down as well as making it shorter,
+// and 8.1 only did the shorter half.
+const UNSTRESSED_LEVEL = 0.65;      // about -3.7 dB, mid-range of the published 3-6
+
 const STOP_CLOSE = { b:0.80, d:0.80, g:0.80, p:1.20, t:1.20, k:1.20 };
 const closureFor = (sym, stopHold) => stopHold * (STOP_CLOSE[sym] === undefined ? 1 : STOP_CLOSE[sym]);
 
@@ -589,26 +606,27 @@ function buildWord(chain, opts){
       const nd=nextSym?Array.from(shape(nextSym)):pd;
       const pA=prev?base(prev):base('ə');
       const nA=nextSym?base(nextSym):pA;
-      keys.push({t,d:pd,b:0,nz:0,vl:1,fr:0,as:0,sil:1}); art.push({t,A:pA});
+      keys.push({t,d:pd,b:0,nz:0,vl:1,fr:0,as:0,sil:1,lv:1}); art.push({t,A:pA});
       seg.push({sym:' ', a:t, b:t+gap});
       t+=gap;
-      keys.push({t,d:nd,b:0,nz:0,vl:1,fr:0,as:0,sil:1}); art.push({t,A:nA});
+      keys.push({t,d:nd,b:0,nz:0,vl:1,fr:0,as:0,sil:1,lv:1}); art.push({t,A:nA});
       return;
     }
     const d=Array.from(shape(sym));
     const A=base(sym);
     const b=branchFor(sym), nz=nasalFor(sym), vl=voicelessFor(sym),
           fr=fricFor(sym), as=aspFor(sym);
+    const lv=(stress && stress[i]===0) ? UNSTRESSED_LEVEL : 1;
     const dur=isStop(sym) ? closureFor(sym,stopHold) : pool*vw[k++]/wsum;
     if(i>0) t+=glideFor(i);
     seg.push({sym, a:t, b:t+dur});
-    keys.push({t,d,b,nz,vl,fr,as}); art.push({t,A});
+    keys.push({t,d,b,nz,vl,fr,as,lv}); art.push({t,A});
     t+=dur;
     // A diphthong always glides to its second target, however short. A plain vowel only
     // drifts open when held long enough for the jaw to move.
     if(isDiph(sym)){
       const A2=base(DIPH[sym][1]);
-      keys.push({t,d:Array.from(articulate(A2,n)),b,nz,vl,fr,as}); art.push({t,A:A2});
+      keys.push({t,d:Array.from(articulate(A2,n)),b,nz,vl,fr,as,lv}); art.push({t,A:A2});
       t+=0; // the segment already advanced
     } else {
     const canOpen = !isStop(sym) && !isAp(sym) && open>0.01 && dur>0.28;
@@ -617,9 +635,9 @@ function buildWord(chain, opts){
       const A2={...A, jaw:Math.min(1,A.jaw+amt*(1-A.jaw)),
                       bodyHi:Math.max(0,A.bodyHi*(1-amt*0.55)),
                       lip:Math.min(1,A.lip+amt*0.35*(1-A.lip))};
-      keys.push({t,d:Array.from(openedShape(sym,amt,n,vart)),b,nz,vl,fr,as}); art.push({t,A:A2});
+      keys.push({t,d:Array.from(openedShape(sym,amt,n,vart)),b,nz,vl,fr,as,lv}); art.push({t,A:A2});
     } else {
-      keys.push({t,d,b,nz,vl,fr,as}); art.push({t,A});
+      keys.push({t,d,b,nz,vl,fr,as,lv}); art.push({t,A});
     }
     }
   });
@@ -633,7 +651,7 @@ const HOLLER = {
   restingDiam, hump, articulate, baseFor, shapeFor, openedShape, buildWord,
   VDUR, CODA_VOICED, CODA_SONORANT, CODA_OPEN, CODA_VOICELESS,
   UNSTRESSED, FINAL_LENGTH, POLY_SHORT, APPROX_W, codaFactor, polyShorten,
-  STOP_CLOSE, closureFor,
+  STOP_CLOSE, closureFor, UNSTRESSED_LEVEL,
   branchFor, nasalFor, voicelessFor, fricFor, aspFor, isPause, isDiph
 };
 

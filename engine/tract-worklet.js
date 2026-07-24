@@ -52,6 +52,10 @@ class TractProcessor extends AudioWorkletProcessor {
     this.dcX=0; this.dcY=0; this.tick=0;
     this.charge=0; this.burstN=0; this.burstA=0; this.burstAt=1; this.sealAt=1; this.bnz=0; this.bn1=0; this.bn2=0;
     this.vot=0; this.sealVl=0; this.bco=0.885; this.bgain=5.0;   // aspiration countdown; burst filter, set per place
+    // Phase 8.3: how loud this segment is, 1 for stressed and lower for not. It rides the
+    // keyframes beside fric and asp, and it stays 1 whenever nobody supplies stress — a chain
+    // tapped in by hand or a sustained vowel is unaffected.
+    this.lv=1;
     this.voiceless=0; this.nasalOut=0; this.fric=0; this.fz=0; this.hiss=1; this.fy1=0; this.fy2=0; this.fcLast=0;
     this.asp=0; this.ah=0; this.silNow=0;
     this.flow=0; this.flowT=0; this.turb=1; this.turbT=1; this.turbCd=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;
@@ -82,6 +86,7 @@ class TractProcessor extends AudioWorkletProcessor {
         this.blend = this.vAmp>0.02 ? 0.030 : 0.002;
       }
       if(d.type==='stopSeq'){ this.seq=null; this.voicing=0; this.fric=0; this.asp=0; this.vot=0;
+        this.lv=1;
         this.flow=0; this.flowT=0; this.turb=1; this.turbT=1; this.turbCd=0;
         this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0; }
       if(d.type==='tract'){
@@ -283,6 +288,8 @@ class TractProcessor extends AudioWorkletProcessor {
             this.voiceless=(u<0.5?(a.vl||0):(b.vl||0));
             this.fric=((a.fr||0)+((b.fr||0)-(a.fr||0))*u)*(this.hiss===undefined?1:this.hiss);
             this.asp=(a.as||0)+((b.as||0)-(a.as||0))*u;
+            const la=a.lv===undefined?1:a.lv, lb=b.lv===undefined?1:b.lv;
+            this.lv=la+(lb-la)*u;
             // A pause is silence, not stillness — the tract goes on moving toward the next
             // sound while no air flows. That movement IS anticipatory coarticulation.
             this.silNow=(u<0.5?(a.sil||0):(b.sil||0));
@@ -291,7 +298,7 @@ class TractProcessor extends AudioWorkletProcessor {
         }
         if(done){
           if(this.seqT>this.seq.end){
-            this.seq=null; this.voicing=0;   // the word is over
+            this.seq=null; this.voicing=0; this.lv=1;   // the word is over
             this.fric=0; this.asp=0; this.flow=0; this.flowT=0; this.turb=1; this.turbT=1;
             this.turbCd=0; this.fh1=0; this.fh2=0; this.fhx=0; this.fhy=0;   // the air stops
             this.target.set(this.diam);      // hand the tract back where it stands
@@ -300,7 +307,8 @@ class TractProcessor extends AudioWorkletProcessor {
                  for(let i=0;i<n;i++) this.diam[i]=last.d[i];
                  this.bOpen=last.b||0; this.nasal=last.nz||0; this.voiceless=last.vl||0;
                  this.fric=(last.fr||0)*(this.hiss===undefined?1:this.hiss);
-                 this.asp=last.as||0; this.silNow=last.sil||0; }
+                 this.asp=last.as||0; this.silNow=last.sil||0;
+                 this.lv=last.lv===undefined?1:last.lv; }
         }
         if(this.seq){                        // only read the contour while one exists
           const F=this.seq.f0;
@@ -353,7 +361,7 @@ class TractProcessor extends AudioWorkletProcessor {
         if(tail<0.16) flow*=Math.max(0,tail/0.16);   // short, or it eats a final consonant
         if(this.silNow) flow=0;
         this.flowT=flow;
-        amp = (this.voiceless||this.vot>0) ? 0 : flow*voiceBar*squeeze;
+        amp = (this.voiceless||this.vot>0) ? 0 : flow*voiceBar*squeeze*this.lv;
       } else {
         this.flowT = this.voicing;
         amp = (this.voiceless||this.vot>0) ? 0 : this.voicing*voiceBar*squeeze;
@@ -586,7 +594,10 @@ class TractProcessor extends AudioWorkletProcessor {
           this.fh1 = ha*((this.fh1||0) + sig - (this.fhx||0));       this.fhx = sig;
           this.fh2 = ha*((this.fh2||0) + this.fh1 - (this.fhy||0));  this.fhy = this.fh1;
           const at=Math.min(n-2, mi+1);
-          this.R[at] += this.fh2 * hgain * jet * this.fric * breath * 0.95;
+          // Level rides here too: an unstressed syllable is quieter because less air is
+          // moving, and the same air makes the frication. Applying it only to the voiced part
+          // would make an unstressed /s/ the loudest thing in the word.
+          this.R[at] += this.fh2 * hgain * jet * this.fric * breath * 0.95 * this.lv;
         }
       }
       this.prevClose=cl;

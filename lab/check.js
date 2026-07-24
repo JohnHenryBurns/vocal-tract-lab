@@ -464,6 +464,53 @@ check("stops hold for as long as their voicing allows", () => {
                : `closures 60/90ms, word length fixed, finals unreleased (${(final*100).toFixed(0)}% vs medial ${(medial*100).toFixed(0)}%)` };
 });
 
+// ── Phase 8.3: level ───────────────────────────────────────────────────────
+check("stress makes a syllable quieter as well as shorter", () => {
+  const S = require(__dirname + "/../engine/spelling.js");
+  const V = H.P.VOICES.john.v, n = Math.round(V.sect);
+  const r = S.g2p("banana");
+  const lvl = st => {
+    const { buf, seg } = H.say(r.ph, { D: 1.1, voice: V, n, stress: st });
+    return seg.filter(s => s.sym === "ə" || s.sym === "æ")
+              .map(s => [s.sym, 20*Math.log10(H.rms(buf, s.a + 0.03, s.b - 0.03) + 1e-12)]);
+  };
+  const bad = [];
+  // 8.1 made the stressed syllable longer. Before this it was still the same LEVEL — three
+  // syllables of "banana" measured within 0.9 dB of each other, where real speech puts an
+  // unstressed one 3-6 dB down.
+  const on = lvl(r.stress);
+  const str = on.find(x => x[0] === "æ")[1];
+  const weak = Math.max(...on.filter(x => x[0] === "ə").map(x => x[1]));
+  if (!(str - weak > 3)) bad.push(`stressed only ${(str-weak).toFixed(1)} dB up, want >3`);
+
+  // And the default path must be untouched: a chain tapped in by hand, or anything that never
+  // went through the speller, supplies no stress and has to sound exactly as it did.
+  const off = lvl(null);
+  const spread = Math.max(...off.map(x => x[1])) - Math.min(...off.map(x => x[1]));
+  if (spread > 1.5) bad.push(`no-stress path not flat: ${spread.toFixed(1)} dB`);
+
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : `stressed +${(str-weak).toFixed(1)} dB, flat without stress (${spread.toFixed(1)} dB)` };
+});
+
+report("open vowels carry more than close ones, from the tube alone", () => {
+  // NOT something the code says anywhere. A wide mouth radiates more efficiently than a
+  // rounded one and the lip section carries that, so the intrinsic loudness of a vowel falls
+  // out of its shape. Measured before 8.3 was written, which is why 8.3 did not add a
+  // per-vowel gain table: it would have double-counted geometry the model already has.
+  const V = H.P.VOICES.john.v, n = Math.round(V.sect);
+  const db = {};
+  for (const s of ["ɑ","æ","ɛ","ʌ","ɔ","o","ɝ","ʊ","ɪ","i","u"])
+    db[s] = 20*Math.log10(H.rms(H.sustain(s, { n, voice: V, f0: 110, seconds: 1.0 }), 0.35, 0.95) + 1e-12);
+  const span = Math.max(...Object.values(db)) - Math.min(...Object.values(db));
+  const ok = span > 3 && span < 9 && db["ɑ"] > db["u"] && db["ɑ"] > db["i"];
+  const order = Object.entries(db).sort((a,b) => b[1]-a[1]);
+  const top = order[0][1];
+  return { ok, note: `span ${span.toFixed(1)} dB (real 4-6): ` +
+           order.map(([s,v]) => s + (v-top).toFixed(1)).join(" ") };
+});
+
 check("no word clicks", () => {
   // A stop release is a transient, but an outlier far above the signal's own motion is a
   // click. The white-noise burst once measured 13.5x.
