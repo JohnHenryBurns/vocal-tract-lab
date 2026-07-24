@@ -554,15 +554,11 @@ check("every prosody knob is swept, seeded and does something", () => {
   if (JSON.stringify(lv({ ...P.defaultVoice(), wklev: 1 })) === JSON.stringify(lv(P.defaultVoice())))
     bad.push("wklev changes nothing");
 
-  // 3. The seed carries them. Same codec index.html uses; a knob outside the seed is a knob
-  //    that vanishes the moment a good voice is copied out and pasted back.
-  const SPEC = P.VOICE_SPEC;
-  const enc = v => SPEC.map(p => Math.max(0, Math.min(1295,
-      Math.round((v[p.k]-p.lo)/(p.hi-p.lo)*1295))).toString(36).padStart(2,"0")).join("");
-  const dec = s => { const v = P.defaultVoice();
-      for (let i = 0; i < Math.min(SPEC.length, s.length/2); i++)
-        v[SPEC[i].k] = SPEC[i].lo + (parseInt(s.substr(i*2,2),36)/1295)*(SPEC[i].hi-SPEC[i].lo);
-      return v; };
+  // 3. The seed carries them. THE REAL CODEC, not a copy of it — this check used to carry its
+  //    own encode/decode, which is the same mistake the harness once made with buildWord and
+  //    the page made with the F0 contour. A gate testing its own reimplementation of a thing
+  //    is not testing the thing.
+  const SPEC = P.VOICE_SPEC, enc = P.encodeVoice, dec = P.decodeVoice;
   const tuned = { ...P.defaultVoice(), vlen:0.4, coda:1.7, wkdur:0.45, wklev:0.8,
                   fnl:1.5, poly:0.25, stopVc:1.8, apw:0.6 };
   const back = dec(enc(tuned));
@@ -676,6 +672,57 @@ check("pitch moves in semitones and accents land on stressed syllables", () => {
   return { ok: bad.length === 0,
            note: bad.length ? bad.join("  ")
                : `one copy, 200->100 midpoint ${mid.toFixed(0)} Hz, ${nStressed} accents at ${v.acc} st, perturbation ${st.toFixed(1)} st, no double-count` };
+});
+
+// ── the voice operations are shared, and the groups partition the spec ─────
+check("one copy of the voice codec, and the groups cover it exactly", () => {
+  const P = H.P, fs = require("fs"), bad = [];
+
+  // 1. ONE COPY. This codec had two — index.html's and this check's own, which I wrote. A gate
+  //    testing its own reimplementation of a thing is not testing the thing, and that is the
+  //    same mistake the harness made with buildWord and the page made with the F0 contour.
+  //    Structural, because it is the only kind of assertion that stops it happening a fourth time.
+  for (const f of ["index.html", "lab/bench.html", "lab/check.js"]) {
+    const t = fs.readFileSync(__dirname + "/../" + f, "utf8");
+    if (/toString\(36\)\.padStart\(2/.test(t)) bad.push(`${f} has its own seed encoder again`);
+  }
+
+  // 2. The groups PARTITION the spec — every parameter in exactly one. A parameter in none is
+  //    unreachable by the tournament and will never be tuned; a parameter in two moves twice
+  //    as far per round as its neighbours and nobody would ever work out why.
+  const spec = P.VOICE_SPEC.map(p => p.k);
+  const grouped = Object.values(P.VOICE_GROUPS).flat();
+  const dupes = grouped.filter((k, i) => grouped.indexOf(k) !== i);
+  const missing = spec.filter(k => !grouped.includes(k));
+  const unknown = grouped.filter(k => !spec.includes(k));
+  if (dupes.length)   bad.push(`in two groups: ${[...new Set(dupes)].join(" ")}`);
+  if (missing.length) bad.push(`in no group: ${missing.join(" ")}`);
+  if (unknown.length) bad.push(`grouped but not in the spec: ${unknown.join(" ")}`);
+
+  // 3. Mutating a group moves that group and nothing else. This is the whole reason the
+  //    tournament moved: twenty-eight parameters at once tells an ear nothing per round.
+  for (const [name, keys] of Object.entries(P.VOICE_GROUPS)) {
+    const d = P.defaultVoice();
+    const moved = new Set();
+    for (let i = 0; i < 25; i++) {                 // several draws: one can leave a knob still
+      const m = P.mutateVoice(d, 1, keys);
+      for (const k of spec) if (m[k] !== d[k]) moved.add(k);
+    }
+    const stray = [...moved].filter(k => !keys.includes(k));
+    if (stray.length) bad.push(`mutating ${name} moved ${stray.join(" ")}`);
+    const inert = keys.filter(k => !moved.has(k));
+    if (inert.length) bad.push(`${name}: ${inert.join(" ")} never moved`);
+  }
+
+  // 4. The codec still round-trips a mutated voice, and a short seed still loads.
+  const v = P.mutateVoice(P.defaultVoice(), 1);
+  if (P.encodeVoice(P.decodeVoice(P.encodeVoice(v))) !== P.encodeVoice(v))
+    bad.push("seed does not round-trip");
+  if (P.decodeVoice("zz") !== null) bad.push("a too-short seed should be rejected");
+
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : `${Object.keys(P.VOICE_GROUPS).length} groups partition ${spec.length} parameters, one codec` };
 });
 
 check("no word clicks", () => {

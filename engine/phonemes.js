@@ -432,6 +432,70 @@ const VOICES = {
 };
 const defaultVoice = () => Object.fromEntries(VOICE_SPEC.map(p => [p.k, p.d]));
 
+// ---- operations on a voice ----
+// These lived in index.html, and the seed codec had a second copy in the gate. Both are pure
+// functions over VOICE_SPEC and belong beside it. The precedent is not hypothetical: the
+// harness once kept its own buildWord, and the F0 contour was in four places.
+const SPEC_BY_KEY = Object.fromEntries(VOICE_SPEC.map(p => [p.k, p]));
+
+function clampVoice(v){
+  const o = {};
+  for(const p of VOICE_SPEC) o[p.k] = Math.max(p.lo, Math.min(p.hi, v[p.k]));
+  return o;
+}
+
+// WHICH parameters are allowed to move. It used to be all of them, which was already a lot at
+// eighteen and is twenty-eight now. Asking an ear "was that better" after changing
+// twenty-eight things at once gets you almost no information per comparison — the answer
+// cannot be attributed to anything. Mutating a NAMED SUBSET is what makes a round mean
+// something. `keys` absent still moves everything, so the old behaviour is one argument away.
+function mutateVoice(v, amount, keys){
+  const o = { ...v };
+  const which = keys && keys.length ? keys.filter(k => SPEC_BY_KEY[k]) : VOICE_SPEC.map(p => p.k);
+  for(const k of which){
+    const p = SPEC_BY_KEY[k];
+    o[k] = v[k] + (Math.random()*2 - 1) * (p.hi - p.lo) * 0.28 * amount;
+  }
+  return clampVoice(o);
+}
+
+// Groups an ear can actually hold in its head at once. `stress` is deliberately the three cues
+// of stress together — duration, level and pitch accent — because those are the ones that
+// confound each other, and tuning any one of them alone means over-dialling it to cover for
+// the other two.
+const VOICE_GROUPS = {
+  source: ['rd','press','jit','brth','folds','damp','lipR'],
+  pitch:  ['f0a','f0b','f0c','pert'],
+  stress: ['wkdur','wklev','acc'],
+  rhythm: ['per','drawl','glide','stopT','vlen','coda','fnl','poly','stopVc','apw'],
+  tract:  ['sect','open','burst','hiss'],
+};
+
+// seed = each parameter as two base-36 digits of its position in range
+function encodeVoice(v){
+  return VOICE_SPEC.map(p => {
+    // clamp: a value outside its range would encode negative or overlong and corrupt the seed
+    const t = Math.max(0, Math.min(1295, Math.round((v[p.k]-p.lo)/(p.hi-p.lo)*1295)));
+    return t.toString(36).padStart(2,'0');
+  }).join('');
+}
+function decodeVoice(str){
+  // Seeds are read positionally, so a seed saved before a parameter existed still loads —
+  // the newer parameters simply take their defaults. A voice you liked is never stranded.
+  if(typeof str !== 'string') return null;
+  str = str.trim().toLowerCase();
+  if(!/^[0-9a-z]+$/.test(str) || str.length < 8 || str.length % 2) return null;
+  const have = Math.min(VOICE_SPEC.length, str.length/2);
+  const v = defaultVoice();
+  for(let i = 0; i < have; i++){
+    const p = VOICE_SPEC[i];
+    const t = parseInt(str.substr(i*2, 2), 36);
+    if(!Number.isFinite(t)) return null;
+    v[p.k] = p.lo + (t/1295)*(p.hi - p.lo);
+  }
+  return clampVoice(v);
+}
+
 // ---- posture lookup ----
 // A voice may carry its own measured postures and falls back to the shared ones for anything
 // it does not override. Pass art = null for the shared inventory.
@@ -788,7 +852,8 @@ function buildF0(end, v, opts){
 const HOLLER = {
   ART, STOPS, VELAR, DIPH, APPROX, STOP_KEYS, VOWEL_KEYS, CONS_KEYS,
   BRANCHED, NASAL, VOICELESS, FRICATIVE, ASPIRATE,
-  VOICE_SPEC, VOICES, defaultVoice,
+  VOICE_SPEC, VOICES, defaultVoice, VOICE_GROUPS,
+  clampVoice, mutateVoice, encodeVoice, decodeVoice,
   restingDiam, hump, articulate, baseFor, shapeFor, openedShape, buildWord,
   VDUR, CODA_VOICED, CODA_SONORANT, CODA_OPEN, CODA_VOICELESS,
   UNSTRESSED, FINAL_LENGTH, POLY_SHORT, APPROX_W, codaFactor, polyShorten,
