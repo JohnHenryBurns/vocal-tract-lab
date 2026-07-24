@@ -181,6 +181,26 @@ serves the next pair. Eight to ten taps converges somewhere slider-dragging neve
 This is the correct tool when the judge is a human ear, and it puts every second of listening
 time onto perceptual questions rather than measurable ones.
 
+### 1d. Every knob reachable  ✅ built
+
+Advice of the form *"turn `acc` to zero and listen"* was unfollowable: **five of twenty-eight
+parameters could be set by hand anywhere in either page**, and none of the Phase 8 ones. The
+tournament explores but cannot set a value, and building a seed by hand means computing base-36
+offsets. So the bisection story the prosody knobs were designed around had nowhere to happen.
+
+A **Knobs** panel in the bench: all twenty-eight, live, grouped the way the tournament groups
+them, each with a reset and — where one exists — a **∅** that sets it to its null.
+
+The null is declared in `VOICE_SPEC` as `off`, not written into the UI, because it is a fact
+about the parameter rather than about a button. Sixteen have one; a `p8` flag marks the nine
+that make up the Phase 8 prosody layer, so **Phase 8 off** nulls the lot in a single action.
+
+**That is the comparison worth having**, and it is gated: with the layer nulled, every held
+segment is the same length, every stop takes exactly `stopHold`, every level is 1 and the pitch
+contour is the bare baseline — the engine as it behaved before 8.1. The check also asserts the
+opposite, that with Phase 8 *on* none of those hold, because a switch that nulls a layer which
+was doing nothing anyway would pass the first half and mean nothing.
+
 ### 1c. Seed codes
 
 Any cry can be saved, shared and returned to as a short string. Without this, a good result
