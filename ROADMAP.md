@@ -1478,6 +1478,37 @@ This is no longer just a known fault — it is Phase 8, with a build order.
 
 ---
 
+## A knob that nothing declared
+
+Worth writing down because the failure had three links and only the last one was a code bug.
+
+**A commit was pushed to a branch whose PR had already merged.** The Knobs panel went to
+`tournament-to-bench` after #8 was merged, so it was stranded: no Knobs panel on main, no `off`
+declarations, no `p8` flags — while two subsequent messages told the user to go and use it. This
+had happened twice before, caught both times; this is the third and it was not caught.
+
+**That made a later edit silently fail.** `gcap` was inserted into `VOICE_SPEC` by a
+`str.replace` whose anchor text contained `off:0, p8:1` — which existed only on the stranded
+branch. `str.replace` returns the string unchanged when it matches nothing, and that was the one
+edit in its batch without an assertion on the match. It reported success.
+
+**So `gcap` shipped as a parameter nothing declared.** The code read it through
+`P_('gcap', 0.5)` and it worked, taking its inline default — while being absent from the seed,
+absent from every group, unsettable, with no null. And *no check noticed*, including the one
+that asserts the groups partition the spec: `gcap` was not in the spec to be missing from it.
+A check that only looks at what is declared cannot see what was never declared.
+
+The fix is a check that reads the other way: **every name the engine reads as a voice parameter
+must appear in `VOICE_SPEC`**, found by scanning `phonemes.js` for `P_('...')` and
+`v.x === undefined`. Verified by ablation — remove `gcap` from the spec and it fails with
+*"read by the engine but not in VOICE_SPEC: gcap"*.
+
+The process lesson is smaller and duller: **branch fresh from main rather than pushing follow-ups
+onto an open PR's branch**, because the merge can land in the gap and nothing about pushing to a
+merged branch fails loudly.
+
+---
+
 ## Note on method
 
 Four times during the earlier synthesis work, a confident diagnosis turned out to be a

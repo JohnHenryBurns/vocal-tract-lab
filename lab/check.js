@@ -725,7 +725,23 @@ check("Phase 8 nulls out cleanly, back to the engine before it", () => {
     if (p.off < p.lo || p.off > p.hi) bad.push(`${p.k} off=${p.off} outside [${p.lo},${p.hi}]`);
   }
   const p8 = P.VOICE_SPEC.filter(p => p.p8);
-  if (p8.length !== 9) bad.push(`${p8.length} knobs marked p8, expected 9`);
+  if (p8.length < 9) bad.push(`only ${p8.length} knobs marked p8`);
+
+  // 1b. EVERY KNOB THE ENGINE READS MUST BE DECLARED. buildWord reads its parameters through
+  //     P_('name', default), and buildF0 off the voice object. A name read but never put in
+  //     VOICE_SPEC still WORKS — it silently takes its inline default — while being invisible
+  //     to everything: not in the seed, not in a group, not settable, no null, and not missed
+  //     by the partition check either, because it is not in the spec to be missing from.
+  //     `gcap` shipped exactly like that: a str.replace whose anchor did not exist, on a branch
+  //     where the anchor had never landed, and no assertion on the match. This is the check
+  //     that catches the whole class rather than that one instance.
+  const ph = require("fs").readFileSync(__dirname + "/../engine/phonemes.js", "utf8");
+  const declared = new Set(P.VOICE_SPEC.map(x => x.k));
+  const read = new Set();
+  for (const m of ph.matchAll(/P_\(\s*'([A-Za-z_$][\w$]*)'/g)) read.add(m[1]);
+  for (const m of ph.matchAll(/v\.([A-Za-z_$][\w$]*)\s*===\s*undefined/g)) read.add(m[1]);
+  const undeclared = [...read].filter(k => !declared.has(k));
+  if (undeclared.length) bad.push(`read by the engine but not in VOICE_SPEC: ${undeclared.join(" ")}`);
 
   // 2. THE CLAIM. Null the whole Phase 8 layer and the engine has to behave as it did before
   //    any of 8.1 to 8.4 existed: every held segment the same length, every stop the same

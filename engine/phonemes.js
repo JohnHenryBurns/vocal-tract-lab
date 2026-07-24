@@ -400,6 +400,10 @@ const VOICE_SPEC=[
   {k:'apw',  lo:0.15,   hi:0.7,     d:0.34},   // approximant weight against a reference vowel
   {k:'acc',  lo:0,      hi:8,       d:3, off:0, p8:1,},      // accent excursion on a stressed syllable, semitones
   {k:'pert', lo:0,      hi:2,       d:1, off:0, p8:1,},      // consonant perturbation of the following vowel
+  // A transition may not outlast this fraction of the shorter segment it joins. `glide` is an
+  // absolute time and never scaled with what it connects; 8.1 made unstressed segments short
+  // and walked straight into it. off:3 is effectively no cap — the behaviour before it existed.
+  {k:'gcap', lo:0.2,    hi:3,       d:0.5, off:3, p8:1,},
 ];
 const VOICES = {
   // Measured from a real goal cry: the pitch falls the whole way (158 -> 93 Hz) and the
@@ -471,7 +475,7 @@ const VOICE_GROUPS = {
   source: ['rd','press','jit','brth','folds','damp','lipR'],
   pitch:  ['f0a','f0b','f0c','pert'],
   stress: ['wkdur','wklev','acc'],
-  rhythm: ['per','drawl','glide','stopT','vlen','coda','fnl','poly','stopVc','apw'],
+  rhythm: ['per','drawl','glide','stopT','vlen','coda','fnl','poly','stopVc','apw','gcap'],
   tract:  ['sect','open','burst','hiss'],
 };
 
