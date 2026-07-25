@@ -1074,7 +1074,25 @@ derivative at both ends. That is 8.4 and Phase 9, in that order, which is where 
 **The lateral is an approximant, and it should be a contact.**  See below; this turned out to be
 the most interesting thing in the notes.
 
-**Pops at word boundaries**, reported in three phrases. Measured: the loudest transient in each
+**Pops at word boundaries.**  ✅ found, and it was none of the things it looked like.
+
+The lead recorded here — that `vl` and `sil` are step functions and `vAmp` smooths too fast —
+was **wrong**, and so were the three that followed it. Ablated in turn, transient count out of
+154: `vl` interpolated 155, `sil` interpolated 154, `vAmp` slowed to 19 ms 161, lateral branch
+forced always-on 154, nasal branch always-on 154. Not one of them moved it.
+
+What found it was giving up on hypotheses and looking at where the transients actually were:
+20 of 31 inside /l/, median gap 1.0 ms — not the 10–13 ms glottal period, so not pulse edges.
+Then at the samples themselves, which visibly **alternate**, sample to sample. Then at the
+articulators, which turned out not to matter: a *sustained* /ɑ/ is the worst of the lot at
+−5.9 dB, and it is not moving at all.
+
+It was the **unfiltered breath noise**, climbing toward Nyquist — the open fault two entries up,
+filed months of work earlier and never connected to this. Sweeping `brth` from 0 to 0.34 moves
+the high-frequency energy 22 dB, and at John's 0.19 it is −8 dB. Fixing the tilt fixes the pops,
+because they were the same thing.
+
+*Original note, kept:* reported in three phrases. Measured: the loudest transient in each
 is only 3-4× the signal's own motion, where a stop burst is 174%. So these are *not* broadband
 clicks and the existing click check is right not to fire. The lead is that `vl` and `sil` are
 **step functions** — `this.voiceless=(u<0.5?a.vl:b.vl)` flips at the keyframe midpoint rather
@@ -1336,7 +1354,7 @@ can state it.
 
 Things known to be wrong, so they are not rediscovered as surprises.
 
-**The voice sounds hoarse, and the noise LEVEL is not why.**  ◐ fix shipped, then reverted Noticed by ear, and it survives
+**The voice sounds hoarse, and the noise LEVEL is not why.**  ✅ fixed on the second attempt Noticed by ear, and it survives
 the obvious explanation. Harmonic-to-noise sits at 22.8 dB and every preset is between 12 and
 29, which is inside the healthy human band — Praat puts a healthy sustained [a] near 20. So
 there is not too much noise. What is wrong is its **colour**. Measured spectral tilt from
@@ -1393,11 +1411,24 @@ time. That product goes into `src` alongside `g*0.9` and the output is hard-clip
 `Math.max(-1,Math.min(1,yy*0.8))`. Clipping on the loud parts is a good description of "static",
 and clipping hard enough to flatten a waveform is a good description of "gaps".
 
-**Cheap test before re-attempting:** keep the filter, but normalise to peak rather than to RMS —
-or simply divide the 5.139 by the measured crest ratio — and listen. If the static goes, the
-gain derivation was the fault and not the filtering, and the spectral-tilt fix can be had at a
-slightly lower noise level. Check the harmonic-to-noise band after either way, since that band
-was calibrated against the level, not the colour.
+**Done, and neither reported symptom survived measurement.** There is no clipping: peak output
+is 0.04 against a ceiling of 1, so the crest-factor theory above — mine — was wrong too. And the
+"gap" is the /g/ CLOSURE, which is supposed to be silent: 3.2e-4 unfiltered against 7.3e-5
+filtered. The unfiltered noise had been leaking audible hiss through stop closures, and removing
+it reads as the sound dropping out. That is the fix working, not failing.
+
+The gain is **1.93**, matched on peak rather than variance, chosen on evidence: both gains pass
+the full gate, but harmonic-to-noise goes 22.8 → 24.5 dB at 1.93 against 22.8 → 16.0 at 5.139,
+and the presets were calibrated against 22.8. Smaller perturbation to a number other things were
+tuned to.
+
+Measured tilt 4–20 kHz after: **/ɑ/ −5.7, /ə/ −6.4, /i/ −4.5, /u/ −3.2 dB/oct**, and −5.3 at
+full breath. Gated, and the check verified in both directions — it fails on all four vowels when
+the raw white noise is put back.
+
+One thing that check taught: /l/ was in the vowel list and failed at +2.3 dB/oct *with the fix in
+place*, because the lateral's closed pocket is a high-Q resonator near 5.5 kHz, squarely inside
+the measurement band. Measuring the source's slope through a side branch measures the branch.
 
 **The dental fricatives hiss.** /ð/ in *mother* and *father* comes out as a staticy "sh"
 rather than a soft voiced buzz. The measured target is a peak near 500 Hz with the energy

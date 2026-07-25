@@ -863,6 +863,43 @@ check("no shadowed function declarations, and custom keeps its postures", () => 
                : `${Object.keys(decls).length} top-level functions, no shadowing, custom inherits art` };
 });
 
+// ── the voice does not rise toward Nyquist ─────────────────────────────────
+check("breath noise rolls off instead of climbing", () => {
+  const P = H.P, V = P.VOICES.john.v, n = Math.round(V.sect), bad = [];
+  const v = { ...P.defaultVoice(), ...V };
+  // Radiation at the lips is a differentiator, +6 dB/oct. A source that does not roll off to
+  // compensate makes the whole voice climb toward Nyquist — measured at +4.4 dB/oct on a
+  // sustained /ɑ/ where real speech falls. This went unnoticed for a long time because it is
+  // not a wrong note, a wrong formant or a wrong level; it is a wrong SLOPE, and nothing was
+  // looking at slopes.
+  const tilt = buf => {
+    const sp = H.spectrum(buf, { from: 0.35, lo: 4000, hi: 20000, step: 500, hops: 12 });
+    let m = 0, sx = 0, sy = 0, sxy = 0, sxx = 0;
+    for (const [f, db] of sp) { const x = Math.log2(f); m++; sx += x; sy += db; sxy += x*db; sxx += x*x; }
+    return (m*sxy - sx*sy)/(m*sxx - sx*sx);
+  };
+  // Measured on UNBRANCHED vowels only. /l/ was in this list and failed at +2.3 dB/oct with the
+  // fix in place — not because the source climbs but because the lateral's closed pocket is a
+  // high-Q resonator sitting near 5.5 kHz, squarely inside the 4-20 kHz band. Measuring the
+  // source's slope through a side branch measures the branch. This check is about the source.
+  const t = {};
+  for (const s of ["ɑ", "ə", "i", "u"]) t[s] = tilt(H.sustain(s, { n, voice: v, f0: 95, seconds: 1.0 }));
+  for (const [s, d] of Object.entries(t))
+    if (d > -2) bad.push(`/${s}/ tilts ${d.toFixed(1)} dB/oct — the voice is climbing`);
+
+  // And it must be the BREATH that is shaped, not the whole voice quietly turned down. With
+  // breath at zero the tilt says nothing about this fix, so the test is that raising breath
+  // does not drag the slope back up.
+  const loud = { ...v, brth: 0.34 };
+  const hot = tilt(H.sustain("ɑ", { n, voice: loud, f0: 95, seconds: 1.0 }));
+  if (hot > -2) bad.push(`at brth=0.34 the tilt is ${hot.toFixed(1)} dB/oct`);
+
+  return { ok: bad.length === 0,
+           note: bad.length ? bad.join("  ")
+               : `ɑ ${t["ɑ"].toFixed(1)}  ə ${t["ə"].toFixed(1)}  i ${t["i"].toFixed(1)}  u ${t["u"].toFixed(1)} dB/oct, ` +
+                 `${hot.toFixed(1)} at full breath (real aspiration: -6 to -12)` };
+});
+
 check("no word clicks", () => {
   // A stop release is a transient, but an outlier far above the signal's own motion is a
   // click. The white-noise burst once measured 13.5x.
